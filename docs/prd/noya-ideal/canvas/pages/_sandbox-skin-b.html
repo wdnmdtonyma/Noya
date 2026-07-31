@@ -1,0 +1,559 @@
+<!-- sandbox -->
+<!-- title: 形态乙 · 手游图标（地图即菜单） -->
+<!-- manifest
+state: cardOpen, chosen, panel(none|quest|codex)
+components: icon-map, top-resources, left-rail, right-tags, quest-tracker, event-popup [complex], bottom-tabs, reward-fx
+-->
+<style>
+  html, body { height: 100%; overflow: hidden; }
+  .mb { --bg: #0d1017; --gold: #ffcc66; --gold2: #e0a23c; --gold3: #8a6524;
+        --pane: rgba(21,26,38,.92); --pane2: rgba(30,37,54,.95); --line: rgba(255,214,140,.32);
+        --txt: #f2eadb; --txt2: #b9b0a0; --txt3: #7d7869; --red: #ec4a3c; --grn: #56c07a; --blu: #63b3e8;
+        position: fixed; inset: 0; background: var(--bg); color: var(--txt); overflow: hidden; user-select: none;
+        font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif; }
+  .mb button { font-family: inherit; }
+
+  .map { position: absolute; inset: 0; }
+  .map img.bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .map .dim { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(6,8,12,.62) 0%, rgba(6,8,12,.12) 26%, rgba(6,8,12,.2) 62%, rgba(6,8,12,.72) 100%); }
+  .map .fallback { position: absolute; inset: 0; background: radial-gradient(120% 90% at 60% 20%, #1a2130, #0a0d13); }
+
+  /* ---------- 地点＝大图标（地图即菜单） ---------- */
+  .node { position: absolute; transform: translate(-50%, -50%); z-index: 20; cursor: pointer; text-align: center; }
+  .node .ic { width: 62px; height: 62px; margin: 0 auto; border-radius: 50%; position: relative;
+      background: radial-gradient(120% 120% at 34% 26%, #39435d, #171d2b 74%); border: 2px solid rgba(255,214,140,.5);
+      box-shadow: 0 6px 18px rgba(0,0,0,.6), inset 0 2px 10px rgba(255,255,255,.09); display: flex; align-items: center; justify-content: center; }
+  .node .ic svg { stroke: var(--gold); fill: none; }
+  .node .lb { margin-top: 6px; font-size: 15px; font-weight: 700; letter-spacing: 1px; color: #fff;
+      text-shadow: 0 2px 6px #000, 0 0 14px rgba(0,0,0,.9); }
+  .node .sb { font-size: 11px; color: #cfc6b4; text-shadow: 0 2px 6px #000; margin-top: 1px; }
+  .node:hover .ic { transform: translateY(-3px); border-color: var(--gold); }
+  .node .ic { transition: transform .16s ease, border-color .16s ease; }
+  .node.cur .ic { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(255,204,102,.22), 0 8px 22px rgba(0,0,0,.6); animation: bounce 2.2s ease-in-out infinite; }
+  @keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  .node.lock .ic { border-color: rgba(180,180,180,.28); filter: grayscale(.8) brightness(.6); }
+  .node.lock .lb { color: #9d968a; }
+  .badge { position: absolute; top: -4px; right: -6px; min-width: 20px; height: 20px; border-radius: 10px; z-index: 3;
+      background: linear-gradient(180deg, #ff6a58, var(--red)); color: #fff; font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; padding: 0 6px; box-shadow: 0 2px 6px rgba(0,0,0,.5);
+      border: 1.5px solid rgba(255,255,255,.35); }
+  .badge.dotonly { min-width: 12px; width: 12px; height: 12px; padding: 0; }
+  .node .gonow { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+      background: linear-gradient(180deg, #ffd97a, #e5a53c); color: #3a2708; font-size: 12px; font-weight: 700;
+      padding: 4px 11px; border-radius: 12px; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,.5); }
+  .node .gonow::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+      border: 5px solid transparent; border-top-color: #e5a53c; }
+
+  .sp { position: absolute; transform: translate(-50%, -88%); z-index: 18; pointer-events: none; }
+  .sp img { height: var(--h, 46px); filter: drop-shadow(0 4px 6px rgba(0,0,0,.6)); }
+  .sp.flip img { transform: scaleX(-1); }
+  .sp.walk img { animation: wd .42s ease-in-out infinite; }
+  @keyframes wd { 0%,100% { transform: translateY(0) rotate(-1.5deg); } 50% { transform: translateY(-3px) rotate(1.5deg); } }
+  .sp.flip.walk img { animation: wdf .42s ease-in-out infinite; }
+  @keyframes wdf { 0%,100% { transform: scaleX(-1) translateY(0) rotate(1.5deg); } 50% { transform: scaleX(-1) translateY(-3px) rotate(-1.5deg); } }
+
+  /* ---------- 顶部：头像 + 资源 ---------- */
+  .topbar { position: absolute; left: 0; right: 0; top: 0; z-index: 40; display: flex; align-items: flex-start;
+      justify-content: space-between; padding: 12px 16px; pointer-events: none; }
+  .topbar > * { pointer-events: auto; }
+  .avatarbox { display: flex; align-items: center; gap: 10px; background: linear-gradient(90deg, rgba(18,22,33,.94), rgba(18,22,33,.55));
+      border: 1px solid var(--line); border-radius: 34px; padding: 6px 20px 6px 6px; cursor: pointer; }
+  .avatarbox:hover { border-color: var(--gold); }
+  .avatarbox .av { width: 54px; height: 54px; border-radius: 50%; position: relative; overflow: hidden; flex: none;
+      border: 2px solid var(--gold2); box-shadow: 0 0 12px rgba(255,204,102,.35); background: #232a3a; }
+  .avatarbox .av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 12%; }
+  .avatarbox .lv { position: absolute; bottom: -1px; left: 50%; transform: translateX(-50%); background: #10141d;
+      border: 1px solid var(--gold3); border-radius: 8px; font-size: 9px; padding: 0 5px; color: var(--gold); z-index: 2; }
+  .avatarbox .who b { font-size: 16px; font-weight: 700; }
+  .avatarbox .who .pw { font-size: 11.5px; color: var(--txt2); display: flex; align-items: center; gap: 5px; margin-top: 2px; }
+  .avatarbox .who .pw i { font-style: normal; color: var(--gold); font-weight: 700; }
+  .expbar { width: 118px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.12); margin-top: 4px; overflow: hidden; }
+  .expbar i { display: block; height: 100%; background: linear-gradient(90deg, #d9a24a, #ffd98a); transition: width .8s ease; }
+
+  .res { display: flex; gap: 8px; }
+  .rchip { display: flex; align-items: center; gap: 7px; background: rgba(18,22,33,.9); border: 1px solid var(--line);
+      border-radius: 16px; padding: 5px 6px 5px 12px; font-size: 13px; font-weight: 600; }
+  .rchip .ri { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .rchip .plus { width: 19px; height: 19px; border-radius: 50%; background: linear-gradient(180deg, #ffd97a, #e0a23c);
+      color: #3a2708; font-size: 14px; font-weight: 800; display: flex; align-items: center; justify-content: center; cursor: pointer; line-height: 1; }
+  .rchip .plus:hover { filter: brightness(1.12); }
+
+  /* ---------- 左侧竖排图标 ---------- */
+  .lrail { position: absolute; left: 14px; top: 92px; z-index: 40; display: flex; flex-direction: column; gap: 11px; }
+  .lbtn { width: 60px; height: 60px; border-radius: 15px; position: relative; cursor: pointer; border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(38,46,66,.95), rgba(20,25,37,.95)); display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 2px; color: var(--txt); font-size: 11.5px; font-weight: 600;
+      box-shadow: 0 4px 12px rgba(0,0,0,.45); transition: transform .15s ease, border-color .15s ease; }
+  .lbtn:hover { transform: translateX(3px); border-color: var(--gold); }
+  .lbtn svg { stroke: var(--gold); fill: none; }
+  .lbtn.hot { border-color: rgba(255,204,102,.65); box-shadow: 0 4px 12px rgba(0,0,0,.45), 0 0 18px rgba(255,204,102,.22); }
+
+  /* ---------- 右侧挂牌 ---------- */
+  .rtags { position: absolute; right: 0; top: 96px; z-index: 40; display: flex; flex-direction: column; gap: 9px; }
+  .tag { position: relative; display: flex; align-items: center; gap: 8px; cursor: pointer;
+      background: linear-gradient(90deg, rgba(112,76,32,.96), rgba(64,44,20,.96));
+      border: 1px solid var(--line); border-right: none; border-radius: 18px 0 0 18px;
+      padding: 9px 18px 9px 14px; font-size: 13.5px; font-weight: 700; color: #ffeec6;
+      box-shadow: -3px 4px 14px rgba(0,0,0,.5); transition: transform .15s ease; min-width: 104px; }
+  .tag:hover { transform: translateX(-5px); }
+  .tag svg { stroke: #ffd98a; fill: none; flex: none; }
+  .tag .badge { top: -5px; left: -7px; right: auto; }
+
+  /* ---------- 主线追踪 ---------- */
+  .tracker { position: absolute; left: 14px; top: 404px; z-index: 40; width: 250px;
+      background: linear-gradient(180deg, rgba(20,25,37,.95), rgba(14,18,27,.95));
+      border: 1px solid var(--line); border-radius: 12px; padding: 11px 13px 12px; box-shadow: 0 6px 20px rgba(0,0,0,.5); }
+  .tracker .th { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--gold); font-weight: 700; letter-spacing: 1px; }
+  .tracker .tt { font-size: 14.5px; font-weight: 700; margin: 6px 0 3px; }
+  .tracker .td { font-size: 12px; color: var(--txt2); line-height: 1.6; }
+  .tracker .go { margin-top: 9px; width: 100%; border: none; border-radius: 8px; padding: 8px 0; cursor: pointer;
+      background: linear-gradient(180deg, #ffd97a, #e0a23c); color: #3a2708; font-size: 13.5px; font-weight: 800;
+      box-shadow: 0 3px 10px rgba(224,162,60,.35); }
+  .tracker .go:hover { filter: brightness(1.08); }
+  .tracker .prog { display: flex; align-items: center; gap: 7px; margin-top: 8px; font-size: 11px; color: var(--txt3); }
+  .tracker .prog .pb { flex: 1; height: 5px; border-radius: 3px; background: rgba(255,255,255,.1); overflow: hidden; }
+  .tracker .prog .pb i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, #56c07a, #8ee0a8); transition: width .9s ease; }
+
+  /* ---------- 底部大 tab ---------- */
+  .tabs { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 42; display: flex; gap: 6px;
+      background: linear-gradient(180deg, rgba(14,18,27,.2), rgba(10,13,20,.95) 55%); padding: 16px 16px 12px; border-radius: 18px 18px 0 0; }
+  .tb { width: 92px; height: 62px; border-radius: 12px; cursor: pointer; border: 1px solid rgba(255,214,140,.22);
+      background: linear-gradient(180deg, rgba(38,46,66,.9), rgba(19,24,36,.9)); color: var(--txt2);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 13px; font-weight: 700;
+      position: relative; transition: all .15s ease; }
+  .tb svg { stroke: currentColor; fill: none; }
+  .tb:hover { color: var(--txt); border-color: var(--gold); transform: translateY(-3px); }
+  .tb.sel { color: #3a2708; background: linear-gradient(180deg, #ffd97a, #e0a23c); border-color: #ffe6ab;
+      box-shadow: 0 -2px 18px rgba(255,204,102,.3); }
+
+  .outline { position: absolute; left: 50%; bottom: 94px; transform: translateX(-50%); z-index: 40;
+      display: flex; align-items: center; gap: 0; background: rgba(12,15,23,.82); border: 1px solid rgba(255,214,140,.2);
+      border-radius: 30px; padding: 7px 16px; }
+  .onode { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; padding: 0 3px; }
+  .onode .d { width: 13px; height: 13px; border-radius: 50%; background: #2c3548; border: 2px solid #4a5670; }
+  .onode .t { font-size: 11px; color: var(--txt3); white-space: nowrap; }
+  .onode.done .d { background: var(--gold); border-color: #ffe6ab; }
+  .onode.done .t { color: var(--txt2); }
+  .onode.cur .d { background: var(--gold); border-color: #fff2cf; box-shadow: 0 0 0 4px rgba(255,204,102,.22); animation: pl 1.8s ease-out infinite; }
+  .onode.cur .t { color: var(--gold); font-weight: 700; }
+  @keyframes pl { 0% { box-shadow: 0 0 0 0 rgba(255,204,102,.4); } 100% { box-shadow: 0 0 0 14px rgba(255,204,102,0); } }
+  .olink { width: 34px; height: 2px; background: #33405a; margin-bottom: 15px; }
+  .olink.done { background: linear-gradient(90deg, var(--gold), rgba(255,204,102,.3)); }
+  .onode.boss .d { border-radius: 3px; transform: rotate(45deg); }
+
+  .skinsw { position: absolute; right: 16px; bottom: 14px; z-index: 45; display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--txt3); }
+  .skinsw a { padding: 4px 10px; border: 1px solid rgba(255,214,140,.3); border-radius: 12px; color: var(--txt2);
+      text-decoration: none; background: rgba(14,18,27,.8); }
+  .skinsw a.on { background: linear-gradient(180deg, #ffd97a, #e0a23c); color: #3a2708; border-color: #ffe6ab; font-weight: 700; }
+  .skinsw a:hover { border-color: var(--gold); }
+
+  /* ---------- 事件弹窗 ---------- */
+  .scrim { position: absolute; inset: 0; z-index: 50; background: rgba(4,6,10,.66); backdrop-filter: blur(3px);
+      -webkit-backdrop-filter: blur(3px); opacity: 0; pointer-events: none; transition: opacity .25s; }
+  .scrim.on { opacity: 1; pointer-events: auto; }
+  .pop { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -46%) scale(.94); z-index: 55;
+      width: min(620px, 94vw); max-height: 88vh; opacity: 0; pointer-events: none;
+      background: linear-gradient(180deg, #232b3d, #141a27);
+      border: 2px solid var(--gold2); border-radius: 18px; box-shadow: 0 20px 60px rgba(0,0,0,.7), 0 0 40px rgba(255,204,102,.12);
+      transition: opacity .28s ease, transform .28s cubic-bezier(.2,.9,.3,1.25); display: flex; flex-direction: column; }
+  .pop.on { opacity: 1; transform: translate(-50%, -50%) scale(1); pointer-events: auto; }
+  .pop .ph { position: relative; text-align: center; padding: 16px 20px 12px; }
+  .pop .ribbon { display: inline-block; background: linear-gradient(180deg, #ffd97a, #e0a23c); color: #3a2708;
+      font-size: 13px; font-weight: 800; letter-spacing: 3px; padding: 5px 26px; border-radius: 4px;
+      box-shadow: 0 4px 14px rgba(224,162,60,.4); position: relative; top: -26px; margin-bottom: -14px; }
+  .pop h3 { margin: 6px 0 4px; font-size: 24px; font-weight: 800; letter-spacing: 1px; }
+  .pop .psub { font-size: 12px; color: var(--txt3); }
+  .pop .pb2 { padding: 4px 22px 8px; overflow-y: auto; }
+  .story { background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.07); border-radius: 10px;
+      padding: 12px 14px; font-size: 14px; line-height: 1.9; color: #d9d2c4; }
+  .story em { font-style: normal; color: var(--gold); }
+  .qline { text-align: center; font-size: 15px; font-weight: 700; color: var(--gold); margin: 14px 0 10px; letter-spacing: 2px; }
+  .obtn { display: block; width: 100%; text-align: left; cursor: pointer; margin-bottom: 10px; position: relative;
+      border: 1px solid rgba(255,214,140,.28); border-radius: 12px; padding: 12px 14px;
+      background: linear-gradient(180deg, rgba(48,58,82,.9), rgba(26,32,47,.9)); color: var(--txt);
+      transition: transform .14s ease, border-color .14s ease, box-shadow .14s ease; }
+  .obtn:hover { transform: translateY(-2px); border-color: var(--gold); box-shadow: 0 6px 18px rgba(0,0,0,.5); }
+  .obtn .oh { display: flex; align-items: center; gap: 9px; }
+  .obtn .kk { width: 24px; height: 24px; border-radius: 6px; flex: none; background: linear-gradient(180deg, #ffd97a, #e0a23c);
+      color: #3a2708; font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .obtn .ot { font-size: 15.5px; font-weight: 700; }
+  .obtn .od { font-size: 12.5px; color: var(--txt2); margin: 5px 0 0 33px; line-height: 1.6; }
+  .obtn .om { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0 33px; }
+  .pill { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 10px; background: rgba(255,255,255,.07); color: var(--txt2); }
+  .pill.good { background: rgba(86,192,122,.16); color: #7fd79a; }
+  .pill.warn { background: rgba(255,180,60,.16); color: #ffc46b; }
+  .pill.bad { background: rgba(236,74,60,.16); color: #ff8d80; }
+  .obtn .rec { position: absolute; top: -9px; right: 12px; background: linear-gradient(90deg, #ff8a5c, #ec4a3c);
+      color: #fff; font-size: 10.5px; font-weight: 800; letter-spacing: 1px; padding: 3px 10px; border-radius: 9px;
+      box-shadow: 0 3px 9px rgba(0,0,0,.45); }
+  .pf2 { display: flex; align-items: center; gap: 10px; padding: 10px 22px 16px; }
+  .pf2 .owe { flex: 1; font-size: 11.5px; color: var(--txt3); }
+  .gbtn { border: 1px solid rgba(255,214,140,.4); background: rgba(255,255,255,.05); color: var(--txt2);
+      border-radius: 9px; padding: 8px 14px; font-size: 13px; cursor: pointer; font-weight: 600; }
+  .gbtn:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* ---------- 奖励结算 ---------- */
+  .reward { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 58; text-align: center;
+      opacity: 0; pointer-events: none; transition: opacity .3s; }
+  .reward.on { opacity: 1; }
+  .reward .rays { position: absolute; left: 50%; top: 40%; width: 520px; height: 520px; transform: translate(-50%, -50%);
+      background: conic-gradient(from 0deg, rgba(255,204,102,.28) 0deg 8deg, transparent 8deg 26deg, rgba(255,204,102,.2) 26deg 32deg, transparent 32deg 52deg);
+      border-radius: 50%; animation: spin 16s linear infinite; -webkit-mask-image: radial-gradient(circle, #000 20%, transparent 68%);
+      mask-image: radial-gradient(circle, #000 20%, transparent 68%); }
+  @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+  .reward .rt { position: relative; font-size: 15px; letter-spacing: 8px; color: var(--gold); font-weight: 700; }
+  .reward .items { position: relative; display: flex; gap: 12px; margin-top: 16px; justify-content: center; }
+  .ritem { width: 118px; border: 1px solid var(--gold2); border-radius: 12px; padding: 12px 8px;
+      background: linear-gradient(180deg, rgba(48,40,22,.95), rgba(24,20,12,.95)); opacity: 0; transform: translateY(14px) scale(.9);
+      animation: rin .5s cubic-bezier(.2,.9,.3,1.4) forwards; }
+  @keyframes rin { to { opacity: 1; transform: none; } }
+  .ritem .rn { font-size: 20px; font-weight: 800; color: var(--gold); }
+  .ritem .rl { font-size: 12px; color: var(--txt2); margin-top: 3px; }
+  .reward .ok { position: relative; margin-top: 18px; border: none; border-radius: 10px; padding: 11px 40px; cursor: pointer;
+      background: linear-gradient(180deg, #ffd97a, #e0a23c); color: #3a2708; font-size: 15px; font-weight: 800;
+      box-shadow: 0 6px 20px rgba(224,162,60,.4); }
+
+  .fl { position: absolute; z-index: 46; font-size: 17px; font-weight: 800; color: var(--gold); pointer-events: none;
+      text-shadow: 0 2px 8px #000, 0 0 16px rgba(255,204,102,.6); animation: flup 2.2s ease-out forwards; white-space: nowrap; }
+  .fl.g { color: #7fd79a; }
+  @keyframes flup { 0% { opacity: 0; transform: translateY(8px) scale(.8); } 14% { opacity: 1; transform: translateY(0) scale(1.08); } 30% { transform: scale(1); } 78% { opacity: 1; } 100% { opacity: 0; transform: translateY(-52px); } }
+
+  .drawer { position: absolute; right: 0; top: 0; bottom: 0; width: min(370px, 92vw); z-index: 52;
+      background: linear-gradient(180deg, #1a2130, #10141d); border-left: 2px solid var(--gold2);
+      transform: translateX(102%); transition: transform .3s ease; display: flex; flex-direction: column; }
+  .drawer.on { transform: none; }
+  .drawer .dh { padding: 16px 18px 12px; border-bottom: 1px solid rgba(255,214,140,.2); display: flex; align-items: center; }
+  .drawer .dh b { font-size: 18px; font-weight: 800; flex: 1; }
+  .drawer .dh button { border: none; background: rgba(255,255,255,.07); color: var(--txt2); width: 30px; height: 30px;
+      border-radius: 8px; cursor: pointer; font-size: 15px; }
+  .drawer .db { flex: 1; overflow-y: auto; padding: 14px 18px 20px; }
+  .qrow { border: 1px solid rgba(255,214,140,.2); border-radius: 10px; padding: 10px 12px; margin-bottom: 9px;
+      background: rgba(255,255,255,.03); font-size: 13px; line-height: 1.7; color: var(--txt2); }
+  .qrow b { color: var(--txt); }
+  .qrow.main { border-color: var(--gold2); background: rgba(255,204,102,.09); }
+  .qrow.done { opacity: .5; } .qrow.done b { text-decoration: line-through; }
+  .sec { font-size: 11.5px; letter-spacing: 2px; color: var(--gold); font-weight: 700; margin: 14px 0 8px; }
+  .sec:first-child { margin-top: 0; }
+
+  .toast { position: absolute; left: 50%; bottom: 178px; transform: translateX(-50%) translateY(10px); z-index: 60;
+      background: rgba(18,22,33,.97); border: 1px solid var(--gold2); border-radius: 22px; padding: 10px 20px;
+      font-size: 13.5px; color: var(--txt); box-shadow: 0 8px 24px rgba(0,0,0,.6); opacity: 0; pointer-events: none; transition: all .3s; }
+  .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast b { color: var(--gold); }
+</style>
+
+<div class="mb" id="mb">
+  <div class="map" id="map">
+    <div class="fallback"></div>
+    <img class="bg" src="/assets/img/x-map.png" alt="" onerror="this.remove()">
+    <div class="dim"></div>
+
+    <div class="node cur" style="left:30%;top:64%" onclick="openCard()">
+      <span class="gonow">主线在此 · 去写</span>
+      <span class="ic"><svg width="30" height="30" viewBox="0 0 24 24" stroke-width="1.7"><path d="M3 20h18M5 20v-8l7-5 7 5v8M9 20v-5h6v5"/></svg><span class="badge">1</span></span>
+      <div class="lb">外门弟子院</div><div class="sb">灵气 ×2 · 主角在此</div>
+    </div>
+    <div class="node" style="left:50%;top:46%" onclick="tapNode('cangjing')">
+      <span class="ic"><svg width="30" height="30" viewBox="0 0 24 24" stroke-width="1.7"><path d="M4 21h16M6 21V9l6-4 6 4v12M9 21v-6h6v6M4 9h16"/></svg><span class="badge dotonly"></span></span>
+      <div class="lb">藏经阁</div><div class="sb">灵气 ×5 · 未探明</div>
+    </div>
+    <div class="node" style="left:39%;top:72.5%" onclick="tapNode('yanwu')">
+      <span class="ic"><svg width="30" height="30" viewBox="0 0 24 24" stroke-width="1.7"><path d="M4 18h16M7 18l3-11M17 18l-3-11M9 7h6"/></svg></span>
+      <div class="lb">演武场</div><div class="sb">87 天后 · 大比</div>
+    </div>
+    <div class="node" style="left:68%;top:34%" onclick="tapNode('neimen')">
+      <span class="ic"><svg width="30" height="30" viewBox="0 0 24 24" stroke-width="1.7"><path d="M3 20h18M5 20V10l7-6 7 6v10M10 20v-6h4v6"/></svg></span>
+      <div class="lb">内门</div><div class="sb">天才所居</div>
+    </div>
+    <div class="node lock" style="left:80%;top:20%" onclick="tapNode('houshan')">
+      <span class="ic"><svg width="28" height="28" viewBox="0 0 24 24" stroke-width="1.7"><path d="M6 11V8a6 6 0 1112 0v3M5 11h14v10H5z"/></svg></span>
+      <div class="lb">后山禁地</div><div class="sb">迷雾未开</div>
+    </div>
+    <div class="node lock" style="left:86%;top:60%" onclick="tapNode('mijing')">
+      <span class="ic"><svg width="28" height="28" viewBox="0 0 24 24" stroke-width="1.7"><path d="M6 11V8a6 6 0 1112 0v3M5 11h14v10H5z"/></svg></span>
+      <div class="lb">青冥秘境</div><div class="sb">卷一后段解锁</div>
+    </div>
+
+    <div class="sp" id="sp-wang" style="left:25.5%;top:67.5%;--h:46px"><img src="/assets/img/s-wang.png" alt="" onerror="this.closest('.sp').remove()"></div>
+    <div class="sp" id="sp-zhao" style="left:36.5%;top:73.5%;--h:50px"><img src="/assets/img/s-zhao.png" alt="" onerror="this.closest('.sp').remove()"></div>
+    <div class="sp" id="sp-han" style="left:53.5%;top:43%;--h:44px"><img src="/assets/img/s-han.png" alt="" onerror="this.closest('.sp').remove()"></div>
+    <div class="sp" id="sp-shen" style="left:71%;top:31.5%;--h:48px"><img src="/assets/img/s-shen.png" alt="" onerror="this.closest('.sp').remove()"></div>
+    <div class="sp" id="sp-lin" style="left:26%;top:61%;--h:52px"><img src="/assets/img/s-linfan.png" alt="" onerror="this.closest('.sp').remove()"></div>
+  </div>
+
+  <!-- 顶部 -->
+  <div class="topbar">
+    <div class="avatarbox" onclick="openDrawer('char')">
+      <span class="av"><img src="/assets/img/x-linfan.png" alt="" onerror="this.remove()"><span class="lv">Lv.1</span></span>
+      <span class="who">
+        <b>林凡</b>
+        <span class="pw">战力 <i id="b-cp">108</i> · 炼气一层</span>
+        <span class="expbar"><i id="b-exp" style="width:12%"></i></span>
+      </span>
+    </div>
+    <div class="res">
+      <span class="rchip"><span class="ri" style="background:radial-gradient(circle,#ffe6ab,#c98f2c)"></span><span id="b-dao">100</span><span class="plus" onclick="toast('道源＝签到攒的资源，正式版这里跳转签到')">+</span></span>
+      <span class="rchip"><span class="ri" style="background:radial-gradient(circle,#a8e6ff,#3d8fc0)"></span>3<span class="plus" onclick="toast('灵石 · 探针不铺兑换')">+</span></span>
+      <span class="rchip"><span class="ri" style="background:radial-gradient(circle,#d4c8ff,#7a63c0)"></span><span id="b-words">0</span> 字<span class="plus" onclick="toast('字数＝这本书的经验值，写才涨')">+</span></span>
+    </div>
+  </div>
+
+  <!-- 左侧图标列 -->
+  <div class="lrail">
+    <button class="lbtn hot" onclick="dailySign()"><svg width="21" height="21" viewBox="0 0 24 24" stroke-width="1.7"><path d="M8 2v4M16 2v4M3 9h18M5 5h14v16H5z"/><path d="M9 14l2 2 4-4"/></svg>签到<span class="badge dotonly" id="b-signdot"></span></button>
+    <button class="lbtn" onclick="toast('福利中心 · 探针不铺这条路')"><svg width="21" height="21" viewBox="0 0 24 24" stroke-width="1.7"><path d="M20 12v9H4v-9M2 7h20v5H2zM12 21V7M12 7C10 7 7 6 7 4.5S9 3 12 7zM12 7c2 0 5-1 5-2.5S15 3 12 7z"/></svg>福利<span class="badge">2</span></button>
+    <button class="lbtn" onclick="toast('数据看板：追读/收藏/追更时段——正式版在这里')"><svg width="21" height="21" viewBox="0 0 24 24" stroke-width="1.7"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>数据</button>
+    <button class="lbtn" onclick="toast('发布到番茄/七猫 · 探针不铺这条路')"><svg width="21" height="21" viewBox="0 0 24 24" stroke-width="1.7"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>发布</button>
+  </div>
+
+  <!-- 主线追踪 -->
+  <div class="tracker">
+    <div class="th"><svg width="13" height="13" viewBox="0 0 24 24" stroke-width="2.4" stroke="currentColor" fill="none"><path d="M13 2 3 14h7l-1 8 11-13h-7l0-7z"/></svg>主线 · 卷一 外门篇</div>
+    <div class="tt" id="b-qt">第一章 · 魂穿与叮的一声</div>
+    <div class="td" id="b-qd">赵天雄堵门逼灵石，真火压脸——这一拍怎么演，等你拍板。</div>
+    <button class="go" onclick="openCard()" id="b-go">去写这一章</button>
+    <div class="prog"><span>开局三章</span><span class="pb"><i id="b-pb"></i></span><span id="b-pn">0/3</span></div>
+  </div>
+
+  <!-- 右侧挂牌 -->
+  <div class="rtags">
+    <span class="tag" onclick="openDrawer('quest')"><svg width="16" height="16" viewBox="0 0 24 24" stroke-width="1.8"><path d="M4 21V4M4 4h14l-2.5 4L18 12H4"/></svg>任务<span class="badge" id="b-qn">4</span></span>
+    <span class="tag" onclick="openDrawer('codex')"><svg width="16" height="16" viewBox="0 0 24 24" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 016.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>册子</span>
+    <span class="tag" onclick="toast('大纲全图 · 底下那条轨道就是缩略版')"><svg width="16" height="16" viewBox="0 0 24 24" stroke-width="1.8"><path d="M3 6h18M3 12h18M3 18h12"/></svg>大纲</span>
+    <span class="tag" onclick="toast('书架存档 · 探针不铺这条路')"><svg width="16" height="16" viewBox="0 0 24 24" stroke-width="1.8"><path d="M4 4h4v16H4zM10 4h4v16h-4zM17 4l3 15-4 1L16 5z"/></svg>书架</span>
+  </div>
+
+  <!-- 大纲轨道 -->
+  <div class="outline" id="outline">
+    <span class="onode cur" onclick="openCard()"><span class="d"></span><span class="t">开局·魂穿绑定</span></span>
+    <span class="olink"></span>
+    <span class="onode" onclick="toast('未解锁 · <b>藏经阁的一百道源</b>')"><span class="d"></span><span class="t">藏经阁百道源</span></span>
+    <span class="olink"></span>
+    <span class="onode" onclick="toast('未解锁 · <b>外门风波</b>')"><span class="d"></span><span class="t">外门风波</span></span>
+    <span class="olink"></span>
+    <span class="onode boss" onclick="toast('卷一 BOSS · <b>外门大比</b>——达成概率 0.7%')"><span class="d"></span><span class="t">外门大比</span></span>
+    <span class="olink"></span>
+    <span class="onode" onclick="toast('未解锁 · <b>青冥秘境</b>')"><span class="d"></span><span class="t">青冥秘境</span></span>
+  </div>
+
+  <!-- 底部 tab -->
+  <div class="tabs">
+    <button class="tb sel" onclick="tabTo(this,'世界')"><svg width="19" height="19" viewBox="0 0 24 24" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18-3-3.5-3-14.5 0-18z"/></svg>世界</button>
+    <button class="tb" onclick="tabTo(this,'剧情')"><svg width="19" height="19" viewBox="0 0 24 24" stroke-width="1.8"><path d="M4 4h16v12H8l-4 4z"/></svg>剧情</button>
+    <button class="tb" onclick="tabTo(this,'角色')"><svg width="19" height="19" viewBox="0 0 24 24" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>角色</button>
+    <button class="tb" onclick="tabTo(this,'行囊')"><svg width="19" height="19" viewBox="0 0 24 24" stroke-width="1.8"><path d="M6 7h12l1 14H5zM9 7V5a3 3 0 016 0v2"/></svg>行囊</button>
+    <button class="tb" onclick="tabTo(this,'发布')"><svg width="19" height="19" viewBox="0 0 24 24" stroke-width="1.8"><path d="M12 19V5M5 12l7-7 7 7"/></svg>发布</button>
+  </div>
+
+  <div class="skinsw">
+    <span>形态</span>
+    <a href="/p/_sandbox-skin-a">甲 · 卷轴</a>
+    <a class="on" href="/p/_sandbox-skin-b">乙 · 手游</a>
+    <a href="/p/_sandbox-skin-c">丙 · 夜金</a>
+  </div>
+
+  <div class="scrim" id="scrim" onclick="closeCard()"></div>
+
+  <!-- 事件弹窗 -->
+  <div class="pop" id="pop">
+    <div class="ph">
+      <span class="ribbon">剧 情 抉 择</span>
+      <h3>第一章 · 魂穿与叮的一声</h3>
+      <div class="psub">外门弟子院 · 在场 林凡 / 赵天雄 / 王二狗 · 系统尚未觉醒</div>
+    </div>
+    <div class="pb2">
+      <div class="story">赵天雄一脚碾住他的手背，掌心那簇真火离脸只剩半尺。围观的弟子静了一瞬，有人低声劝"别真闹出人命"。他脑子里飞快盘算着穿越三件套——前世记忆有了，废物身份有了，金手指呢？<br><em>系统还没响。</em></div>
+      <div class="qline">这 一 拍 ， 让 他 怎 么 演 ？</div>
+      <button class="obtn" onclick="choose('甲')">
+        <span class="rec">推荐 · 合人设</span>
+        <span class="oh"><span class="kk">甲</span><span class="ot">装怂，把三块灵石推过去</span></span>
+        <div class="od">命先保住，账冷冷记下——"赵天雄，这笔慢慢算"。</div>
+        <div class="om"><span class="pill">代价 金手指再压一拍</span><span class="pill good">反派立威 +1 · 打脸更响</span><span class="pill good">风险 低</span></div>
+      </button>
+      <button class="obtn" onclick="choose('乙')">
+        <span class="oh"><span class="kk">乙</span><span class="ot">硬顶回去，当众放句狠话</span></span>
+        <div class="od">骨头先亮出来，读者当场解气。</div>
+        <div class="om"><span class="pill bad">主角改判刚烈型</span><span class="pill bad">"扮猪吃虎"全线作废</span><span class="pill bad">风险 高</span></div>
+      </button>
+      <button class="obtn" onclick="choose('丙')">
+        <span class="oh"><span class="kk">丙</span><span class="ot">让系统提前响，这一拍就叮</span></span>
+        <div class="od">爽点前置，第一章就把金手指亮给读者。</div>
+        <div class="om"><span class="pill warn">觉醒力度打折</span><span class="pill good">爽点提前</span><span class="pill warn">风险 中</span></div>
+      </button>
+    </div>
+    <div class="pf2">
+      <span class="owe">欠读者的账：金手指立起 · 死线钉死 · 女主挂钩 · 反派立威</span>
+      <button class="gbtn" onclick="toast('自己写一句：正式版这里可直接落笔')">自己写</button>
+      <button class="gbtn" onclick="closeCard()">再想想</button>
+    </div>
+  </div>
+
+  <!-- 奖励结算 -->
+  <div class="reward" id="reward">
+    <div class="rays"></div>
+    <div class="rt">本 章 落 笔</div>
+    <div class="items">
+      <div class="ritem" style="animation-delay:.05s"><div class="rn">+2,600</div><div class="rl">正文字数</div></div>
+      <div class="ritem" style="animation-delay:.18s"><div class="rn">100</div><div class="rl">初始道源入账</div></div>
+      <div class="ritem" style="animation-delay:.31s"><div class="rn">1/3</div><div class="rl">开局三章进度</div></div>
+      <div class="ritem" style="animation-delay:.44s"><div class="rn">✦</div><div class="rl">章末钩 · 绑定成功</div></div>
+    </div>
+    <button class="ok" onclick="closeReward()">收下</button>
+  </div>
+
+  <!-- 抽屉 -->
+  <div class="drawer" id="drawer">
+    <div class="dh"><b id="dtitle">任务</b><button onclick="closeDrawer()">✕</button></div>
+    <div class="db" id="dbody"></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+  const B = { chosen: false, signed: false };
+  const LOCP = { waimen: [30, 64], cangjing: [50, 46], yanwu: [40, 76], neimen: [68, 34] };
+  const NODET = {
+    cangjing: '<b>藏经阁</b> 灵气 ×5 的签到福地，楼里有个连赵天雄都懒得踩的扫地老头——主线走到才开',
+    yanwu: '<b>演武场</b> 87 天后外门大比：进前十直升内门，末位逐出宗门',
+    neimen: '<b>内门</b> 那道冷得像冰的神识，就是从这片飞檐后扫出来的',
+    houshan: '<b>后山禁地</b> 迷雾未开——大纲走到那一格才解锁',
+    mijing: '<b>青冥秘境</b> 独立的一方天地，进去有自己的地图和规矩 · 卷一后段解锁',
+  };
+  function tapNode(id) { toast(NODET[id] || ''); }
+  let tt; function toast(html) {
+    const t = document.getElementById('toast'); t.innerHTML = html; t.classList.add('on');
+    clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 3600);
+  }
+  function tabTo(el, name) {
+    document.querySelectorAll('.tb').forEach(b => b.classList.remove('sel'));
+    el.classList.add('sel');
+    if (name === '世界') return;
+    toast('「' + name + '」这一页探针没铺——形态对比只做了世界这一屏');
+    setTimeout(() => { document.querySelectorAll('.tb').forEach(b => b.classList.remove('sel')); document.querySelector('.tb').classList.add('sel'); }, 900);
+  }
+  function dailySign() {
+    if (B.signed) { toast('今日已签 · 每日限一次'); return; }
+    B.signed = true;
+    document.getElementById('b-signdot').remove();
+    float(30, 58, '+20 道源', true);
+    setDao(120);
+    toast('签到成功 · 外门弟子院 灵气 ×2 → <b>基础 10 × 2 = 20 道源</b>');
+  }
+  function setDao(v) { document.getElementById('b-dao').textContent = v; }
+
+  function openCard() {
+    if (B.chosen) { toast('第一章已落笔——探针到此为止，第二张卡不铺'); return; }
+    document.getElementById('scrim').classList.add('on');
+    document.getElementById('pop').classList.add('on');
+  }
+  function closeCard() {
+    document.getElementById('scrim').classList.remove('on');
+    document.getElementById('pop').classList.remove('on');
+  }
+  function choose(k) {
+    if (B.chosen) return;
+    B.chosen = true;
+    document.getElementById('pop').classList.remove('on');
+    setTimeout(() => document.getElementById('reward').classList.add('on'), 220);
+    B.msg = {
+      '甲': '选了<b>甲</b>——金手指压到章末才响，赵天雄这笔账记进了世界',
+      '乙': '选了<b>乙</b>——主角改判刚烈型，"扮猪吃虎"的设计已全线作废（世界已回写）',
+      '丙': '选了<b>丙</b>——系统提前一章觉醒，爽点前置，绝望的力度打了折',
+    }[k];
+  }
+  function closeReward() {
+    document.getElementById('reward').classList.remove('on');
+    document.getElementById('scrim').classList.remove('on');
+    document.getElementById('b-words').textContent = '2,600';
+    document.getElementById('b-exp').style.width = '30%';
+    document.getElementById('b-pb').style.width = '33%';
+    document.getElementById('b-pn').textContent = '1/3';
+    document.getElementById('b-qn').textContent = '3';
+    document.getElementById('b-qt').textContent = '第二章 · 签到，启动';
+    document.getElementById('b-qd').textContent = '首刷面板、首次签到 +20——第二张卡等你拍板（探针不铺）。';
+    const n = document.querySelector('.onode.cur');
+    n.classList.remove('cur'); n.classList.add('done');
+    document.querySelector('.olink').classList.add('done');
+    const cur = document.querySelector('.node.cur');
+    cur.querySelector('.gonow').remove(); cur.querySelector('.badge').remove(); cur.classList.remove('cur');
+    float(30, 60, '+2,600 字', true);
+    setTimeout(() => float(27, 64, '章末钩 · 绑定成功'), 350);
+    setTimeout(() => toast(B.msg), 700);
+  }
+  function float(xp, yp, txt, gold) {
+    const f = document.createElement('div');
+    f.className = 'fl' + (gold ? ' g' : '');
+    f.style.left = xp + '%'; f.style.top = yp + '%'; f.textContent = txt;
+    document.getElementById('map').appendChild(f);
+    setTimeout(() => f.remove(), 2300);
+  }
+
+  function openDrawer(which) {
+    const t = document.getElementById('dtitle'), b = document.getElementById('dbody');
+    if (which === 'quest') {
+      t.textContent = '任务';
+      b.innerHTML = '<div class="sec">主角 · 系统任务</div>'
+        + (B.chosen ? '<div class="qrow main"><b>三月之约</b>——大比进前十，奖洗髓丹<br>达成概率 0.7% · 读者追更的理由</div>'
+                    : '<div class="qrow">系统还没觉醒——这正是第一章要办的事</div>')
+        + '<div class="sec">你 · 欠读者的</div>'
+        + (B.chosen ? '<div class="qrow done"><b>金手指立起来</b>——章末已响</div>'
+                    : '<div class="qrow"><b>金手指立起来</b>——三章内系统必须响</div>')
+        + '<div class="qrow"><b>死线钉死</b>——大比垫底逐出，让读者替他着急</div>'
+        + '<div class="qrow"><b>女主挂上钩</b>——她得注意到他，但不能捅破</div>'
+        + '<div class="qrow"><b>反派立威</b>——压得够狠，打脸才够响</div>'
+        + '<div class="qrow" style="opacity:.6"><b>系统的来历</b>——深埋，卷一不动</div>';
+    } else if (which === 'char') {
+      t.textContent = '角色 · 林凡';
+      b.innerHTML = '<div class="sec">面板</div>'
+        + '<div class="qrow"><b>境界</b> 炼气一层 (1/9) · 修为 12%</div>'
+        + '<div class="qrow"><b>灵根</b> 五行杂 · 伪灵根（资质 F）· 系统标注"可洗"</div>'
+        + '<div class="qrow"><b>战力</b> 蝼蚁级 · 108</div>'
+        + '<div class="qrow"><b>道源</b> ' + (B.signed ? 120 : 100) + ' · 灵石 3 · 功德 0</div>'
+        + '<div class="sec">底牌（无人知）</div>'
+        + '<div class="qrow">穿越者 · 前世社畜八年</div>'
+        + '<div class="qrow">长生签到系统 · 每日一签，道源＝10×地点灵气系数</div>'
+        + '<div class="sec">行囊</div>'
+        + '<div class="qrow">生锈铁剑 ×1 · 下品灵石 ×3 · 半块干粮 ×1</div>';
+    } else {
+      t.textContent = '册子';
+      b.innerHTML = '<div class="sec">人物</div>'
+        + '<div class="qrow"><b>王二狗</b> 损友 · 炼气二层——消息灵通，怂但仗义</div>'
+        + '<div class="qrow"><b>赵天雄</b> 反派 · 炼气七层——偷服禁药「嗜血丹」，雷已上膛</div>'
+        + '<div class="qrow"><b>韩拾遗</b> 藏经阁老杂役——真身元婴，认得系统的气息</div>'
+        + '<div class="qrow"><b>沈青霜</b> 女主 · 内门第一天才——记着替她挡剑的旧情</div>'
+        + '<div class="sec">世界规矩</div>'
+        + '<div class="qrow">境界：炼气(1-9层) → 筑基 → 金丹 → 元婴 → 化神</div>'
+        + '<div class="qrow">签到：每日限一次，道源＝10×灵气系数（外门 ×2 · 藏经阁 ×5 · 秘境 ×20）</div>'
+        + '<div class="qrow">外门大比：87 天后 · 进前十直升内门，末位逐出宗门</div>';
+    }
+    document.getElementById('drawer').classList.add('on');
+  }
+  function closeDrawer() { document.getElementById('drawer').classList.remove('on'); }
+
+  /* 小人游走 */
+  const W = [
+    { id: 'sp-lin', home: 'waimen', r: 3, sp: 26, ox: -4, oy: -3.5 },
+    { id: 'sp-wang', home: 'waimen', r: 4.5, sp: 20, ox: -4.5, oy: -2 },
+    { id: 'sp-zhao', home: 'yanwu', r: 5, sp: 24, ox: -3.5, oy: -2.5 },
+    { id: 'sp-han', home: 'cangjing', r: 3, sp: 10, ox: 4, oy: -3 },
+    { id: 'sp-shen', home: 'neimen', r: 3.5, sp: 16, ox: 3.5, oy: -2.5 },
+  ];
+  function startW() { W.forEach(s => { const el = document.getElementById(s.id); if (!el) return; s.x = parseFloat(el.style.left); s.y = parseFloat(el.style.top); sch(s); }); }
+  function sch(s) { clearTimeout(s.t); s.t = setTimeout(() => step(s), 1500 + Math.random() * 5000); }
+  function step(s) {
+    const el = document.getElementById(s.id); if (!el) return;
+    const c = LOCP[s.home];
+    const nx = c[0] + s.ox + (Math.random() * 2 - 1) * s.r;
+    const ny = c[1] + s.oy + (Math.random() * 2 - 1) * s.r * .6;
+    const d = Math.hypot((nx - s.x) * 14.4, (ny - s.y) * 8.1);
+    if (d < 8) { sch(s); return; }
+    const dur = Math.max(.9, d / s.sp);
+    el.classList.toggle('flip', nx < s.x); el.classList.add('walk');
+    el.style.transition = 'left ' + dur + 's linear, top ' + dur + 's linear';
+    el.style.left = nx + '%'; el.style.top = ny + '%'; el.style.zIndex = 16 + Math.round(ny / 5);
+    s.x = nx; s.y = ny;
+    clearTimeout(s.w); s.w = setTimeout(() => { el.classList.remove('walk'); sch(s); }, dur * 1000 + 50);
+  }
+  startW();
+</script>

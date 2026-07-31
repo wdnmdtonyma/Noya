@@ -1,0 +1,124 @@
+<!-- title: 书 · 怪物 -->
+<style>
+  .mon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--space-4); }
+  .mon-card { position: relative; overflow: hidden; }
+  .mon-card .m-head { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
+  .mon-card .m-sigil { width: 44px; height: 44px; border-radius: var(--radius-md); background: var(--gray-850); border: 1px solid var(--gray-600); color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center; font-size: var(--font-size-lg); flex: none; }
+  .mon-card .m-name { font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); }
+  .mon-card .m-where { font-size: var(--font-size-xs); color: var(--color-text-tertiary); margin-top: 2px; }
+  .mon-card .m-where a { color: var(--color-text-tertiary); }
+  .mon-card .m-where a:hover { color: var(--color-primary); }
+  .mon-card .m-danger { margin-left: auto; }
+  .rule-list { margin: 0 0 var(--space-3); padding: 0; list-style: none; }
+  .rule-list li { position: relative; padding: 7px 0 7px 24px; font-size: var(--font-size-sm); color: var(--color-text-secondary); border-bottom: 1px dashed var(--color-border); }
+  .rule-list li:last-child { border-bottom: none; }
+  .rule-list li::before { content: attr(data-no); position: absolute; left: 0; top: 7px; width: 16px; height: 16px; border-radius: 4px; background: var(--color-danger-soft); color: var(--color-danger); font-size: 10px; display: flex; align-items: center; justify-content: center; }
+  .rule-list li.unknown::before { background: var(--color-surface-2); color: var(--color-text-tertiary); }
+  .m-meta { display: flex; flex-wrap: wrap; gap: 6px; padding-top: var(--space-3); border-top: 1px solid var(--color-border); }
+  .m-meta .link-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-pill); color: var(--color-text-secondary); font-size: var(--font-size-xs); text-decoration: none; }
+  .m-meta .link-chip:hover { border-color: var(--color-primary); color: var(--color-primary); }
+  .mon-card.sealed { border-style: dashed; }
+  .mon-card.sealed .m-sigil { border-style: dashed; }
+</style>
+
+<div class="topbar">
+  <a class="brand" href="/p/01-bookshelf"><span class="mark">N</span>Noya</a>
+  <div class="divider"></div>
+  <span style="font-size:var(--font-size-md);font-weight:var(--font-weight-medium);">我在规则怪谈里开民宿</span>
+  <div class="grow"></div>
+  <span class="badge warn" id="state-badge"><span class="dot warn"></span>决策点 · 等你拍板</span>
+</div>
+
+<div class="book-layout app-main">
+  <nav class="book-nav">
+    <a class="nav-item" href="/p/01-bookshelf" style="color:var(--color-text-tertiary);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M15 6l-6 6 6 6" /></svg>书架</a>
+    <a class="nav-item" href="/p/02-book-home"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>总览</a>
+    <div class="nav-group">世界观 · 影响内容</div>
+    <a class="nav-item" href="/p/025-outline"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M6 3h12v18H6z" /><path d="M9 8h6M9 12h6M9 16h4" /></svg>大纲</a>
+    <a class="nav-item" href="/p/03-map"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="12" r="9" /><path d="M15.5 8.5 13 13l-4.5 2.5L11 11z" /></svg>地图</a>
+    <a class="nav-item" href="/p/04-relations"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="6" r="2.4" /><circle cx="5" cy="18" r="2.4" /><circle cx="19" cy="18" r="2.4" /><path d="M10.8 8 6.4 15.8M13.2 8l4.4 7.8M7.4 18h9.2" /></svg>关系网</a>
+    <a class="nav-item" href="/p/05-characters"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="8" r="3.6" /><path d="M5.5 20a6.5 6.5 0 0 1 13 0" /></svg>人物</a>
+    <a class="nav-item is-active" href="/p/06-monsters"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M6 21V10a6 6 0 0 1 12 0v11l-3-2.4-3 2.4-3-2.4z" /><circle cx="10" cy="10" r=".8" fill="currentColor" /><circle cx="14" cy="10" r=".8" fill="currentColor" /></svg>怪物</a>
+    <div class="nav-group">产物 · 给读者的</div>
+    <a class="nav-item" href="/p/07-chapters"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M5 19V6a2 2 0 0 1 2-2h12v15H7a2 2 0 0 0-2 2zm0 0a2 2 0 0 0 2 2h12" /><path d="M9 8h6" /></svg>章节</a>
+    <a class="nav-item" href="/p/08-tasks"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 20l4-1L20 7l-3-3L5 16zM14 6l3 3" /></svg>写作任务</a>
+  </nav>
+
+  <div class="book-content">
+    <div class="content-pad">
+      <div class="page-head">
+        <h1>怪物</h1>
+        <div class="ph-sub">本书题材的非人实体（规则怪谈体）· 每一体带自己的规则，是副本的核心素材</div>
+      </div>
+
+      <div class="mon-grid">
+        <div class="panel-card mon-card">
+          <div class="m-head">
+            <div class="m-sigil">敲</div>
+            <div><div class="m-name">敲门客</div><div class="m-where">出没：<a href="/p/03-map">民宿阁楼走廊</a> · 雨夜活动</div></div>
+            <span class="badge warn m-danger">危险 · 高</span>
+          </div>
+          <ul class="rule-list">
+            <li data-no="1">三长两短的敲门，绝对不要应</li>
+            <li data-no="2">听到它喊你的名字，在心里倒数七下</li>
+            <li data-no="3">它进不来没有点灯的房间</li>
+          </ul>
+          <div class="m-meta">
+            <span class="badge pub">已破解 · 蛰伏</span>
+            <a class="link-chip" href="/p/07-chapters">遭遇 · 第 8-19 章 →</a>
+          </div>
+        </div>
+
+        <div class="panel-card mon-card">
+          <div class="m-head">
+            <div class="m-sigil">雾</div>
+            <div><div class="m-name">白雾</div><div class="m-where">出没：<a href="/p/03-map">云隐镇全域</a> · 常驻环境</div></div>
+            <span class="badge warn m-danger">危险 · 中</span>
+          </div>
+          <ul class="rule-list">
+            <li data-no="1">雾起时不要出屋</li>
+            <li data-no="2">雾里听到熟人叫你，别答应全名</li>
+          </ul>
+          <div class="m-meta">
+            <span class="badge mute">规则不全 · 2/?</span>
+            <a class="link-chip" href="/p/07-chapters">遭遇 · 第 22 章擦肩 →</a>
+          </div>
+        </div>
+
+        <div class="panel-card mon-card sealed">
+          <div class="m-head">
+            <div class="m-sigil">商</div>
+            <div><div class="m-name">无面客商</div><div class="m-where">出没：<a href="/p/03-map">县城（雾锁未开启）</a></div></div>
+            <span class="badge mute m-danger">危险 · 未知</span>
+          </div>
+          <ul class="rule-list">
+            <li class="unknown" data-no="?">规则未知——等待首次遭遇建档</li>
+            <li class="unknown" data-no="?">疑与卷二反派线相关（白裙女客的来处）</li>
+          </ul>
+          <div class="m-meta">
+            <span class="badge mute">未遭遇</span>
+            <a class="link-chip" href="/p/04-relations">关联 · 白裙女客 →</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="pending-note" style="margin:var(--space-8) 0 0;">
+        <strong>⚑ 待确认（参数层）</strong>
+        <ul>
+          <li>怪物卡字段集 [假设] 规则/危险等级/出没/遭遇记录/关联；换题材时该实体类型改名（妖兽/异类等）</li>
+          <li>"规则不全"的展示 [假设] 已知 N 条 + 未知占位，随剧情揭露</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    let mode = 'decide', writing = '第 48 章《上山》';
+    try { mode = sessionStorage.getItem('noya-mode') || 'decide'; writing = sessionStorage.getItem('noya-writing') || writing; } catch (e) {}
+    const M = { decide: ['badge warn', 'dot warn', '决策点 · 等你拍板'], cruise: ['badge run', 'dot run', '巡航中 · 按卷二骨架推进'], write: ['badge run', 'dot run', '写作中 · ' + writing.split('《')[0].trim()] };
+    const b = document.getElementById('state-badge'), m = M[mode] || M.decide;
+    b.className = m[0]; b.innerHTML = '<span class="' + m[1] + '"></span>' + m[2];
+  })();
+</script>

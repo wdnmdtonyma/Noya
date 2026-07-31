@@ -1,0 +1,123 @@
+<!-- title: 开新书 · 热点雷达 -->
+<style>
+  .radar-wrap { max-width: 1080px; margin: 0 auto; padding: var(--space-6); }
+  .radar-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: var(--space-5); }
+  .cat-row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) 4px; border-bottom: 1px solid var(--color-border); }
+  .cat-row:last-child { border-bottom: none; }
+  .cat-row .c-name { width: 128px; flex: none; font-size: var(--font-size-sm); color: var(--color-text); }
+  .cat-row .c-name small { display: block; color: var(--color-text-tertiary); font-size: var(--font-size-xs); }
+  .heat-bar { flex: 1; height: 6px; border-radius: 3px; background: var(--gray-700); overflow: hidden; }
+  .heat-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--color-primary-active), var(--color-primary)); }
+  .cat-row .c-heat { width: 30px; text-align: right; font-family: var(--font-family-mono); font-size: var(--font-size-xs); color: var(--color-text-secondary); }
+  .trend { width: 34px; text-align: center; font-size: var(--font-size-xs); }
+  .trend.up { color: var(--color-success); }
+  .trend.flat { color: var(--color-text-tertiary); }
+  .trend.down { color: var(--color-danger); }
+
+  .tag-cloud { display: flex; flex-wrap: wrap; gap: 8px; }
+  .h-tag { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: var(--radius-pill); border: 1px solid var(--color-border-strong); color: var(--color-text-secondary); font-size: var(--font-size-sm); cursor: pointer; transition: border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out); }
+  .h-tag:hover { border-color: var(--color-primary); }
+  .h-tag.is-on { border-color: var(--color-primary); background: var(--color-primary-soft); color: var(--color-primary); }
+  .h-tag .t-mark { font-size: var(--font-size-xs); }
+  .h-tag .t-mark.hot { color: var(--color-danger); }
+  .h-tag .t-mark.rise { color: var(--color-success); }
+  .h-tag .t-mark.base { color: var(--color-text-tertiary); }
+  .report-meta { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+  .sel-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex: 1; }
+  .sel-chips .badge { font-size: var(--font-size-sm); padding: 4px 12px; }
+  .crowd { font-size: var(--font-size-xs); padding: 1px 8px; border-radius: var(--radius-pill); }
+  .crowd.high { background: var(--color-danger-soft); color: var(--color-danger); }
+  .crowd.mid { background: var(--color-warning-soft); color: var(--color-warning); }
+  .crowd.low { background: var(--color-success-soft); color: var(--color-success); }
+</style>
+
+<div class="topbar">
+  <a class="brand" href="/p/01-bookshelf"><span class="mark">N</span>Noya</a>
+  <div class="divider"></div>
+  <span style="font-size:var(--font-size-md);color:var(--color-text-secondary);">开新书</span>
+  <div class="grow"></div>
+  <a class="btn btn-ghost" href="/p/01-bookshelf" style="padding:5px 14px;font-size:var(--font-size-sm);">退出流程</a>
+</div>
+
+<div class="app-main radar-wrap">
+  <div class="step-rail">
+    <span class="step is-current"><span class="s-no">1</span>热点雷达</span>
+    <span class="step-arrow">→</span>
+    <span class="step"><span class="s-no">2</span>融合工坊</span>
+    <span class="step-arrow">→</span>
+    <span class="step"><span class="s-no">3</span>建世界</span>
+    <span class="step-arrow">→</span>
+    <span class="step"><span class="s-no">4</span>黄金三章</span>
+  </div>
+
+  <div class="page-head">
+    <h1>市场现在读什么</h1>
+    <div class="ph-sub">题材大类看盘子，元素标签看玩法——融合发生在标签层。勾几个标签带进工坊。</div>
+  </div>
+
+  <div class="report-meta">
+    <span class="badge mute">报告 · 今天 09:00 生成</span>
+    <span>数据源：免费平台榜单聚合 [待确认]</span>
+    <button class="btn btn-ghost" id="re-run" style="padding:4px 12px;font-size:var(--font-size-xs);">重新分析</button>
+    <span id="re-run-note" style="color:var(--color-success);" hidden>✓ 已请求（模拟 · 原型展示固定报告）</span>
+  </div>
+
+  <div class="radar-grid">
+    <div class="panel-card">
+      <h3 style="margin:0 0 var(--space-2);font-size:var(--font-size-md);font-weight:var(--font-weight-medium);color:var(--color-text-secondary);">题材大类 · 热度 × 拥挤度</h3>
+      <div class="cat-row"><span class="c-name">都市脑洞<small>代表：《规则怪谈：我能看见提示》</small></span><span class="heat-bar"><i style="width:92%"></i></span><span class="c-heat">92</span><span class="crowd high">拥挤·高</span><span class="trend flat">→</span></div>
+      <div class="cat-row"><span class="c-name">玄幻<small>代表：《万相之王》类</small></span><span class="heat-bar"><i style="width:88%"></i></span><span class="c-heat">88</span><span class="crowd high">拥挤·高</span><span class="trend flat">→</span></div>
+      <div class="cat-row"><span class="c-name">悬疑 · 规则怪谈<small>新势头：怪谈+X 融合文起量</small></span><span class="heat-bar"><i style="width:76%"></i></span><span class="c-heat">76</span><span class="crowd mid">拥挤·中</span><span class="trend up">↑</span></div>
+      <div class="cat-row"><span class="c-name">年代<small>基本盘稳定</small></span><span class="heat-bar"><i style="width:71%"></i></span><span class="c-heat">71</span><span class="crowd mid">拥挤·中</span><span class="trend flat">→</span></div>
+      <div class="cat-row"><span class="c-name">都市日常 · 经营<small>新势头：治愈系经营流抬头</small></span><span class="heat-bar"><i style="width:64%"></i></span><span class="c-heat">64</span><span class="crowd low">拥挤·低</span><span class="trend up">↑</span></div>
+      <div class="cat-row"><span class="c-name">体育竞技<small>持续走低</small></span><span class="heat-bar"><i style="width:41%"></i></span><span class="c-heat">41</span><span class="crowd low">拥挤·低</span><span class="trend down">↓</span></div>
+    </div>
+
+    <div class="panel-card">
+      <h3 style="margin:0 0 var(--space-2);font-size:var(--font-size-md);font-weight:var(--font-weight-medium);color:var(--color-text-secondary);">元素标签 · 点选组合</h3>
+      <p style="margin:0 0 var(--space-3);font-size:var(--font-size-xs);color:var(--color-text-tertiary);">🔥拥挤爆满 · ↑新势头 · ◦基本盘</p>
+      <div class="tag-cloud" id="tag-cloud">
+        <span class="h-tag is-on" data-tag="都市"><span class="t-mark base">◦</span>都市</span>
+        <span class="h-tag is-on" data-tag="规则怪谈"><span class="t-mark rise">↑</span>规则怪谈</span>
+        <span class="h-tag is-on" data-tag="经营流"><span class="t-mark rise">↑</span>经营流</span>
+        <span class="h-tag" data-tag="系统流"><span class="t-mark hot">🔥</span>系统流</span>
+        <span class="h-tag" data-tag="无敌流"><span class="t-mark hot">🔥</span>无敌流</span>
+        <span class="h-tag" data-tag="赘婿"><span class="t-mark base">◦</span>赘婿</span>
+        <span class="h-tag" data-tag="苟道流"><span class="t-mark rise">↑</span>苟道流</span>
+        <span class="h-tag" data-tag="御兽"><span class="t-mark rise">↑</span>御兽</span>
+        <span class="h-tag" data-tag="年代文"><span class="t-mark base">◦</span>年代文</span>
+        <span class="h-tag" data-tag="单女主"><span class="t-mark base">◦</span>单女主</span>
+        <span class="h-tag" data-tag="直播流"><span class="t-mark base">◦</span>直播流</span>
+        <span class="h-tag" data-tag="无限流"><span class="t-mark base">↓</span>无限流</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-bar">
+    <div class="sel-chips"><span style="font-size:var(--font-size-xs);color:var(--color-text-tertiary);">已选组合：</span><span id="sel-out"></span></div>
+    <a class="btn btn-ghost" href="/p/016-fusion-workshop">跳过雷达 · 直接去工坊写想法</a>
+    <a class="btn btn-primary" id="to-workshop" href="/p/016-fusion-workshop">带这组进融合工坊 →</a>
+  </div>
+
+  <div class="pending-note">
+    <strong>⚑ 待确认（参数层）</strong>
+    <ul>
+      <li>热度/拥挤度的口径与数据源 [待确认] 免费平台榜单聚合的具体来源</li>
+      <li>报告保留策略 [假设] 保留最近 5 份供对比</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  const cloud = document.getElementById('tag-cloud'), selOut = document.getElementById('sel-out'), toBtn = document.getElementById('to-workshop');
+  function refreshSel() {
+    const on = [...cloud.querySelectorAll('.h-tag.is-on')].map(t => t.dataset.tag);
+    selOut.innerHTML = on.length ? on.map(t => '<span class="badge run">' + t + '</span>').join(' ') : '<span style="color:var(--color-text-disabled);font-size:var(--font-size-sm);">（至少勾一个标签）</span>';
+    toBtn.style.pointerEvents = on.length ? '' : 'none';
+    toBtn.style.opacity = on.length ? '' : '.4';
+    try { sessionStorage.setItem('noya-tags', on.join(' × ')); } catch (e) {}
+  }
+  cloud.querySelectorAll('.h-tag').forEach(t => t.addEventListener('click', () => { t.classList.toggle('is-on'); refreshSel(); }));
+  refreshSel();
+  document.getElementById('re-run').addEventListener('click', () => { document.getElementById('re-run-note').hidden = false; });
+</script>

@@ -1,0 +1,68 @@
+/* tokens.css — Noya（深色导演战情室）。深墨底 + 鎏金主色：小说卷册感 × 游戏 HUD。 */
+:root {
+  /* 中性深色阶（深色 UI 的层次地基：bg < surface < surface-2 越来越亮） */
+  --gray-950: #0c0d10;
+  --gray-900: #121317;
+  --gray-850: #16181d;
+  --gray-800: #1b1e24;
+  --gray-700: #23272f;
+  --gray-600: #2e333c;
+  --gray-500: #3a4049;
+  --gray-400: #5b626d;
+  --gray-300: #858c97;
+  --gray-200: #aab1bd;
+  --gray-100: #d4d9e0;
+  --gray-50:  #eef1f5;
+
+  /* 主色：鎏金，成套 tint/shade */
+  --color-primary:        #d9a24a;
+  --color-primary-hover:  #e8b765;
+  --color-primary-active: #b9853a;
+  --color-primary-soft:   rgba(217,162,74,.14);
+
+  --color-success: #2fb673; --color-success-soft: rgba(47,182,115,.15);
+  --color-warning: #e5843a; --color-warning-soft: rgba(229,132,58,.15);
+  --color-danger:  #ef5b5b; --color-danger-soft:  rgba(239,91,91,.15);
+  --color-info:    #4b9fe1; --color-info-soft:    rgba(75,159,225,.15);
+
+  --color-text:           #e9ecf1;
+  --color-text-secondary: #9aa1ad;
+  --color-text-tertiary:  #6b7280;
+  --color-text-disabled:  #4b515b;
+  --color-text-inverse:   #16130b;
+
+  --color-bg:        var(--gray-950);
+  --color-bg-hover:  var(--gray-700);
+  --color-surface:   var(--gray-900);
+  --color-surface-2: var(--gray-800);
+  --color-border:        var(--gray-700);
+  --color-border-strong: var(--gray-600);
+
+  --font-family-base: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-family-mono: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --font-size-xs:  12px;  --line-xs:  16px;
+  --font-size-sm:  13px;  --line-sm:  20px;
+  --font-size-md:  14px;  --line-md:  22px;
+  --font-size-lg:  16px;  --line-lg:  24px;
+  --font-size-xl:  20px;  --line-xl:  28px;
+  --font-size-2xl: 26px;  --line-2xl: 34px;
+  --font-size-3xl: 32px;  --line-3xl: 40px;
+  --font-weight-normal: 400; --font-weight-medium: 500; --font-weight-semibold: 600;
+
+  --radius-sm: 5px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px; --radius-pill: 999px;
+
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px; --space-12: 48px;
+
+  /* 深色下阴影弱、靠边框和表面提亮分层；保留梯度供弹层用 */
+  --shadow-xs: 0 1px 2px rgba(0,0,0,.3);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.35);
+  --shadow-md: 0 6px 16px rgba(0,0,0,.4);
+  --shadow-lg: 0 16px 36px rgba(0,0,0,.5);
+  --shadow-pop: 0 10px 30px rgba(0,0,0,.55);
+
+  --ease-out: cubic-bezier(.22,.61,.36,1);
+  --ease-in-out: cubic-bezier(.45,0,.25,1);
+  --ease-spring: cubic-bezier(.34,1.56,.64,1);
+  --dur-fast: 120ms; --dur-base: 200ms; --dur-slow: 320ms;
+}

@@ -1,0 +1,92 @@
+<!-- title: 开新书 · 黄金三章 -->
+<style>
+  .gs-wrap { max-width: 920px; margin: 0 auto; padding: var(--space-6); }
+  .ch-tabs { display: flex; gap: var(--space-1); border-bottom: 1px solid var(--color-border); margin-bottom: var(--space-4); }
+  .ch-tab { appearance: none; background: none; border: none; border-bottom: 2px solid transparent; padding: 8px 14px; margin-bottom: -1px; color: var(--color-text-secondary); font-size: var(--font-size-md); font-family: var(--font-family-base); cursor: pointer; }
+  .ch-tab:hover { color: var(--color-text); }
+  .ch-tab.is-active { color: var(--color-primary); border-bottom-color: var(--color-primary); font-weight: var(--font-weight-medium); }
+  .gs-body p { font-size: 15px; line-height: 1.9; color: var(--color-text); margin: 0 0 1em; }
+  .gs-body p.stub { color: var(--color-text-tertiary); }
+  .verdict { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+  .verdict .v-label { font-size: var(--font-size-xs); color: var(--color-text-tertiary); width: 100%; }
+</style>
+
+<div class="topbar">
+  <a class="brand" href="/p/01-bookshelf"><span class="mark">N</span>Noya</a>
+  <div class="divider"></div>
+  <span style="font-size:var(--font-size-md);color:var(--color-text-secondary);">开新书 ·《我在规则怪谈里开民宿》</span>
+  <div class="grow"></div>
+  <a class="btn btn-ghost" href="/p/01-bookshelf" style="padding:5px 14px;font-size:var(--font-size-sm);">退出流程</a>
+</div>
+
+<div class="app-main gs-wrap">
+  <div class="step-rail">
+    <a class="step is-done" href="/p/015-topic-radar" style="text-decoration:none;"><span class="s-no">✓</span>热点雷达</a>
+    <span class="step-arrow">→</span>
+    <a class="step is-done" href="/p/016-fusion-workshop" style="text-decoration:none;"><span class="s-no">✓</span>融合工坊</a>
+    <span class="step-arrow">→</span>
+    <a class="step is-done" href="/p/017-world-build" style="text-decoration:none;"><span class="s-no">✓</span>建世界</a>
+    <span class="step-arrow">→</span>
+    <span class="step is-current"><span class="s-no">4</span>黄金三章</span>
+  </div>
+
+  <div class="page-head">
+    <h1>黄金三章试写 · 免费平台前三章定生死</h1>
+    <div class="ph-sub">按风格卡和初始世界写的开篇。读完拍板——开篇的手感反过来校准大纲，扑了就在这儿改，成本最低。</div>
+  </div>
+
+  <div class="panel-card">
+    <div class="ch-tabs">
+      <button class="ch-tab is-active" data-gs="1">第 1 章 · 十二把钥匙</button>
+      <button class="ch-tab" data-gs="2">第 2 章 · 第一位客人</button>
+      <button class="ch-tab" data-gs="3">第 3 章 · 规则之外</button>
+    </div>
+    <div class="gs-body" id="gs-body"></div>
+  </div>
+
+  <div class="flow-bar verdict">
+    <span class="v-label">读完拍板——不满意按问题层级返工：</span>
+    <a class="btn btn-primary" href="/p/02-book-home">满意 · 开书进入正写 →</a>
+    <a class="btn btn-ghost" href="/p/017-world-build">文笔不对 · 调风格卡重写</a>
+    <a class="btn btn-ghost" href="/p/017-world-build">设定有问题 · 回炉建世界</a>
+    <a class="btn btn-ghost" href="/p/016-fusion-workshop">方向不对 · 换选题卡</a>
+  </div>
+  <p style="margin:var(--space-3) 0 0;font-size:var(--font-size-xs);color:var(--color-text-tertiary);">熟手直建档没有选题卡——"方向不对"会就地拉起融合工坊补一张卡再重建（同样进工坊页）。原型中"开书"后以连载中的示例书演示。</p>
+
+  <div class="pending-note">
+    <strong>⚑ 待确认（参数层）</strong>
+    <ul>
+      <li>试写章数 [假设] 固定 3 章（黄金三章），不做可配置</li>
+      <li>"满意"后三章按章回写世界状态再进第一个决策点</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  const GS = {
+    1: [
+      '顾栖迟是在葬礼第二天收到钥匙的。十二把黄铜钥匙串在一个铁环上，沉得不像话，律师说，这是他那位素未谋面的舅公留下的全部遗产——云隐镇，一家还在营业的民宿。',
+      '"还在营业"四个字，在他推开民宿大门的那一刻显得格外可疑：大堂积灰三寸，登记簿摊开在柜台上，最后一行的日期是三年前。可是二楼，分明有脚步声。',
+      '钥匙圈在他手里轻轻一晃。他数了一遍，又数了一遍——十二把钥匙，十三个环。',
+      '墙上挂着一块木牌，字迹像是新写的：「本店规矩：一、日落后不办入住。二、不要应三长两短的敲门。三、如果你数出了十三把钥匙，请当作没有数过。」',
+      '窗外，日头正在落山。有人敲门，三长，两短。'
+    ],
+    2: [
+      '敲门声停在第五下。顾栖迟盯着门，一动不敢动——木牌上第二条规矩明晃晃挂在那儿。',
+      '"新老板，第一晚就有客，是好兆头，也是坏兆头。"声音从灶间飘出来，一个巴掌大的老头坐在灶台上，捧着他晚饭剩下的半碗米饭，吃得香。',
+      '（本章后续内容略——原型只完整填充第 1 章）'
+    ],
+    3: [
+      '"每条规则，都有一个例外。"顾栖迟盯着木牌，那些字在他眼里微微发亮，第二条规矩的末尾，浮出一行只有他能看见的小字：「除非，敲门的人姓顾。」',
+      '门外的东西，用他父亲的声音，喊了他的小名。',
+      '（本章后续内容略——原型只完整填充第 1 章）'
+    ]
+  };
+  function renderGs(n) {
+    document.getElementById('gs-body').innerHTML = GS[n].map((p, i) =>
+      '<p class="' + (n > 1 && i === GS[n].length - 1 ? 'stub' : '') + '">' + p + '</p>').join('');
+    document.querySelectorAll('.ch-tab').forEach(t => t.classList.toggle('is-active', t.dataset.gs === String(n)));
+  }
+  document.querySelectorAll('.ch-tab').forEach(t => t.addEventListener('click', () => renderGs(t.dataset.gs)));
+  renderGs(1);
+</script>

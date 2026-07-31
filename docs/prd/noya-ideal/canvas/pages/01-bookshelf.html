@@ -1,0 +1,108 @@
+<!-- title: 书架 -->
+<style>
+  .shelf { max-width: 1080px; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-4); }
+  .shelf-head { display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-6); }
+  .shelf-head h1 { margin: 0; font-size: var(--font-size-2xl); line-height: var(--line-2xl); font-weight: var(--font-weight-semibold); }
+  .shelf-head .sub { color: var(--color-text-tertiary); font-size: var(--font-size-sm); }
+  .shelf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--space-5); }
+
+  .book-card { display: flex; flex-direction: column; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; text-decoration: none; color: var(--color-text); transition: border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out); }
+  .book-card:hover { border-color: var(--color-primary); transform: translateY(-2px); }
+  .cover { height: 128px; position: relative; background: linear-gradient(135deg, #2a2418, #16181d 65%); display: flex; align-items: flex-end; padding: var(--space-4); }
+  .cover .c-title { font-size: var(--font-size-xl); line-height: var(--line-xl); font-weight: var(--font-weight-semibold); color: #f2e3c4; text-shadow: 0 1px 4px rgba(0,0,0,.5); }
+  .cover svg { position: absolute; right: 12px; top: 12px; opacity: .5; }
+  .book-body { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
+  .tag-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag { padding: 1px 8px; border-radius: var(--radius-pill); border: 1px solid var(--color-border-strong); color: var(--color-text-secondary); font-size: var(--font-size-xs); line-height: var(--line-xs); }
+  .book-meta { color: var(--color-text-secondary); font-size: var(--font-size-sm); }
+  .state-row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+  .progress { height: 4px; border-radius: 2px; background: var(--color-surface-2); overflow: hidden; }
+  .progress > i { display: block; height: 100%; width: 39%; background: var(--color-primary); border-radius: 2px; }
+  .progress-label { display: flex; justify-content: space-between; color: var(--color-text-tertiary); font-size: var(--font-size-xs); }
+
+  .new-card { border: 1px dashed var(--color-border-strong); border-radius: var(--radius-lg); padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-3); background: transparent; }
+  .new-card h2 { margin: 0; font-size: var(--font-size-lg); font-weight: var(--font-weight-medium); color: var(--color-text-secondary); }
+  .new-card .hint { color: var(--color-text-tertiary); font-size: var(--font-size-sm); margin: -6px 0 2px; }
+  .entry { display: flex; align-items: center; gap: var(--space-3); padding: 10px var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text); text-decoration: none; transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out); }
+  .entry:hover { border-color: var(--color-primary); background: var(--color-primary-soft); }
+  .entry .e-ico { width: 28px; height: 28px; flex: none; border-radius: var(--radius-sm); background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; }
+  .entry .e-ico svg { stroke: var(--color-primary); }
+  .entry .e-name { font-size: var(--font-size-md); }
+  .entry .e-desc { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+  .entry .e-go { margin-left: auto; font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+</style>
+
+<div class="topbar">
+  <a class="brand" href="/p/01-bookshelf"><span class="mark">N</span>Noya</a>
+  <div class="grow"></div>
+  <span class="badge warn" id="shelf-state"><span class="dot warn"></span>1 本书在决策点</span>
+</div>
+
+<div class="app-main shelf">
+  <div class="shelf-head">
+    <h1>书架</h1><span class="sub">1 本连载中</span>
+  </div>
+
+  <div class="shelf-grid">
+    <a class="book-card" href="/p/02-book-home">
+      <div class="cover">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#f2e3c4" stroke-width="1.2"><path d="M4 19V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19a2 2 0 0 0 2 2h13"/><path d="M9 7h6M9 11h4"/></svg>
+        <span class="c-title">我在规则怪谈里开民宿</span>
+      </div>
+      <div class="book-body">
+        <div class="tag-row"><span class="tag">都市</span><span class="tag">规则怪谈</span><span class="tag">经营流</span></div>
+        <div class="book-meta">卷二《山雾深处》 · 第 47 章 · 12.6 万字</div>
+        <div class="state-row">
+          <span class="badge warn" id="book-state"><span class="dot warn"></span>决策点 · 等你拍板</span>
+          <span class="badge pub">已发布至第 42 章</span>
+        </div>
+        <div class="progress"><i></i></div>
+        <div class="progress-label"><span>全书规划约 120 章</span><span>39%</span></div>
+      </div>
+    </a>
+
+    <div class="new-card">
+      <h2>开新书</h2>
+      <p class="hint">三种起步方式，随时可以换道</p>
+      <a class="entry" href="/p/015-topic-radar">
+        <span class="e-ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
+        <span><span class="e-name">完整流程</span><br /><span class="e-desc">先看市场——热点雷达 → 融合选题</span></span>
+        <span class="e-go">→</span>
+      </a>
+      <a class="entry" href="/p/016-fusion-workshop">
+        <span class="e-ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M12 3v3M5.6 5.6l2.1 2.1M3 12h3M18.4 5.6l-2.1 2.1M21 12h-3M12 21v-3M7 17a5 5 0 1 1 10 0"/></svg></span>
+        <span><span class="e-name">自带想法</span><br /><span class="e-desc">跳过雷达，把想法交给融合工坊评估</span></span>
+        <span class="e-go">→</span>
+      </a>
+      <a class="entry" href="/p/017-world-build">
+        <span class="e-ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M13 3 4 14h6l-1 7 9-11h-6l1-7z"/></svg></span>
+        <span><span class="e-name">熟手直建</span><br /><span class="e-desc">跳过选题，直接开始建世界</span></span>
+        <span class="e-go">→</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="pending-note">
+    <strong>⚑ 待确认（参数层）</strong>
+    <ul>
+      <li>书架排序 [假设] 按最近编辑倒序</li>
+      <li>封面为占位样式，正式封面能力不在本方案讨论范围</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  // 跨页带住书的写作状态（战情室里切了状态，回书架要对得上）
+  (function () {
+    let mode; try { mode = sessionStorage.getItem('noya-mode'); } catch (e) { return; }
+    const M = {
+      decide: { cls: 'badge warn', dot: 'dot warn', shelf: '1 本书在决策点', book: '决策点 · 等你拍板' },
+      cruise: { cls: 'badge run', dot: 'dot run', shelf: '1 本书巡航中', book: '巡航中 · 按卷二骨架推进' },
+      write:  { cls: 'badge run', dot: 'dot run', shelf: '1 本书写作中', book: '写作中 · 第 48 章' }
+    };
+    const m = M[mode]; if (!m) return;
+    const shelf = document.getElementById('shelf-state'), book = document.getElementById('book-state');
+    if (shelf) { shelf.className = m.cls; shelf.innerHTML = '<span class="' + m.dot + '"></span>' + m.shelf; }
+    if (book) { book.className = m.cls; book.innerHTML = '<span class="' + m.dot + '"></span>' + m.book; }
+  })();
+</script>

@@ -1,0 +1,822 @@
+<!-- sandbox -->
+<!-- title: 世界沙盒 · 说一句，世界长一块 -->
+<!-- manifest
+state: turn(0..4), talking, panel(none|codex|text)
+components: growing-world [complex], fog-of-war, one-input-dock, agent-line, quick-says, timeline-grow, absorb-prose
+-->
+<style>
+  html, body { height: 100%; overflow: hidden; }
+  .sb { --bg: #0a0c11; --gold: #d9a24a; --gold2: #ffd98a; --line: rgba(217,162,74,.28);
+        --txt: #efe6d4; --txt2: #b3a994; --txt3: #7b7362;
+        position: fixed; inset: 0; background: var(--bg); color: var(--txt); overflow: hidden;
+        font-family: "Songti SC", "STSong", "PingFang SC", serif; }
+  .sb button, .sb input { font-family: inherit; }
+  .num { font-family: "PingFang SC", system-ui, sans-serif; }
+
+  /* ================= 世界 ================= */
+  .world { position: absolute; inset: 0; transform-origin: 34% 62%; transition: transform 2.6s cubic-bezier(.4,0,.2,1); }
+  .world.far { transform: scale(.46);
+      -webkit-mask-image: radial-gradient(closest-side at 50% 50%, #000 62%, rgba(0,0,0,.45) 84%, transparent 100%);
+      mask-image: radial-gradient(closest-side at 50% 50%, #000 62%, rgba(0,0,0,.45) 84%, transparent 100%); }
+  svg.outer { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 5; pointer-events: none;
+      opacity: 0; transition: opacity 2.2s ease 1.2s; }
+  svg.outer.on { opacity: 1; }
+  svg.outer path, svg.outer circle, svg.outer rect { vector-effect: non-scaling-stroke; }
+  .oloc { position: absolute; transform: translate(-50%, -50%); z-index: 13; text-align: center; opacity: 0;
+      pointer-events: none; transition: opacity 1.2s ease; }
+  .oloc.born { opacity: 1; }
+  .oloc .d { display: block; width: 9px; height: 9px; margin: 0 auto; border-radius: 50%;
+      background: rgba(217,162,74,.85); box-shadow: 0 0 10px rgba(217,162,74,.6); }
+  .oloc .n { margin-top: 6px; font-size: 13.5px; letter-spacing: 2px; color: #e8dcc2; text-shadow: 0 2px 8px #000; }
+  .oloc .s2 { font-size: 10.5px; color: #8e8570; text-shadow: 0 2px 6px #000; }
+  .world .fbk { position: absolute; inset: 0; background: radial-gradient(130% 90% at 62% 18%, #161c28, #080a0e); }
+  .world img.bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .world .dim { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(6,7,11,.55), rgba(6,7,11,.06) 30%, rgba(6,7,11,.16) 58%, rgba(6,7,11,.82)); }
+  svg.fog { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 6; }
+  .vig { position: absolute; inset: 0; pointer-events: none; z-index: 7; box-shadow: inset 0 0 200px 60px rgba(0,0,0,.72); }
+
+  .loc { position: absolute; transform: translate(-50%, -50%); z-index: 12; text-align: center; cursor: default;
+         opacity: 0; pointer-events: none; }
+  .loc.born { opacity: 1; pointer-events: auto; animation: locin 1s cubic-bezier(.2,.9,.3,1.3) both; }
+  @keyframes locin { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.3); } 60% { opacity: 1; transform: translate(-50%,-50%) scale(1.12); } 100% { opacity: 1; transform: translate(-50%,-50%) scale(1); } }
+  .loc .dot { display: block; width: 11px; height: 11px; border-radius: 50%; margin: 0 auto; background: var(--gold);
+      box-shadow: 0 0 0 4px rgba(217,162,74,.12), 0 2px 8px rgba(0,0,0,.7); }
+  .loc .nm { margin-top: 7px; font-size: 15px; letter-spacing: 2px; font-weight: 600;
+      text-shadow: 0 2px 8px #000, 0 0 16px rgba(0,0,0,.95); }
+  .loc .sb2 { font-size: 11px; color: #b6ac97; text-shadow: 0 2px 6px #000; margin-top: 1px; }
+  .loc.here::before { content: ''; position: absolute; left: 50%; top: 5px; width: 34px; height: 34px; margin: -17px 0 0 -17px;
+      border-radius: 50%; border: 1.5px solid rgba(217,162,74,.75); animation: breathe 2.4s ease-in-out infinite; }
+  @keyframes breathe { 0%,100% { transform: scale(.75); opacity: .85; } 50% { transform: scale(1.25); opacity: .18; } }
+
+  .sp { position: absolute; transform: translate(-50%, -88%); z-index: 14; opacity: 0; pointer-events: none; }
+  .sp.born { opacity: 1; pointer-events: auto; animation: spin2 1.1s ease both; }
+  @keyframes spin2 { from { opacity: 0; } to { opacity: 1; } }
+  .sp .bd { display: flex; flex-direction: column; align-items: center; }
+  .sp img { height: var(--h, 52px); filter: drop-shadow(0 4px 6px rgba(0,0,0,.65)); }
+  .sp.flip img { transform: scaleX(-1); }
+  .sp .nm { font-size: 11px; color: #ded4bf; letter-spacing: 1px; white-space: nowrap;
+      text-shadow: 0 1px 5px #000, 0 0 9px #000; transition: opacity .3s; }
+  .sp .nm.hide { opacity: 0; }
+  .sp.walk .bd { animation: wd .42s ease-in-out infinite; }
+  @keyframes wd { 0%,100% { transform: translateY(0) rotate(-1.5deg); } 50% { transform: translateY(-3px) rotate(1.5deg); } }
+  .sp.hero::before { content: ''; position: absolute; left: 50%; bottom: -2px; transform: translateX(-50%);
+      width: 32px; height: 11px; border-radius: 50%; border: 1.5px solid rgba(217,162,74,.65); }
+  .sp.knows::after { content: ''; position: absolute; left: 50%; top: -8px; width: 7px; height: 7px; margin-left: -3.5px;
+      border-radius: 50%; background: var(--gold2); box-shadow: 0 0 10px var(--gold); animation: breathe 2.2s ease-in-out infinite; }
+  .sp.fade { animation: spfade 2.4s ease forwards; }
+  @keyframes spfade { 0% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
+
+  .fl { position: absolute; z-index: 20; font-size: 15px; color: var(--gold2); pointer-events: none; white-space: nowrap;
+      text-shadow: 0 2px 8px #000, 0 0 18px rgba(217,162,74,.45); animation: flup 2.6s ease-out forwards;
+      font-family: "PingFang SC", sans-serif; }
+  .fl.new { font-size: 16px; font-weight: 600; }
+  @keyframes flup { 0% { opacity: 0; transform: translateY(10px) scale(.9); } 12% { opacity: 1; transform: translateY(0) scale(1.05); }
+                    26% { transform: scale(1); } 76% { opacity: 1; } 100% { opacity: 0; transform: translateY(-46px); } }
+
+  /* ================= 顶部：书 + 时间线 ================= */
+  .bookline { position: absolute; left: 24px; top: 20px; z-index: 30; font-size: 12.5px; color: var(--txt3); line-height: 1.8; }
+  .bookline b { display: block; font-size: 15px; color: var(--txt2); font-weight: 600; letter-spacing: 1px; }
+  .bookline .st { color: var(--gold); }
+
+  .tline { position: absolute; left: 50%; top: 22px; transform: translateX(-50%); z-index: 30;
+      display: flex; align-items: center; gap: 0; max-width: 74vw; }
+  .tn { display: flex; flex-direction: column; align-items: center; gap: 5px; flex: none; opacity: 0;
+      animation: tnin .6s cubic-bezier(.2,.9,.3,1.3) both; }
+  @keyframes tnin { from { opacity: 0; transform: translateY(-6px) scale(.7); } to { opacity: 1; transform: none; } }
+  .tn .d { width: 9px; height: 9px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 8px rgba(217,162,74,.5); }
+  .tn .t { font-size: 11px; color: var(--txt2); white-space: nowrap; text-shadow: 0 2px 6px #000; }
+  .tn.future .d { background: none; border: 1.5px solid rgba(217,162,74,.45); box-shadow: none; }
+  .tn.future .t { color: var(--txt3); }
+  .tk { flex: none; width: 30px; height: 1px; background: rgba(217,162,74,.35); margin-bottom: 15px;
+      animation: tnin .6s ease both; }
+  .tk.dash { background: none; border-top: 1px dashed rgba(217,162,74,.3); }
+  .tell { flex: none; color: var(--txt3); font-size: 15px; margin: 0 10px 15px 0; letter-spacing: 2px; }
+
+  .icons { position: absolute; right: 22px; top: 20px; z-index: 32; display: flex; gap: 8px; }
+  .ic { display: inline-flex; align-items: center; gap: 6px; background: rgba(14,16,21,.7); border: 1px solid var(--line);
+      color: var(--txt2); font-size: 12.5px; padding: 7px 13px; cursor: pointer; letter-spacing: 1px; }
+  .ic:hover { border-color: var(--gold); color: var(--gold2); }
+  .ic svg { stroke: currentColor; fill: none; }
+
+  /* ================= 底部：唯一的门 ================= */
+  .dock { position: absolute; left: 50%; bottom: 30px; transform: translateX(-50%); z-index: 34;
+      width: min(780px, 92vw); display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .dockveil { position: absolute; left: 0; right: 0; bottom: 0; height: 330px; z-index: 33; pointer-events: none;
+      background: linear-gradient(180deg, rgba(8,10,14,0) 0%, rgba(8,10,14,.55) 34%, rgba(8,10,14,.88) 68%, rgba(8,10,14,.96) 100%); }
+  .said { font-size: 12.5px; color: var(--txt3); letter-spacing: 1px; opacity: 0; transition: opacity .3s; max-width: 460px;
+      text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .said.on { opacity: 1; }
+  .agent { position: relative; width: 100%; font-size: 15.5px; line-height: 2.05; color: var(--txt); text-align: center;
+      text-shadow: 0 2px 10px rgba(0,0,0,.95), 0 0 24px rgba(0,0,0,.8); min-height: 34px; letter-spacing: .5px; }
+  .agent b { color: var(--gold2); font-weight: 600; }
+  .agent .cur { display: inline-block; width: 7px; height: 17px; background: var(--gold); vertical-align: -3px;
+      margin-left: 3px; animation: blink .9s steps(1) infinite; }
+  @keyframes blink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
+
+  .inbox { position: relative; width: 100%; display: flex; align-items: center; gap: 10px;
+      background: rgba(13,15,20,.9); border: 1px solid var(--line); border-radius: 4px; padding: 4px 4px 4px 18px;
+      box-shadow: 0 10px 34px rgba(0,0,0,.6); transition: border-color .25s, box-shadow .25s; }
+  .inbox.glow { border-color: rgba(217,162,74,.75); box-shadow: 0 10px 34px rgba(0,0,0,.6), 0 0 26px rgba(217,162,74,.22); }
+  .inbox:focus-within { border-color: var(--gold); box-shadow: 0 10px 34px rgba(0,0,0,.6), 0 0 22px rgba(217,162,74,.25); }
+  .inbox input { flex: 1; background: none; border: none; outline: none; color: var(--txt); font-size: 15px; padding: 14px 0;
+      letter-spacing: .5px; }
+  .inbox input::placeholder { color: #6d6555; }
+  .inbox .send { flex: none; border: none; cursor: pointer; padding: 11px 22px; font-size: 14.5px; letter-spacing: 2px;
+      background: linear-gradient(180deg, #ffdd93, #d0982f); color: #2e2008; font-weight: 600; }
+  .inbox .send:hover { filter: brightness(1.08); }
+  .inbox .send:disabled { opacity: .35; cursor: default; filter: none; }
+
+  .quick { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; min-height: 30px; }
+  .q { border: 1px solid var(--line); background: rgba(14,16,21,.72); color: var(--txt2); font-size: 13px;
+      padding: 6px 14px; cursor: pointer; letter-spacing: .5px; transition: all .16s ease; }
+  .q:hover { border-color: var(--gold); color: var(--gold2); transform: translateY(-2px); }
+  .q.self { border-style: dashed; }
+
+  .note { position: absolute; right: 22px; bottom: 22px; z-index: 30; font-size: 11px; color: #5f594c; letter-spacing: .5px; }
+  .note a { color: #6f6857; }
+
+  /* ================= 浮层 ================= */
+  .scrim { position: absolute; inset: 0; z-index: 40; background: rgba(4,5,8,.6); opacity: 0; pointer-events: none; transition: opacity .25s; }
+  .scrim.on { opacity: 1; pointer-events: auto; }
+  .sheet { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -47%) scale(.97); z-index: 45;
+      width: min(620px, 92vw); max-height: 78vh; background: linear-gradient(180deg, #16130f, #0d0b09);
+      border: 1px solid var(--line); box-shadow: 0 20px 60px rgba(0,0,0,.7); opacity: 0; pointer-events: none;
+      transition: opacity .28s, transform .28s cubic-bezier(.2,.9,.3,1.2); display: flex; flex-direction: column; }
+  .sheet.on { opacity: 1; transform: translate(-50%, -50%) scale(1); pointer-events: auto; }
+  .sheet .sh { padding: 16px 22px 12px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 12px; }
+  .sheet .sh b { font-size: 17px; letter-spacing: 3px; flex: 1; }
+  .sheet .sh button { border: none; background: rgba(255,255,255,.05); color: var(--txt3); width: 28px; height: 28px; cursor: pointer; }
+  .sheet .sb3 { padding: 14px 22px 20px; overflow-y: auto; }
+  .sec { font-size: 11px; letter-spacing: 3px; color: var(--gold); margin: 14px 0 7px; }
+  .sec:first-child { margin-top: 0; }
+  .row { font-size: 13.5px; color: var(--txt2); line-height: 1.85; padding: 6px 0; border-bottom: 1px solid rgba(217,162,74,.12); }
+  .row b { color: var(--txt); font-weight: 600; }
+  .row .tg { font-size: 10.5px; color: var(--gold); border: 1px solid var(--line); padding: 1px 6px; margin-left: 6px; }
+  .row.dim { color: var(--txt3); }
+  .prose p { font-size: 15px; line-height: 2.05; margin: 0 0 1em; color: var(--txt); }
+  .prose p em { font-style: normal; color: var(--txt2); }
+  .prose .sys { font-family: "PingFang SC", monospace; font-size: 13.5px; color: var(--gold); border-left: 2px solid rgba(217,162,74,.4);
+      padding-left: 12px; margin: 0 0 1em; line-height: 1.9; }
+
+  .toast { position: absolute; left: 50%; bottom: 200px; transform: translateX(-50%) translateY(10px); z-index: 50;
+      background: rgba(16,14,11,.97); border: 1px solid var(--line); padding: 10px 20px; font-size: 13.5px; color: var(--txt2);
+      box-shadow: 0 8px 22px rgba(0,0,0,.6); opacity: 0; pointer-events: none; transition: all .3s; letter-spacing: 1px; }
+  .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast b { color: var(--gold2); }
+</style>
+
+<div class="sb" id="sb">
+  <div class="world" id="world">
+    <div class="fbk"></div>
+    <img class="bg" src="/assets/img/x-map.png" alt="" onerror="this.remove()">
+    <div class="dim"></div>
+
+    <svg class="fog" viewBox="0 0 100 100" preserveAspectRatio="none">
+      <defs>
+        <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3.2"/></filter>
+        <mask id="fogm" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">
+          <rect x="0" y="0" width="100" height="100" fill="#fff"/>
+          <g id="holes" filter="url(#soft)"></g>
+        </mask>
+      </defs>
+      <rect x="0" y="0" width="100" height="100" fill="#0a0e16" opacity=".88" mask="url(#fogm)"/>
+    </svg>
+
+    <div class="loc" id="loc-waimen" style="left:30%;top:64%">
+      <span class="dot"></span><div class="nm">外门弟子院</div><div class="sb2">灵气 ×2 · 主角在此</div>
+    </div>
+    <div class="loc" id="loc-cangjing" style="left:50%;top:46%">
+      <span class="dot"></span><div class="nm">藏经阁</div><div class="sb2">灵气 ×5 · 签到福地</div>
+    </div>
+    <div class="loc" id="loc-yanwu" style="left:41%;top:67%">
+      <span class="dot"></span><div class="nm">演武场</div><div class="sb2">八十七日后 · 外门大比</div>
+    </div>
+
+    <div class="sp hero" id="sp-lin" style="left:26%;top:61%;--h:56px"><div class="bd"><img src="/assets/img/s-linfan.png" alt="" onerror="this.closest('.sp').remove()"><span class="nm">林凡</span></div></div>
+    <div class="sp" id="sp-zhao" style="left:34%;top:66%;--h:52px"><div class="bd"><img src="/assets/img/s-zhao.png" alt="" onerror="this.closest('.sp').remove()"><span class="nm">赵天雄</span></div></div>
+    <div class="sp" id="sp-han" style="left:53%;top:43%;--h:46px"><div class="bd"><img src="/assets/img/s-han.png" alt="" onerror="this.closest('.sp').remove()"><span class="nm">韩拾遗</span></div></div>
+    <div class="sp" id="sp-sun" style="left:52%;top:49%;--h:46px"><div class="bd"><img src="/assets/img/s-npc1.png" alt="" onerror="this.closest('.sp').remove()"><span class="nm">孙彪</span></div></div>
+    <div class="vig"></div>
+  </div>
+
+  <!-- 卷二：宗门之外的青州（镜头拉远后浮现） -->
+  <svg class="outer" id="outer" viewBox="0 0 1440 810" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g fill="none" stroke="rgba(217,162,74,.34)" stroke-width="1.2">
+      <path d="M60 250 C 150 200 210 240 280 205 C 340 175 380 210 430 190"/>
+      <path d="M40 330 C 120 300 180 330 250 300"/>
+      <path d="M1010 200 C 1090 160 1160 195 1240 155 C 1300 126 1350 150 1400 130"/>
+      <path d="M1060 300 C 1140 268 1210 300 1290 265"/>
+      <path d="M980 620 C 1070 590 1140 625 1230 590 C 1300 563 1350 585 1400 565"/>
+      <path d="M120 660 C 200 630 260 660 330 628"/>
+      <path d="M255 190 l 0 -26 M255 164 l 22 8 -22 9" stroke="rgba(217,162,74,.5)"/>
+    </g>
+    <g fill="none" stroke="rgba(217,162,74,.22)" stroke-width="1" stroke-dasharray="4 9">
+      <path d="M430 430 C 350 400 300 340 246 300"/>
+      <path d="M980 400 C 1060 370 1120 330 1176 286"/>
+      <path d="M900 520 C 1000 560 1090 590 1166 612"/>
+    </g>
+    <g stroke="rgba(217,162,74,.3)" fill="none" stroke-width="1.1">
+      <rect x="196" y="248" width="102" height="66" rx="2"/>
+      <path d="M196 274 h102 M247 248 v66"/>
+    </g>
+  </svg>
+  <div class="oloc" id="ol-qingzhou" style="left:17%;top:35%"><span class="d"></span><div class="n">青州城</div><div class="s2">十万人的凡俗大城 · 未探明</div></div>
+  <div class="oloc" id="ol-fangshi" style="left:22%;top:80%"><span class="d"></span><div class="n">坊市</div><div class="s2">灵石流通之地 · 未探明</div></div>
+  <div class="oloc" id="ol-beiming" style="left:82%;top:22%"><span class="d"></span><div class="n">北冥剑冢</div><div class="s2">沈青霜的来历 · 未探明</div></div>
+
+  <div class="bookline">
+    <b>《我在青云宗打卡修仙》</b>
+    玄苍界 · 卷一 外门篇 · <span class="st" id="wc">尚未落笔</span>
+  </div>
+
+  <div class="tline" id="tline"></div>
+
+  <div class="icons">
+    <span class="ic" onclick="openSheet('codex')"><svg width="14" height="14" viewBox="0 0 24 24" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 016.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>册子</span>
+    <span class="ic" onclick="openSheet('text')"><svg width="14" height="14" viewBox="0 0 24 24" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h10"/></svg>正文</span>
+  </div>
+
+  <div class="dockveil"></div>
+
+  <!-- 唯一的门 -->
+  <div class="dock">
+    <div class="said" id="said"></div>
+    <div class="agent" id="agent"></div>
+    <div class="inbox" id="inbox">
+      <input id="say" placeholder="跟世界说一句话…（也可以把你写好的正文贴进来）" autocomplete="off">
+      <button class="send" id="send" onclick="submitSay()">说</button>
+    </div>
+    <div class="quick" id="quick"></div>
+  </div>
+
+  <div class="note">探针 · Agent 的回应是预置脚本，但你可以随便打字，世界会照着长</div>
+
+  <div class="scrim" id="scrim" onclick="closeSheet()"></div>
+  <div class="sheet" id="sheet">
+    <div class="sh"><b id="sheetT">册 子</b><button onclick="closeSheet()">✕</button></div>
+    <div class="sb3" id="sheetB"></div>
+  </div>
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+  /* ================= 世界状态 ================= */
+  const S = {
+    turn: 0, busy: false, words: 0, chapters: 0,
+    places: [{ n: '外门弟子院', d: '灵气 ×2 · 三千外门弟子的院落群，林凡那间漏风柴房在最角落' }],
+    people: [{ n: '林凡', d: '主角 · 炼气一层 · 五行杂伪灵根（可洗）· 全部家当三块灵石' }],
+    history: [], vol: 1, pending: null, events: [], owed: [
+      ['金手指立起来', '三章内系统必须响', false],
+      ['死线钉死', '让读者替他着急', false],
+      ['女主挂上钩', '她得注意到他，但不能捅破', false],
+      ['反派立威', '压得够狠，打脸才够响', false],
+    ],
+  };
+  const LOCP = { waimen: [30, 64], cangjing: [50, 46], yanwu: [39, 73] };
+
+  /* ================= 迷雾 ================= */
+  function tween(el, from, to, dur, done) {
+    const t0 = performance.now();
+    (function step(t) {
+      const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+      const r = from + (to - from) * e;
+      el.setAttribute('rx', r.toFixed(2)); el.setAttribute('ry', (r * 0.72).toFixed(2));
+      if (k < 1) requestAnimationFrame(step); else if (done) done();
+    })(t0);
+  }
+  function reveal(x, y, r, ms) {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+    el.setAttribute('cx', x); el.setAttribute('cy', y);
+    el.setAttribute('rx', 0); el.setAttribute('ry', 0); el.setAttribute('fill', '#000');
+    el._r = r;
+    document.getElementById('holes').appendChild(el);
+    tween(el, 0, r, ms || 1400);
+    return el;
+  }
+  function closeFog(el, done) {
+    if (!el) { if (done) done(); return; }
+    tween(el, el._r, 0, 1300, () => { el.remove(); if (done) done(); });
+  }
+
+  /* ================= 飘字 / 提示 ================= */
+  function float(x, y, txt, big) {
+    const f = document.createElement('div');
+    f.className = 'fl' + (big ? ' new' : '');
+    f.style.left = x + '%'; f.style.top = y + '%'; f.textContent = txt;
+    document.getElementById('world').appendChild(f);
+    setTimeout(() => f.remove(), 2700);
+  }
+  let tt; function toast(html) {
+    const t = document.getElementById('toast'); t.innerHTML = html; t.classList.add('on');
+    clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 3800);
+  }
+
+  /* ================= 时间线 ================= */
+  function addNode(label, future) {
+    const host = document.getElementById('tline');
+    if (host.children.length) {
+      const k = document.createElement('span'); k.className = 'tk' + (future ? ' dash' : ''); host.appendChild(k);
+    }
+    const n = document.createElement('span');
+    n.className = 'tn' + (future ? ' future' : '');
+    n.innerHTML = '<span class="d"></span><span class="t">' + label + '</span>';
+    host.appendChild(n);
+    // 只留最近几格，前面的收成省略号
+    const nodes = [...host.querySelectorAll('.tn')];
+    if (nodes.length > 6) {
+      const first = nodes[0], nx = first.nextElementSibling;
+      first.remove(); if (nx && nx.classList.contains('tk')) nx.remove();
+      if (!host.querySelector('.tell')) {
+        const e = document.createElement('span'); e.className = 'tell'; e.textContent = '⋯';
+        host.prepend(e);
+      }
+    }
+  }
+
+  /* ================= 长出地点 / 人 ================= */
+  function growPlace(id, label, sub, x, y, r) {
+    const hole = reveal(x, y, r || 16);
+    setTimeout(() => {
+      const el = document.getElementById('loc-' + id);
+      el.classList.add('born');
+      float(x, y - 7, '新地点 · ' + label, true);
+      S.places.push({ n: label, d: sub });
+    }, 620);
+    return hole;
+  }
+  function growPerson(id, label, note, x, y) {
+    const el = document.getElementById('sp-' + id); if (!el) return;
+    el.style.left = x + '%'; el.style.top = y + '%';
+    el.classList.add('born');
+    float(x, y - 9, '新角色 · ' + label, true);
+    S.people.push({ n: label, d: note });
+    const w = WANDER.find(s => s.id === 'sp-' + id);
+    if (w) { w.x = x; w.y = y; sch(w); }
+  }
+  function setHere(id) {
+    document.querySelectorAll('.loc').forEach(l => l.classList.remove('here'));
+    const el = document.getElementById('loc-' + id); if (el) el.classList.add('here');
+  }
+  function addWords(n, chLabel, undo) {
+    S.words += n; S.chapters++;
+    document.getElementById('wc').textContent = S.words.toLocaleString() + ' 字 · ' + S.chapters + ' 章';
+    addNode(chLabel);
+    S.history.push(Object.assign({ label: chLabel, words: n }, undo || {}));
+  }
+  function refreshWc() {
+    document.getElementById('wc').textContent = S.words > 0
+      ? S.words.toLocaleString() + ' 字 · ' + S.chapters + ' 章' : '尚未落笔';
+  }
+  function payOwed(name) {
+    const o = S.owed.find(o => o[0] === name); if (o) o[2] = true;
+  }
+
+  /* ================= 对话 ================= */
+  let lastQuick = [];
+  function setQuick(list) {
+    if (list && list.length) lastQuick = list;
+    const host = document.getElementById('quick');
+    host.innerHTML = '';
+    (list || []).forEach(q => {
+      const b = document.createElement('button');
+      b.className = 'q' + (q.self ? ' self' : '');
+      b.textContent = q.t;
+      b.onclick = () => { document.getElementById('say').value = q.t; submitSay(); };
+      host.appendChild(b);
+    });
+  }
+  let typing = null;
+  function agentSay(html, done) {
+    const el = document.getElementById('agent');
+    clearInterval(typing);
+    const plain = html;
+    let i = 0;
+    el.innerHTML = '<span class="cur"></span>';
+    typing = setInterval(() => {
+      i += 2;
+      if (i >= plain.length) {
+        clearInterval(typing);
+        el.innerHTML = plain;
+        if (done) done();
+        return;
+      }
+      // 不在标签中间断开
+      let cut = plain.slice(0, i);
+      const lastOpen = cut.lastIndexOf('<'), lastClose = cut.lastIndexOf('>');
+      if (lastOpen > lastClose) cut = cut.slice(0, lastOpen);
+      el.innerHTML = cut + '<span class="cur"></span>';
+    }, 22);
+  }
+  function youSaid(t) {
+    const el = document.getElementById('said');
+    el.textContent = '你说：' + t;
+    el.classList.add('on');
+  }
+  function glow(on) { document.getElementById('inbox').classList.toggle('glow', !!on); }
+  function lock(on) {
+    S.busy = on;
+    document.getElementById('send').disabled = on;
+    document.getElementById('say').disabled = on;
+    if (!on) { glow(true); setTimeout(() => document.getElementById('say').focus(), 30); }
+  }
+
+  function submitSay() {
+    if (S.busy) return;
+    const inp = document.getElementById('say');
+    const raw = inp.value.trim();
+    if (!raw) { inp.focus(); return; }
+    inp.value = ''; glow(false);
+    youSaid(raw.length > 46 ? raw.slice(0, 44) + '…' : raw);
+    setQuick([]);
+    lock(true);
+    setTimeout(() => route(raw), 420);
+  }
+
+  const short = t => t.length > 20 ? t.slice(0, 18) + '…' : t;
+
+  /* ================= 剧本：每一轮世界长一块 ================= */
+  function route(t) {
+    const long = t.length >= 55;
+    // 随时能唤出来的两样东西，不占回合
+    if (!long && /册子|人物|地方|欠|账/.test(t)) {
+      openSheet('codex'); lock(false); setQuick(lastQuick); return;
+    }
+    if (!long && /看.*正文|读|正文$/.test(t)) {
+      if (S.words === 0) { agentSay('还没有一个字呢——先跟世界说句话。', () => { lock(false); setQuick(lastQuick); }); return; }
+      openSheet('text'); lock(false); setQuick(lastQuick); return;
+    }
+    if (S.pending === 'rollback') {
+      S.pending = null;
+      if (/确认|确定|撤|是|嗯|对/.test(t)) return doRollback();
+      agentSay('那就留着。', () => { lock(false); setQuick(lastQuick); });
+      return;
+    }
+    if (S.pending === 'warn') return warnResolve(t);
+    const wantsProse = /我(自己)?写|贴|这是我写的|正文/.test(t) && t.length < 55;
+    if (long) return absorbProse(t);
+    if (!long && /打回|重写|不满意|撤掉|回滚|不要了|删掉/.test(t)) return askRollback();
+    if (!long && S.words > 0 && /筑基|突破|直接变强|无敌|开挂|一步登天/.test(t)) return warn(t);
+    if (wantsProse) return askProse();
+    if (S.turn === 0) return turn1(t);
+    if (S.turn === 1) return turn2(t);
+    if (S.turn === 2) return turn3(t);
+    if (S.turn === 3) return turn4(t);
+    if (S.turn === 4 && S.vol === 1 && /继续|接着|往下|写完|快进|大比/.test(t)) return volumeTwo();
+    return tail(t);
+  }
+
+  /* —— 第一章：赵天雄堵门，系统压到章末 —— */
+  function turn1(t) {
+    S.turn = 1;
+    const echo = /金手指|系统/.test(t) && !/堵|揍|打|欺负/.test(t)
+      ? '可以给，但我想压一压——绝望到底才叮，读者才炸。'
+      : '好，照你说的「' + short(t) + '」来。';
+    agentSay(echo + '那就让<b>赵天雄</b>来：外门第一人，炼气七层，火单灵根。真火贴到鼻尖，他心里那句<b>「不甘心」</b>烧起来，系统才响。', () => {
+      setTimeout(() => {
+        growPerson('zhao', '赵天雄', '反派 · 炼气七层 · 火单灵根——偷服禁药「嗜血丹」，雷已上膛', 34, 66);
+        setTimeout(() => float(30, 58, '道源 100 入账'), 900);
+        setTimeout(() => {
+          addWords(2600, '第一章 魂穿与叮的一声', { people: ['sp-zhao'], names: ['赵天雄'], owed: ['金手指立起来', '反派立威'] });
+          payOwed('金手指立起来'); payOwed('反派立威');
+          S.events.push(['第1章', '赵天雄堵门逼灵石；绝境中系统觉醒，初始道源 100']);
+          agentSay('第一章落笔了，<b>2,600 字</b>。他兜里 100 道源，系统给的战力评定是<b>蝼蚁级 · 108</b>。<br>接下来他得有个理由离开这院子——要我往下走吗？', () => {
+            lock(false);
+            setQuick([{ t: '往下走' }, { t: '让我看看正文' }, { t: '我自己写下一段', self: true }]);
+          });
+        }, 1700);
+      }, 400);
+    });
+  }
+
+  /* —— 第二章：藏经阁从雾里长出来 —— */
+  function turn2(t) {
+    if (/看|正文|读/.test(t)) { S.busy = false; openSheet('text'); lock(false);
+      setQuick([{ t: '往下走' }, { t: '我自己写下一段', self: true }]); return; }
+    S.turn = 2;
+    agentSay('系统标了个高灵气节点：<b>藏经阁</b>，灵气 ×5，是外门院的两倍半。我让他去应聘杂役——<b>带薪薅羊毛</b>，正合他社畜出身。', () => {
+      setTimeout(() => {
+        const hole = growPlace('cangjing', '藏经阁', '灵气 ×5 · 签到福地，三层老木楼', 50, 46, 15);
+        setTimeout(() => { movePerson('sp-lin', 47.5, 49); setHere('cangjing'); }, 800);
+        setTimeout(() => growPerson('han', '韩拾遗', '藏经阁老杂役 · 表面炼气都没成——真身元婴，认得系统的气息', 53, 43), 1500);
+        setTimeout(() => {
+          addWords(2400, '第二章 签到，启动', { people: ['sp-han'], names: ['韩拾遗'], hole: hole, locId: 'cangjing', place: '藏经阁', heroBack: [26, 61] });
+          S.events.push(['第2章', '首次签到 +20；服聚气丹修为 12→20%；点亮藏经阁福地']);
+          agentSay('顺手埋了个人：<b>韩拾遗</b>，扫地老头，看着连炼气都没成。他认得系统的气息——但这一章我不让他开口。<br>第三章你来写，还是我接着写？', () => {
+            lock(false);
+            setQuick([{ t: '你接着写' }, { t: '第三章我自己写', self: true }, { t: '他为什么认得系统？' }]);
+          });
+        }, 2600);
+      }, 400);
+    });
+  }
+
+  /* —— 第三章：你自己写 → 世界吸收 —— */
+  function turn3(t) {
+    if (/我自己写|我来写|我写/.test(t)) return askProse();
+    if (/为什么|来历|谁/.test(t)) {
+      agentSay('这条线我先埋着不说破——<b>系统的来历卷一不动</b>，越晚揭越值钱。韩拾遗身上只留外部动作：扫帚一停、鼻翼一动，镜头不进他心里。<br>第三章我接着写？', () => {
+        lock(false); setQuick([{ t: '你接着写' }, { t: '第三章我自己写', self: true }]);
+      });
+      return;
+    }
+    S.turn = 3;
+    agentSay('第三章我让他在藏经阁露一手，但<b>只露认知不露武力</b>——战力 108 打不过任何人。一句「别硬顶，绕支脉泡开」，点破一个卡关三天的跟班，然后立刻装回怂。', () => {
+      setTimeout(() => {
+        growPerson('sun', '孙彪', '一次性 · 赵天雄的跟班——这一章需要一个卡关的靶子', 52, 49);
+        setTimeout(() => {
+          const s = document.getElementById('sp-sun'); if (s) { s.classList.add('fade'); setTimeout(() => s.style.display = 'none', 2400); }
+          float(52, 44, '一次性角色 · 孙彪 已归档');
+        }, 1800);
+        setTimeout(() => {
+          const h = document.getElementById('sp-han'); if (h) h.classList.add('knows');
+          float(55, 39, '韩拾遗 · 单向知情', true);
+        }, 2600);
+        setTimeout(() => {
+          addWords(2500, '第三章 扮猪吃老虎', { names: ['孙彪'], unknows: 'sp-han' });
+          S.events.push(['第3章', '一句「绕支脉」点破孙彪；韩拾遗起疑不点破；主线任务「三月之约」发布']);
+          agentSay('写完了，<b>7,500 字 · 三章</b>。这局世界现在有 2 个地点、4 个人。<br>外门这条线也该有个奔头了——要不要我把大方向定下来？', () => {
+            lock(false); setQuick([{ t: '定大方向' }, { t: '看看册子' }, { t: '我自己写第四章', self: true }]);
+          });
+        }, 3600);
+      }, 400);
+    });
+  }
+
+  /* —— 大方向：演武场长出来，远处立一个 Boss —— */
+  function turn4(t) {
+    if (/册子|看看/.test(t)) { openSheet('codex'); lock(false); setQuick([{ t: '定大方向' }]); return; }
+    S.turn = 4;
+    agentSay('三个月后有场<b>外门大比</b>：进前十直升内门，垫底逐出宗门——赵天雄在那儿等着。我建议立成主线：<b>三月之约</b>，奖洗髓丹，系统给的达成概率 <b>0.7%</b>。', () => {
+      setTimeout(() => {
+        const hole = growPlace('yanwu', '演武场', '八十七日后 · 外门大比，卷一的大戏台', 41, 67, 13);
+        S.yanwuHole = hole;
+        setTimeout(() => {
+          addNode('外门大比 · 0.7%', true);
+          payOwed('死线钉死');
+          float(39, 68, '主线 · 三月之约（0.7%）', true);
+          S.events.push(['主线', '三月之约：大比进前十 → 洗髓丹；垫底则逐出宗门']);
+          setHere('yanwu');
+          agentSay('钉死了。<b>八十七日</b>后见分晓——从现在起，他每签一次到、每攒一颗丹，都是在往这一天走。<br>这就是这局世界的走法：<b>你说一句，它长一块</b>。', () => {
+            lock(false); setQuick([{ t: '接着往下走' }, { t: '看看册子' }, { t: '我自己写下一段', self: true }]);
+          });
+        }, 1500);
+      }, 400);
+    });
+  }
+
+  function tail(t) {
+    agentSay('照你说的「' + short(t) + '」——正式版我会接着往下写，世界继续长。<br><b>探针到这儿为止</b>：它演的是这条循环本身，不是全书。', () => {
+      lock(false); setQuick([{ t: '看看册子' }, { t: '把最后一章打回重写' }]);
+    });
+  }
+
+  /* —— 剪枝：说一句就回滚，雾会重新合拢 —— */
+  function askRollback() {
+    const h = S.history[S.history.length - 1];
+    if (!h) { agentSay('还没有一个字，撤不了。', () => { lock(false); setQuick(lastQuick); }); return; }
+    const cost = [];
+    if (h.names && h.names.length) cost.push('<b>' + h.names.join('、') + '</b> 会从世界里退出去');
+    if (h.place) cost.push('<b>' + h.place + '</b> 会重新盖回雾里');
+    if (h.owed && h.owed.length) cost.push('已兑付的「' + h.owed.join('、') + '」会变回欠着');
+    S.pending = 'rollback';
+    agentSay('要撤的是最后这一章《<b>' + h.label + '</b>》。撤了之后：' + (cost.length ? cost.join('；') + '。' : '世界回到它之前那一刻。')
+      + '<br>后面的章节都还没写，所以不会连累别人。确认撤？', () => {
+      lock(false); setQuick([{ t: '确认，撤掉' }, { t: '算了，留着' }]);
+    });
+  }
+  function doRollback() {
+    S.pending = null;
+    const h = S.history.pop();
+    agentSay('撤了。世界正在退回去——', () => {
+      const host = document.getElementById('tline');
+      const kids = [...host.children];
+      for (let i = kids.length - 1; i >= 0; i--) {
+        const k = kids[i];
+        if (k.classList.contains('tn') && k.classList.contains('future')) continue;
+        k.remove();
+        if (i > 0 && kids[i - 1].classList.contains('tk')) { kids[i - 1].remove(); }
+        break;
+      }
+      S.words -= h.words; S.chapters--; refreshWc();
+      (h.people || []).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.classList.add('fade'); setTimeout(() => { el.classList.remove('born', 'fade', 'knows'); el.style.opacity = ''; }, 2300); }
+      });
+      (h.names || []).forEach(n => { S.people = S.people.filter(p => p.n !== n); });
+      if (h.unknows) { const el = document.getElementById(h.unknows); if (el) el.classList.remove('knows'); }
+      if (h.owed) h.owed.forEach(n => { const o = S.owed.find(o => o[0] === n); if (o) o[2] = false; });
+      if (h.heroBack) movePerson('sp-lin', h.heroBack[0], h.heroBack[1], 'waimen');
+      if (h.locId) {
+        const el = document.getElementById('loc-' + h.locId); if (el) el.classList.remove('born');
+        S.places = S.places.filter(p => p.n !== h.place);
+        setTimeout(() => closeFog(h.hole), 500);
+        float(50, 42, h.place + ' · 退回雾里');
+      }
+      S.events.pop();
+      setTimeout(() => {
+        setHere('waimen');
+        agentSay('回到那一章之前了。<b>' + (S.words > 0 ? S.words.toLocaleString() + ' 字 · ' + S.chapters + ' 章' : '一个字都没有') + '</b>。<br>这一段你想换个什么走法？', () => {
+          lock(false); setQuick([{ t: '换个地方开始' }, { t: '还是照原来那样写' }, { t: '这段我自己写', self: true }]);
+        });
+      }, 2600);
+    });
+  }
+
+  /* —— 顶你一下：说的东西跟已定的事实打架 —— */
+  function warn(t) {
+    S.pending = 'warn';
+    agentSay('等一下。他现在<b>炼气一层，修为 12%</b>，八十七天后要打大比，系统给的达成概率是 <b>0.7%</b>——读者追更就是在追这个 0.7%。<br>「' + short(t) + '」会让这条死线当场失效。要么改死线，要么换个走法。你定。', () => {
+      lock(false); setQuick([{ t: '那就把死线改掉' }, { t: '算了，还是让他苟着' }]);
+    });
+  }
+  function warnResolve(t) {
+    S.pending = null;
+    if (/改|删|去掉/.test(t)) {
+      const boss = [...document.querySelectorAll('.tn.future')].pop();
+      if (boss) { boss.querySelector('.t').textContent = '外门大比 · 已作废'; boss.style.opacity = '.4'; }
+      const o = S.owed.find(o => o[0] === '死线钉死'); if (o) o[2] = false;
+      float(41, 63, '死线已作废');
+      agentSay('死线撤了，大比那一格作废——<b>「死线钉死」这笔账退回欠着</b>。<br>他可以直接变强了，但读者从此没有替他着急的理由，你得另找一个。', () => {
+        lock(false); setQuick([{ t: '换一条死线' }, { t: '算了，把死线加回来' }, { t: '看看册子' }]);
+      });
+    } else {
+      agentSay('那就还是苟着。<b>0.7%</b> 留在那儿，八十七天照旧倒数——他每签一次到，都是在往那天走。', () => {
+        lock(false); setQuick([{ t: '接着往下走' }, { t: '看看册子' }]);
+      });
+    }
+  }
+
+  /* —— 卷二：镜头拉远，世界往外长 —— */
+  function volumeTwo() {
+    S.vol = 2;
+    agentSay('那我把这八十七天写完——签到、攒丹、闭关，赵天雄的禁药越吃越凶，一路推到大比当天。', () => {
+      const chs = [['第四章 日拱一卒', 2500], ['第九章 藏经阁的老头开口了', 2600], ['第十七章 禁药之疑', 2700], ['第廿八章 大比 · 前七', 3000]];
+      chs.forEach((c, i) => setTimeout(() => {
+        addNode(c[0]); S.words += c[1] * 8; S.chapters += 8; refreshWc();
+        float(30 + i * 3, 58 - i * 2, '+' + (c[1] * 8).toLocaleString() + ' 字');
+      }, 700 + i * 750));
+      setTimeout(() => {
+        const boss = [...document.querySelectorAll('.tn.future')].pop();
+        if (boss) { boss.classList.remove('future'); boss.querySelector('.t').textContent = '外门大比 · 前七'; }
+        payOwed('女主挂上钩');
+        float(41, 62, '洗髓丹到手 · 伪灵根提纯', true);
+        S.events.push(['卷一 收', '大比进前七，洗髓丹到手；五行杂伪灵根提纯为单系']);
+        agentSay('他进了<b>前七</b>。洗髓丹到手，五行杂伪灵根提纯成单系——卷一收了。<br>接下来这一步，你得往外看了。', () => {
+          setTimeout(zoomOut, 900);
+        });
+      }, 4000);
+    });
+  }
+  function zoomOut() {
+    document.getElementById('world').classList.add('far');
+    document.getElementById('outer').classList.add('on');
+    setTimeout(() => {
+      ['ol-qingzhou', 'ol-fangshi', 'ol-beiming'].forEach((id, i) => setTimeout(() => {
+        document.getElementById(id).classList.add('born');
+      }, i * 700));
+      addNode('卷二 · 出宗门', true);
+    }, 1600);
+    setTimeout(() => {
+      agentSay('青云宗只是这张地图的<b>一个角</b>。外面是青州：一座凡俗大城、一个坊市、还有北冥剑冢——<b>沈青霜的来历就在那儿</b>。<br>都还蒙着雾。你写到哪儿，雾就退到哪儿。', () => {
+        lock(false);
+        setQuick([{ t: '先去坊市' }, { t: '去北冥剑冢' }, { t: '看看册子' }]);
+      });
+    }, 3600);
+  }
+
+  /* —— 你自己写正文 → 世界吸收 —— */
+  const SAMPLE = '孙彪盯着那卷抄本，越看越烦躁，一拳砸在桌上：“什么破功法！气行淤脉，逆则伤身——爷顺着引了三天，那个坎就是过不去！”林凡本能地想装死，可他垂着眼瞟了那口诀一眼，忍不住低声咕哝：“……那个坎，别硬顶。气从旁边的支脉绕一下，一点点泡开它。”书架另一头，那个老杂役的扫帚，不知何时停了。';
+  function askProse() {
+    agentSay('你写，我来读。把你写好的那一段贴进下面的框里——<b>我会从里面把人、地方、事和账都挑出来，并进世界</b>。', () => {
+      lock(false);
+      document.getElementById('say').placeholder = '把你写的正文贴进来（或点下面那颗，用一段现成的）';
+      setQuick([{ t: '用一段现成的正文试试', self: true }]);
+      const host = document.getElementById('quick');
+      host.firstChild.onclick = () => {
+        document.getElementById('say').value = SAMPLE;
+        submitSay();
+      };
+    });
+  }
+  function absorbProse(t) {
+    S.turn = Math.max(S.turn, 3);
+    document.getElementById('say').placeholder = '跟世界说一句话…（也可以把你写好的正文贴进来）';
+    agentSay('收到，<b>' + t.length + ' 字</b>，我读完了。从你这段里挑出三件事，已经并进世界——', () => {
+      setTimeout(() => {
+        growPerson('sun', '孙彪', '一次性 · 从你写的正文里认出来的新角色', 52, 49);
+        float(52, 43, '认出新角色 · 孙彪（判为一次性）');
+      }, 300);
+      setTimeout(() => {
+        const s = document.getElementById('sp-sun'); if (s) { s.classList.add('fade'); setTimeout(() => s.style.display = 'none', 2400); }
+        const h = document.getElementById('sp-han'); if (h) h.classList.add('knows');
+        float(55, 39, '韩拾遗 · 单向知情', true);
+      }, 2000);
+      setTimeout(() => {
+        addWords(t.length, '你写的一段', { names: ['孙彪'], unknows: 'sp-han' });
+        S.events.push(['你写的', '孙彪登场并归档；「绕支脉」点破立为认知型露一手；韩拾遗起疑']);
+        agentSay('一：<b>孙彪</b>是新角色，看情形是一次性的，我先归档。<br>二：那句<b>「绕支脉泡开」</b>——认知型露一手，我记进林凡的人设，往后他的强都从这儿长。<br>三：<b>韩拾遗的扫帚停了</b>，我给他挂上单向知情。<br>要我接着往下写吗？', () => {
+          lock(false); setQuick([{ t: '接着往下写' }, { t: '看看册子' }, { t: '再写一段', self: true }]);
+        });
+      }, 3400);
+    });
+  }
+
+  /* ================= 浮层 ================= */
+  function openSheet(which) {
+    const t = document.getElementById('sheetT'), b = document.getElementById('sheetB');
+    if (which === 'codex') {
+      t.textContent = '册 子';
+      b.innerHTML = '<div class="sec">地 方（' + S.places.length + '）</div>'
+        + S.places.map(p => '<div class="row"><b>' + p.n + '</b> ' + p.d + '</div>').join('')
+        + '<div class="sec">人（' + S.people.length + '）</div>'
+        + S.people.map(p => '<div class="row"><b>' + p.n + '</b> ' + p.d + '</div>').join('')
+        + '<div class="sec">发 生 过（' + S.events.length + '）</div>'
+        + (S.events.length ? S.events.map(e => '<div class="row"><b>' + e[0] + '</b> ' + e[1] + '</div>').join('')
+                           : '<div class="row dim">还没有——第一个字还没写</div>')
+        + '<div class="sec">欠 读 者 的</div>'
+        + S.owed.map(o => '<div class="row' + (o[2] ? ' dim' : '') + '"><b>' + o[0] + '</b> ' + o[1]
+            + (o[2] ? '<span class="tg">已兑付</span>' : '') + '</div>').join('');
+    } else {
+      t.textContent = '正 文';
+      b.innerHTML = S.words === 0
+        ? '<div class="row dim">还没有一个字——先跟世界说句话</div>'
+        : '<div class="prose"><p>林凡睁眼时，先尝到满嘴铁锈味，然后才感觉到那只碾在他手背上的靴子。</p>'
+          + '<p>“废物，也配挡爷的道？”</p>'
+          + '<p>靴底一转，五根手指传来钻心的疼。他脑子却还是一团浆糊——他分明记得，自己刚在工位上改完第七版方案……怎么一睁眼，天是土黄的，地是青石板？</p>'
+          + '<p><em>标配呢？</em>他脑子里飞速盘算，<em>穿越三件套，前世记忆有了，废物身份有了，金手指呢？系统呢？</em></p>'
+          + '<p>面板没来。来的是赵天雄耗尽的耐心。掌心那簇火，离他的脸只剩半尺。</p>'
+          + '<p><em>不甘心。</em>这三个字一齐涌上来，烫得比那簇真火还厉害。</p>'
+          + '<div class="sys">【叮——】<br>【长生签到系统，绑定成功。】<br>【宿主初始道源：100。】</div>'
+          + '<p style="color:var(--txt3);font-size:13px;">…（探针只放了第一章开头这一截，全文在之前那版的阅读器里）</p></div>';
+    }
+    document.getElementById('scrim').classList.add('on');
+    document.getElementById('sheet').classList.add('on');
+  }
+  function closeSheet() {
+    document.getElementById('scrim').classList.remove('on');
+    document.getElementById('sheet').classList.remove('on');
+  }
+
+  /* ================= 小人游走 ================= */
+  const WANDER = [
+    { id: 'sp-lin', home: 'waimen', r: 3, sp: 24, ox: -4, oy: -3.5 },
+    { id: 'sp-zhao', home: 'waimen', r: 3.5, sp: 22, ox: 4, oy: -1.5 },
+    { id: 'sp-han', home: 'cangjing', r: 2.6, sp: 10, ox: 3.5, oy: -3 },
+  ];
+  function sch(s) { clearTimeout(s.t); s.t = setTimeout(() => step(s), 1800 + Math.random() * 5000); }
+  function step(s) {
+    const el = document.getElementById(s.id);
+    if (!el || !el.classList.contains('born')) { sch(s); return; }
+    const c = LOCP[s.home];
+    const nx = c[0] + s.ox + (Math.random() * 2 - 1) * s.r;
+    const ny = c[1] + s.oy + (Math.random() * 2 - 1) * s.r * .6;
+    const d = Math.hypot((nx - s.x) * 14.4, (ny - s.y) * 8.1);
+    if (d < 8) { sch(s); return; }
+    const dur = Math.max(.9, d / s.sp);
+    el.classList.toggle('flip', nx < s.x); el.classList.add('walk');
+    el.style.transition = 'left ' + dur + 's linear, top ' + dur + 's linear';
+    el.style.left = nx + '%'; el.style.top = ny + '%'; el.style.zIndex = 12 + Math.round(ny / 5);
+    s.x = nx; s.y = ny;
+    clearTimeout(s.w); s.w = setTimeout(() => { el.classList.remove('walk'); sch(s); }, dur * 1000 + 50);
+  }
+  function movePerson(id, x, y, home) {
+    const el = document.getElementById(id); if (!el) return;
+    const s = WANDER.find(w => w.id === id);
+    el.classList.toggle('flip', x < parseFloat(el.style.left));
+    el.classList.add('walk');
+    el.style.transition = 'left 2.2s ease-in-out, top 2.2s ease-in-out';
+    el.style.left = x + '%'; el.style.top = y + '%';
+    if (s) { s.home = home || 'cangjing'; s.x = x; s.y = y; }
+    setTimeout(() => el.classList.remove('walk'), 2300);
+  }
+  setInterval(() => {
+    const hit = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+    const L = [...document.querySelectorAll('.loc.born .nm, .loc.born .sb2')].map(e => e.getBoundingClientRect());
+    document.querySelectorAll('.sp .nm').forEach(e => {
+      const r = e.getBoundingClientRect();
+      e.classList.toggle('hide', r.width > 0 && L.some(l => l.width && hit(r, l)));
+    });
+  }, 300);
+
+  /* ================= 开局 ================= */
+  document.getElementById('say').addEventListener('keydown', e => { if (e.key === 'Enter') submitSay(); });
+  reveal(30, 64, 13, 1800);
+  setTimeout(() => {
+    document.getElementById('loc-waimen').classList.add('born');
+    setHere('waimen');
+    document.getElementById('sp-lin').classList.add('born');
+    const w = WANDER.find(s => s.id === 'sp-lin'); w.x = 26; w.y = 61; sch(w);
+    addNode('开篇前夜');
+  }, 700);
+  lock(true);
+  setTimeout(() => {
+    agentSay('玄苍界还罩在雾里。林凡站在<b>外门弟子院</b>——十七岁，五行杂伪灵根，全部家当三块灵石，书还没有第一个字。<br>你想让第一章发生什么？', () => {
+      lock(false);
+      setQuick([
+        { t: '让赵天雄堵门，狠狠揍他一顿' },
+        { t: '先把金手指给他' },
+        { t: '第一章我自己写', self: true },
+      ]);
+    });
+  }, 1600);
+</script>

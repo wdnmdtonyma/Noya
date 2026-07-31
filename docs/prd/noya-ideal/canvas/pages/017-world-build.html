@@ -1,0 +1,204 @@
+<!-- title: 开新书 · 建世界 -->
+<style>
+  .wb-wrap { max-width: 1120px; margin: 0 auto; padding: var(--space-6); }
+  .wb-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4); }
+  .wb-card h3 { margin: 0 0 var(--space-1); font-size: var(--font-size-md); font-weight: var(--font-weight-medium); display: flex; align-items: center; gap: 8px; }
+  .wb-card .c-sub { font-size: var(--font-size-xs); color: var(--color-text-tertiary); margin-bottom: var(--space-3); }
+  .wb-card dl { margin: 0; display: grid; grid-template-columns: 74px 1fr; row-gap: 6px; font-size: var(--font-size-sm); }
+  .wb-card dt { color: var(--color-text-tertiary); }
+  .wb-card dd { margin: 0; color: var(--color-text-secondary); }
+  .wb-card ul { margin: 0; padding-left: 18px; font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+  .wb-card ul li { margin-bottom: 5px; }
+  .mod-btn { margin-left: auto; padding: 4px 12px !important; font-size: var(--font-size-xs) !important; }
+  .roster { display: flex; flex-direction: column; gap: 8px; }
+  .roster .r-row { display: flex; align-items: center; gap: 10px; font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+  .roster .avatar-chip { width: 30px; height: 30px; border-radius: 50%; background: var(--gray-800); border: 1px solid var(--gray-500); color: var(--color-text); display: flex; align-items: center; justify-content: center; font-size: var(--font-size-xs); flex: none; }
+  .vol-mini { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin-bottom: 8px; font-size: var(--font-size-sm); }
+  .vol-mini .v-t { color: var(--color-text); font-weight: var(--font-weight-medium); }
+  .vol-mini .v-g { color: var(--color-text-tertiary); font-size: var(--font-size-xs); margin-top: 2px; }
+  .mod-panel { margin-top: var(--space-4); padding: var(--space-4); background: var(--color-surface-2); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); }
+  .mod-panel textarea { width: 100%; min-height: 40px; resize: vertical; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-sm); color: var(--color-text); font-family: var(--font-family-base); font-size: var(--font-size-sm); padding: 8px 10px; }
+  .mod-actions { display: flex; gap: var(--space-2); margin-top: var(--space-3); }
+  .ripple { margin-top: var(--space-3); padding: var(--space-3) var(--space-4); border-left: 3px solid var(--color-warning); background: var(--color-warning-soft); border-radius: var(--radius-sm); font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+  .ripple b { color: var(--color-warning); }
+  .ripple ul { margin: 6px 0 0; padding-left: 18px; }
+  .mod-done { margin-top: var(--space-3); font-size: var(--font-size-sm); color: var(--color-success); }
+</style>
+
+<div class="topbar">
+  <a class="brand" href="/p/01-bookshelf"><span class="mark">N</span>Noya</a>
+  <div class="divider"></div>
+  <span style="font-size:var(--font-size-md);color:var(--color-text-secondary);">开新书 ·《我在规则怪谈里开民宿》</span>
+  <div class="grow"></div>
+  <a class="btn btn-ghost" href="/p/01-bookshelf" style="padding:5px 14px;font-size:var(--font-size-sm);">退出流程</a>
+</div>
+
+<div class="app-main wb-wrap">
+  <div class="step-rail">
+    <a class="step is-done" href="/p/015-topic-radar" style="text-decoration:none;"><span class="s-no">✓</span>热点雷达</a>
+    <span class="step-arrow">→</span>
+    <a class="step is-done" href="/p/016-fusion-workshop" style="text-decoration:none;"><span class="s-no">✓</span>融合工坊</a>
+    <span class="step-arrow">→</span>
+    <span class="step is-current"><span class="s-no">3</span>建世界</span>
+    <span class="step-arrow">→</span>
+    <span class="step"><span class="s-no">4</span>黄金三章</span>
+  </div>
+
+  <div class="page-head">
+    <h1>Agent 提案的初始世界 · 逐卡审阅</h1>
+    <div class="ph-sub">五件套：世界观、写作风格、角色、地图、分卷。哪张不满意就指着改，改动会联动波及。熟手直建档从这一步直接开始。</div>
+  </div>
+
+  <div class="wb-grid">
+    <div class="panel-card wb-card">
+      <h3>世界观卡<button class="btn btn-ghost mod-btn" data-mod="w">对话修改</button></h3>
+      <div class="c-sub">世界规则 · 力量体系 · 金手指</div>
+      <ul>
+        <li>怪谈依"规则"存在，破解规则即可反制</li>
+        <li>规则位阶：民宿契约 &gt; 镇规 &gt; 山规</li>
+        <li>凡人知晓规则太多，会被"注视"</li>
+      </ul>
+      <dl style="margin-top:var(--space-3);">
+        <dt>力量体系</dt><dd>契约灵位阶：宅灵 → 镇灵 → 山主</dd>
+        <dt>金手指</dt><dd>能"读出"每条规则的隐藏例外</dd>
+      </dl>
+      <div class="mod-panel" id="mod-w" hidden>
+        <textarea id="mod-w-in">金手指太强了，加个代价——每读一次规则，被"注视"加深一分</textarea>
+        <div class="mod-actions">
+          <button class="btn btn-primary" id="mod-w-go">提交</button>
+          <button class="btn btn-ghost" data-cancel="w">取消</button>
+        </div>
+        <div class="ripple" id="mod-w-ripple" hidden>
+          <b>波及提示</b>——此改动将联动更新：
+          <ul>
+            <li>角色卡 · 顾栖迟：金手指描述 + 成长弧（代价线）</li>
+            <li>分卷时间轴 · 卷三高潮：「注视者」由暗线升为明线</li>
+          </ul>
+          <div class="mod-actions">
+            <button class="btn btn-primary" id="mod-w-ok">一并更新（模拟）</button>
+            <button class="btn btn-ghost" data-cancel="w">取消</button>
+          </div>
+        </div>
+        <div class="mod-done" id="mod-w-done" hidden>✓ 已更新（模拟）· 2 张卡联动修改</div>
+      </div>
+    </div>
+
+    <div class="panel-card wb-card">
+      <h3>写作风格卡<button class="btn btn-ghost mod-btn" data-mod="s">对话修改</button></h3>
+      <div class="c-sub">全书正文的"文字宪法"，黄金三章就按它写</div>
+      <dl>
+        <dt>视角</dt><dd>第三人称 · 单主角视角</dd>
+        <dt>节奏</dt><dd>2-3 章一个小钩子，章末必留悬念</dd>
+        <dt>单章字数</dt><dd>2,000-3,000 字 [假设]</dd>
+        <dt>基调</dt><dd>轻恐怖 + 市井烟火气</dd>
+        <dt>文风参照</dt><dd>快节奏爽文骨架 × 民俗怪谈质感 [假设]</dd>
+      </dl>
+      <div class="mod-panel" id="mod-s" hidden>
+        <textarea id="mod-s-in" placeholder="例如：基调再冷一点，烟火气收一收"></textarea>
+        <div class="mod-actions">
+          <button class="btn btn-primary" id="mod-s-go">提交</button>
+          <button class="btn btn-ghost" data-cancel="s">取消</button>
+        </div>
+        <div class="mod-done" id="mod-s-done" hidden>✓ 已更新（模拟）· 风格卡不波及其它卡</div>
+      </div>
+    </div>
+
+    <div class="panel-card wb-card">
+      <h3>角色卡组<button class="btn btn-ghost mod-btn" data-mod="c">对话修改</button></h3>
+      <div class="c-sub">开书后在"人物"空间长成完整卡（档案+故事线）</div>
+      <div class="roster">
+        <div class="r-row"><span class="avatar-chip" style="border-color:var(--color-primary);color:var(--color-primary);">顾</span>顾栖迟 · 主角 · 接手凶宅民宿的倒霉蛋</div>
+        <div class="r-row"><span class="avatar-chip">墨</span>陈默 · 神秘长住客 · 亦师亦谜</div>
+        <div class="r-row"><span class="avatar-chip">灶</span>灶王爷 · 守护灵 · 一碗米饭雇来的盟友</div>
+        <div class="r-row"><span class="avatar-chip">周</span>周守义 · 村长 · 表面和善的隐瞒者</div>
+        <div class="r-row"><span class="avatar-chip">?</span>反派位 · 卷二引入（建议：白裙女客）</div>
+      </div>
+      <div class="mod-panel" id="mod-c" hidden>
+        <textarea id="mod-c-in" placeholder="例如：加一个跟主角拌嘴的镇上小卖部老板娘"></textarea>
+        <div class="mod-actions">
+          <button class="btn btn-primary" id="mod-c-go">提交</button>
+          <button class="btn btn-ghost" data-cancel="c">取消</button>
+        </div>
+        <div class="mod-done" id="mod-c-done" hidden>✓ 已更新（模拟）· 新角色卡已加入卡组</div>
+      </div>
+    </div>
+
+    <div class="panel-card wb-card">
+      <h3>世界地图初版<button class="btn btn-ghost mod-btn" data-mod="m">对话修改</button></h3>
+      <div class="c-sub">地点、势力与副本布局 · 开书后在"地图"空间跑图</div>
+      <svg width="100%" height="110" viewBox="0 0 480 110" preserveAspectRatio="xMidYMid slice">
+        <ellipse cx="110" cy="78" rx="70" ry="26" fill="#1a221a" />
+        <ellipse cx="240" cy="46" rx="66" ry="28" fill="#2a2418" />
+        <ellipse cx="382" cy="34" rx="72" ry="26" fill="#171a20" />
+        <path d="M150 66 C 180 58, 195 54, 210 50" stroke="#6f6046" stroke-width="2" fill="none" />
+        <path d="M272 38 C 300 34, 320 32, 340 30" stroke="#3a4049" stroke-width="2" stroke-dasharray="2 6" fill="none" />
+        <circle cx="242" cy="48" r="5" fill="var(--color-primary)" />
+        <text x="110" y="82" style="fill:var(--color-text-secondary);font-size:11px;text-anchor:middle;">云隐镇</text>
+        <text x="240" y="80" style="fill:var(--color-text);font-size:11px;text-anchor:middle;">迷雾民宿（起点）</text>
+        <text x="382" y="66" style="fill:var(--color-text-tertiary);font-size:11px;text-anchor:middle;">后山禁地（雾锁）</text>
+      </svg>
+      <dl>
+        <dt>地点</dt><dd>迷雾民宿（主场景）· 云隐镇 · 后山禁地 · 县城 · 雾外世界（终局）</dd>
+      </dl>
+      <div class="mod-panel" id="mod-m" hidden>
+        <textarea id="mod-m-in" placeholder="例如：把县城改成水路码头，方便走船引入外来客"></textarea>
+        <div class="mod-actions">
+          <button class="btn btn-primary" id="mod-m-go">提交</button>
+          <button class="btn btn-ghost" data-cancel="m">取消</button>
+        </div>
+        <div class="mod-done" id="mod-m-done" hidden>✓ 已更新（模拟）· 地图与卷二副本联动调整</div>
+      </div>
+    </div>
+
+    <div class="panel-card wb-card" style="grid-column:1/-1;">
+      <h3>分卷时间轴<button class="btn btn-ghost mod-btn" data-mod="v">对话修改</button></h3>
+      <div class="c-sub">每卷的目标、冲突升级与高潮 · 粗骨架，写作中逐卷校准长细</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-3);">
+        <div class="vol-mini"><div class="v-t">卷一 · 开业怪谈（约 30 章）</div><div class="v-g">接手民宿、立金手指、破首个大怪谈 → 高潮：敲门客之夜</div></div>
+        <div class="vol-mini"><div class="v-t">卷二 · 山雾深处（约 35 章）</div><div class="v-g">失踪案、反派线 → 高潮：山主现身</div></div>
+        <div class="vol-mini"><div class="v-t">卷三 · 雾外有人（约 50 章）</div><div class="v-g">走出小镇、真相 → 高潮：与"注视者"的终局交易</div></div>
+      </div>
+      <div class="mod-panel" id="mod-v" hidden>
+        <textarea id="mod-v-in" placeholder="例如：卷一压到 25 章内，快点进主线"></textarea>
+        <div class="mod-actions">
+          <button class="btn btn-primary" id="mod-v-go">提交</button>
+          <button class="btn btn-ghost" data-cancel="v">取消</button>
+        </div>
+        <div class="mod-done" id="mod-v-done" hidden>✓ 已更新（模拟）· 卷一副本节奏联动压缩</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-bar">
+    <button class="btn btn-ghost" id="re-all">整体重提一版</button>
+    <span id="re-all-note" style="color:var(--color-success);font-size:var(--font-size-xs);" hidden>✓ 已请求（模拟）</span>
+    <div style="flex:1;"></div>
+    <a class="btn btn-primary" href="/p/018-golden-start">五件套没问题 · 试写黄金三章 →</a>
+  </div>
+
+  <div class="pending-note">
+    <strong>⚑ 待确认（参数层）</strong>
+    <ul>
+      <li>初始角色数量 [假设] 主角 + 3-5 名主要角色 + 1 个反派位</li>
+      <li>初始地图规模 [假设] 4-6 个地点、1 个终局区域</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('[data-mod]').forEach(b => b.addEventListener('click', () => {
+    const p = document.getElementById('mod-' + b.dataset.mod); p.hidden = !p.hidden;
+  }));
+  document.querySelectorAll('[data-cancel]').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.cancel;
+    document.getElementById('mod-' + k).hidden = true;
+    const r = document.getElementById('mod-' + k + '-ripple'); if (r) r.hidden = true;
+    document.getElementById('mod-' + k + '-done').hidden = true;
+  }));
+  document.getElementById('mod-w-go').addEventListener('click', () => { document.getElementById('mod-w-ripple').hidden = false; });
+  document.getElementById('mod-w-ok').addEventListener('click', () => { document.getElementById('mod-w-ripple').hidden = true; document.getElementById('mod-w-done').hidden = false; });
+  ['s', 'c', 'm', 'v'].forEach(k => document.getElementById('mod-' + k + '-go').addEventListener('click', () => {
+    document.getElementById('mod-' + k + '-done').hidden = false;
+  }));
+  document.getElementById('re-all').addEventListener('click', () => { document.getElementById('re-all-note').hidden = false; });
+</script>

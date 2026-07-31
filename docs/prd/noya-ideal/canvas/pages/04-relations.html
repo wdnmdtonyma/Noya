@@ -1,0 +1,136 @@
+<!-- title: 书 · 关系网 -->
+<style>
+  .rel-split { display: grid; grid-template-columns: 1.7fr 1fr; gap: var(--space-5); align-items: start; }
+  .net-svg { width: 100%; height: auto; display: block; }
+  .n-edge { stroke-width: 1.8; }
+  .n-edge.trust { stroke: var(--color-primary); }
+  .n-edge.ally { stroke: var(--color-success); }
+  .n-edge.wary { stroke: var(--color-danger); stroke-dasharray: 6 5; }
+  .n-edge.hidden-tie { stroke: var(--color-info); stroke-dasharray: 3 5; }
+  .n-edge.flat { stroke: var(--color-border-strong); }
+  .n-label { fill: var(--color-text-tertiary); font-size: 11px; text-anchor: middle; }
+  .n-node { cursor: pointer; }
+  .n-node circle { fill: var(--gray-800); stroke: var(--gray-500); stroke-width: 1.5; transition: stroke var(--dur-fast) var(--ease-out); }
+  .n-node:hover circle { stroke: var(--color-primary); }
+  .n-node.hero circle { stroke: var(--color-primary); fill: var(--color-primary-soft); }
+  .n-node.is-selected circle { stroke-width: 3; stroke: var(--color-primary); }
+  .n-node text { fill: var(--color-text); font-size: 13px; text-anchor: middle; }
+  .n-node .n-sub { fill: var(--color-text-tertiary); font-size: 10px; }
+  .net-legend { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-top: var(--space-3); color: var(--color-text-tertiary); font-size: var(--font-size-xs); }
+  .net-legend i { display: inline-block; width: 16px; height: 2px; margin-right: 5px; vertical-align: middle; }
+
+  .rel-detail dl { margin: var(--space-3) 0 0; display: grid; grid-template-columns: 68px 1fr; row-gap: 7px; font-size: var(--font-size-sm); }
+  .rel-detail dt { color: var(--color-text-tertiary); }
+  .rel-detail dd { margin: 0; color: var(--color-text-secondary); }
+  .rel-detail .d-name { font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); }
+  .rel-detail .d-role { font-size: var(--font-size-xs); color: var(--color-text-tertiary); margin-top: 2px; }
+  .rel-detail .d-link { display: inline-block; margin-top: var(--space-4); font-size: var(--font-size-sm); color: var(--color-primary); text-decoration: none; }
+  .tension-card { margin-top: var(--space-4); border-left: 3px solid var(--color-info); }
+  .tension-card .t-title { font-size: var(--font-size-md); font-weight: var(--font-weight-medium); margin-bottom: 4px; }
+  .tension-card .t-body { font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+</style>
+
+<div class="topbar">
+  <a class="brand" href="/p/01-bookshelf"><span class="mark">N</span>Noya</a>
+  <div class="divider"></div>
+  <span style="font-size:var(--font-size-md);font-weight:var(--font-weight-medium);">我在规则怪谈里开民宿</span>
+  <div class="grow"></div>
+  <span class="badge warn" id="state-badge"><span class="dot warn"></span>决策点 · 等你拍板</span>
+</div>
+
+<div class="book-layout app-main">
+  <nav class="book-nav">
+    <a class="nav-item" href="/p/01-bookshelf" style="color:var(--color-text-tertiary);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M15 6l-6 6 6 6" /></svg>书架</a>
+    <a class="nav-item" href="/p/02-book-home"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>总览</a>
+    <div class="nav-group">世界观 · 影响内容</div>
+    <a class="nav-item" href="/p/025-outline"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M6 3h12v18H6z" /><path d="M9 8h6M9 12h6M9 16h4" /></svg>大纲</a>
+    <a class="nav-item" href="/p/03-map"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="12" r="9" /><path d="M15.5 8.5 13 13l-4.5 2.5L11 11z" /></svg>地图</a>
+    <a class="nav-item is-active" href="/p/04-relations"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="6" r="2.4" /><circle cx="5" cy="18" r="2.4" /><circle cx="19" cy="18" r="2.4" /><path d="M10.8 8 6.4 15.8M13.2 8l4.4 7.8M7.4 18h9.2" /></svg>关系网</a>
+    <a class="nav-item" href="/p/05-characters"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="8" r="3.6" /><path d="M5.5 20a6.5 6.5 0 0 1 13 0" /></svg>人物</a>
+    <a class="nav-item" href="/p/06-monsters"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M6 21V10a6 6 0 0 1 12 0v11l-3-2.4-3 2.4-3-2.4z" /><circle cx="10" cy="10" r=".8" fill="currentColor" /><circle cx="14" cy="10" r=".8" fill="currentColor" /></svg>怪物</a>
+    <div class="nav-group">产物 · 给读者的</div>
+    <a class="nav-item" href="/p/07-chapters"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M5 19V6a2 2 0 0 1 2-2h12v15H7a2 2 0 0 0-2 2zm0 0a2 2 0 0 0 2 2h12" /><path d="M9 8h6" /></svg>章节</a>
+    <a class="nav-item" href="/p/08-tasks"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 20l4-1L20 7l-3-3L5 16zM14 6l3 3" /></svg>写作任务</a>
+  </nav>
+
+  <div class="book-content">
+    <div class="content-pad">
+      <div class="page-head">
+        <h1>关系网</h1>
+        <div class="ph-sub">以主角为中心分层展开 · 实线已证实、虚线未证实 · 点击人物看关系明细</div>
+      </div>
+
+      <div class="rel-split">
+        <div class="panel-card">
+          <svg class="net-svg" viewBox="0 0 720 440">
+            <line class="n-edge trust" x1="360" y1="225" x2="165" y2="95" /><text class="n-label" x="240" y="150">信任 62 ↑（第 41 章 +12）</text>
+            <line class="n-edge wary" x1="360" y1="225" x2="560" y2="95" /><text class="n-label" x="480" y="150">敌意未明</text>
+            <line class="n-edge flat" x1="360" y1="225" x2="150" y2="355" /><text class="n-label" x="235" y="300">表面和善 · 有隐瞒</text>
+            <line class="n-edge ally" x1="360" y1="225" x2="570" y2="350" /><text class="n-label" x="485" y="298">盟友 · 契约 40</text>
+            <line class="n-edge hidden-tie" x1="165" y1="95" x2="560" y2="95" /><text class="n-label" x="362" y="80">疑似旧识（暗线 · 未挖）</text>
+            <g class="n-node hero" data-rel="hero"><circle cx="360" cy="225" r="34" /><text x="360" y="230">顾栖迟</text><text class="n-sub" x="360" y="272">主角</text></g>
+            <g class="n-node" data-rel="chenmo"><circle cx="165" cy="95" r="27" /><text x="165" y="100">陈默</text></g>
+            <g class="n-node" data-rel="baiqun"><circle cx="560" cy="95" r="27" /><text x="560" y="100">白裙女客</text></g>
+            <g class="n-node" data-rel="zhou"><circle cx="150" cy="355" r="27" /><text x="150" y="360">周村长</text></g>
+            <g class="n-node" data-rel="zaowang"><circle cx="570" cy="350" r="27" /><text x="570" y="355">灶王爷</text></g>
+          </svg>
+          <div class="net-legend">
+            <span><i style="background:var(--color-primary)"></i>信任</span>
+            <span><i style="background:var(--color-success)"></i>盟友</span>
+            <span><i style="background:var(--color-danger)"></i>敌意/警惕</span>
+            <span><i style="background:var(--color-info)"></i>暗线（未证实）</span>
+            <span><i style="background:var(--color-border-strong)"></i>中性</span>
+          </div>
+        </div>
+
+        <div>
+          <div class="panel-card rel-detail" id="rel-detail">
+            <div class="d-name" id="rd-name">陈默</div>
+            <div class="d-role" id="rd-role">长住常客 · 规则观察者</div>
+            <dl id="rd-rows"></dl>
+            <a class="d-link" href="/p/05-characters">查看完整人物卡 →</a>
+          </div>
+          <div class="panel-card tension-card">
+            <div class="t-title">暗线提示（故事富矿）</div>
+            <div class="t-body">陈默 × 白裙女客——第 45 章两人在走廊擦肩，谁都没有说话，但陈默当晚要走了顶楼的房。这条线还没挖。</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pending-note" style="margin:var(--space-8) 0 0;">
+        <strong>⚑ 待确认（参数层）</strong>
+        <ul>
+          <li>关系值的量纲 [假设] 0-100 数值 + 趋势箭头</li>
+          <li>关系网分层规则 [假设] 默认只展开与主角一跳的人物，两跳以外收起</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    let mode = 'decide', writing = '第 48 章《上山》';
+    try { mode = sessionStorage.getItem('noya-mode') || 'decide'; writing = sessionStorage.getItem('noya-writing') || writing; } catch (e) {}
+    const M = { decide: ['badge warn', 'dot warn', '决策点 · 等你拍板'], cruise: ['badge run', 'dot run', '巡航中 · 按卷二骨架推进'], write: ['badge run', 'dot run', '写作中 · ' + writing.split('《')[0].trim()] };
+    const b = document.getElementById('state-badge'), m = M[mode] || M.decide;
+    b.className = m[0]; b.innerHTML = '<span class="' + m[1] + '"></span>' + m[2];
+  })();
+
+  const RELS = {
+    hero:    { name: '顾栖迟', role: '主角 · 迷雾民宿老板', rows: { '与全员': '关系网中心', '此刻': '民宿大堂，决策点', '金手指': '能"读出"怪谈规则的漏洞' } },
+    chenmo:  { name: '陈默', role: '长住常客 · 规则观察者', rows: { '与主角': '信任 62 ↑', '最近变化': '第 41 章雨夜长谈 +12', '共同经历': '副本「敲门声」「雨夜来客」', '暗线': '与白裙女客疑似旧识（未挖）' } },
+    baiqun:  { name: '白裙女客', role: '身份未知 · 疑似怪谈本体', rows: { '与主角': '敌意未明', '首次登场': '第 35 章，未登记入住', '暗线': '与陈默疑似旧识（未挖）' } },
+    zhou:    { name: '周守义', role: '云隐镇村长 · 话事人', rows: { '与主角': '表面和善 · 有隐瞒', '上次出场': '第 33 章（14 章未出场 ⚑）', '牵涉': '上一任老板失踪案（伏笔·血指印）' } },
+    zaowang: { name: '灶王爷', role: '民宿守护灵', rows: { '与主角': '盟友 · 契约 40', '约束': '不能离开民宿灶间十丈', '共同经历': '副本「名册的空行」' } }
+  };
+  function renderRel(key) {
+    const d = RELS[key];
+    document.getElementById('rd-name').textContent = d.name;
+    document.getElementById('rd-role').textContent = d.role;
+    document.getElementById('rd-rows').innerHTML = Object.entries(d.rows).map(([k, v]) => '<dt>' + k + '</dt><dd>' + v + '</dd>').join('');
+    document.querySelectorAll('.n-node').forEach(n => n.classList.toggle('is-selected', n.dataset.rel === key));
+  }
+  document.querySelectorAll('.n-node').forEach(n => n.addEventListener('click', () => renderRel(n.dataset.rel)));
+  renderRel('chenmo');
+</script>

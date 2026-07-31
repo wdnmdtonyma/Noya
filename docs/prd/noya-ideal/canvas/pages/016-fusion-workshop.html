@@ -1,0 +1,138 @@
+<!-- title: 开新书 · 融合工坊 -->
+<style>
+  .ws-wrap { max-width: 1120px; margin: 0 auto; padding: var(--space-6); }
+  .src-card { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-5); flex-wrap: wrap; }
+  .src-card .s-label { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+  .src-card input { flex: 1; min-width: 260px; background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text); font-family: var(--font-family-base); font-size: var(--font-size-sm); padding: 9px 12px; }
+  .src-card input:focus { outline: none; border-color: var(--color-primary); }
+
+  .card-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4); }
+  .t-card { position: relative; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); padding: var(--space-5); cursor: pointer; transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out); }
+  .t-card:hover { border-color: var(--color-border-strong); }
+  .t-card.is-selected { border-color: var(--color-primary); background: var(--color-primary-soft); }
+  .t-card .tc-grade { position: absolute; top: var(--space-4); right: var(--space-4); }
+  .t-card h3 { margin: 0 0 6px; font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); padding-right: 90px; }
+  .t-card .tc-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--space-3); }
+  .t-card .tc-tags .tag { padding: 1px 8px; border-radius: var(--radius-pill); border: 1px solid var(--color-border-strong); color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+  .t-card dl { margin: 0; display: grid; grid-template-columns: 62px 1fr; row-gap: 6px; font-size: var(--font-size-sm); }
+  .t-card dt { color: var(--color-text-tertiary); }
+  .t-card dd { margin: 0; color: var(--color-text-secondary); }
+  .t-card .tc-risk { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px dashed var(--color-border); font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+  .redo-input { background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: var(--radius-pill); color: var(--color-text); font-family: var(--font-family-base); font-size: var(--font-size-sm); padding: 8px 14px; width: 220px; }
+  .redo-input:focus { outline: none; border-color: var(--color-primary); }
+</style>
+
+<div class="topbar">
+  <a class="brand" href="/p/01-bookshelf"><span class="mark">N</span>Noya</a>
+  <div class="divider"></div>
+  <span style="font-size:var(--font-size-md);color:var(--color-text-secondary);">开新书</span>
+  <div class="grow"></div>
+  <a class="btn btn-ghost" href="/p/01-bookshelf" style="padding:5px 14px;font-size:var(--font-size-sm);">退出流程</a>
+</div>
+
+<div class="app-main ws-wrap">
+  <div class="step-rail">
+    <a class="step is-done" href="/p/015-topic-radar" style="text-decoration:none;"><span class="s-no">✓</span>热点雷达</a>
+    <span class="step-arrow">→</span>
+    <span class="step is-current"><span class="s-no">2</span>融合工坊</span>
+    <span class="step-arrow">→</span>
+    <span class="step"><span class="s-no">3</span>建世界</span>
+    <span class="step-arrow">→</span>
+    <span class="step"><span class="s-no">4</span>黄金三章</span>
+  </div>
+
+  <div class="page-head">
+    <h1>融合选题 · 保守到激进给你一个梯度</h1>
+    <div class="ph-sub">每张卡都过同一把市场尺（热度、拥挤、对标、风险）——自带想法也一样评</div>
+  </div>
+
+  <div class="panel-card src-card">
+    <span class="s-label">融合来源</span>
+    <span class="badge run" id="src-tags">都市 × 规则怪谈 × 经营流</span>
+    <span class="s-label">或写你的想法</span>
+    <input id="own-idea" value="开民宿+怪谈规则+温情日常，行不行？" />
+    <button class="btn btn-ghost" id="re-gen" style="white-space:nowrap;">按想法重新生成</button>
+    <span id="re-gen-note" style="color:var(--color-success);font-size:var(--font-size-xs);" hidden>✓ 已请求（模拟 · 原型固定这 4 张）</span>
+  </div>
+
+  <div class="card-grid" id="card-grid">
+    <div class="t-card" data-card="1">
+      <span class="badge mute tc-grade">① 纯蹭热点</span>
+      <h3>规则怪谈里的公寓管理员</h3>
+      <div class="tc-tags"><span class="tag">都市</span><span class="tag">规则怪谈</span><span class="tag">无敌流</span></div>
+      <dl>
+        <dt>高概念</dt><dd>"这栋公寓的规则，归我管。"</dd>
+        <dt>核心爽点</dt><dd>以规则治规则，逐层收服楼层怪谈</dd>
+        <dt>对标</dt><dd>《规则怪谈：我能看见提示》</dd>
+      </dl>
+      <div class="tc-risk">风险：赛道拥挤度高，同类文供给过剩，出头靠运营位</div>
+    </div>
+
+    <div class="t-card is-selected" data-card="2">
+      <span class="badge run tc-grade">② 稳健融合</span>
+      <h3>我在规则怪谈里开民宿</h3>
+      <div class="tc-tags"><span class="tag">都市</span><span class="tag">规则怪谈</span><span class="tag">经营流 ↑</span></div>
+      <dl>
+        <dt>高概念</dt><dd>"怪谈要命，但房租更要命。"</dd>
+        <dt>核心爽点</dt><dd>规则漏洞反杀 + 经营升级正反馈</dd>
+        <dt>对标</dt><dd>《规则怪谈》× 经营流，融合位空缺</dd>
+      </dl>
+      <div class="tc-risk">风险：低——两个标签都有热度，组合位没人占；经营流抬头是新势头</div>
+    </div>
+
+    <div class="t-card" data-card="3">
+      <span class="badge mute tc-grade">③ 微创新</span>
+      <h3>怪谈镇的外卖骑手</h3>
+      <div class="tc-tags"><span class="tag">都市</span><span class="tag">规则怪谈</span><span class="tag">跑图流</span></div>
+      <dl>
+        <dt>高概念</dt><dd>"每一单，都送往人外之地。"</dd>
+        <dt>核心爽点</dt><dd>移动场景高频换图，单元剧节奏快</dd>
+        <dt>对标</dt><dd>无直接对标（差异化即风险）</dd>
+      </dl>
+      <div class="tc-risk">风险：中——场景散，长线主线难收拢，考验大纲功力</div>
+    </div>
+
+    <div class="t-card" data-card="4">
+      <span class="badge warn tc-grade">④ 大胆混搭</span>
+      <h3>我给怪谈当心理医生</h3>
+      <div class="tc-tags"><span class="tag">都市</span><span class="tag">规则怪谈</span><span class="tag">治愈流</span></div>
+      <dl>
+        <dt>高概念</dt><dd>"怪谈不害人，它们只是病了。"</dd>
+        <dt>核心爽点</dt><dd>反套路：驯服怪谈当读者的"电子宠物"</dd>
+        <dt>对标</dt><dd>无——概念全新</dd>
+      </dl>
+      <div class="tc-risk">风险：高——读者教育成本大，前三章立不住就死；立住则独占赛道</div>
+    </div>
+  </div>
+
+  <div class="flow-bar">
+    <span style="font-size:var(--font-size-sm);color:var(--color-text-secondary);">已选：<b id="picked-name" style="color:var(--color-primary);">《我在规则怪谈里开民宿》</b></span>
+    <div class="grow" style="flex:1;"></div>
+    <button class="btn btn-ghost" id="redo-batch">全不满意 · 重出一批</button>
+    <input class="redo-input" id="redo-fb" placeholder="带反馈重算：再激进点 / 避开XX…" />
+    <a class="btn btn-ghost" href="/p/015-topic-radar">回雷达换标签</a>
+    <a class="btn btn-primary" href="/p/017-world-build">就用这张 · 立项建世界 →</a>
+  </div>
+  <p style="margin:var(--space-3) 0 0;font-size:var(--font-size-xs);color:var(--color-text-tertiary);">原型以第 ② 张卡为例演示后续流程；选其它卡流程相同。</p>
+
+  <div class="pending-note">
+    <strong>⚑ 待确认（参数层）</strong>
+    <ul>
+      <li>候选数量 [假设] 每批 4 张、覆盖保守→激进四档</li>
+      <li>书名候选 [假设] 选题卡自带 1 个书名，立项后可改</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  try { const t = sessionStorage.getItem('noya-tags'); if (t) document.getElementById('src-tags').textContent = t; } catch (e) {}
+  const NAMES = { 1: '《规则怪谈里的公寓管理员》', 2: '《我在规则怪谈里开民宿》', 3: '《怪谈镇的外卖骑手》', 4: '《我给怪谈当心理医生》' };
+  document.querySelectorAll('.t-card').forEach(c => c.addEventListener('click', () => {
+    document.querySelectorAll('.t-card').forEach(x => x.classList.remove('is-selected'));
+    c.classList.add('is-selected');
+    document.getElementById('picked-name').textContent = NAMES[c.dataset.card];
+  }));
+  document.getElementById('re-gen').addEventListener('click', () => { document.getElementById('re-gen-note').hidden = false; });
+  document.getElementById('redo-batch').addEventListener('click', function () { this.textContent = '已请求重出（模拟 · 固定 4 张）'; });
+  document.getElementById('redo-fb').addEventListener('keydown', function (e) { if (e.key === 'Enter') { this.value = ''; this.placeholder = '✓ 已带反馈重算（模拟）'; } });
+</script>

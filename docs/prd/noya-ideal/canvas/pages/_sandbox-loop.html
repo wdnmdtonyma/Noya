@@ -1,0 +1,950 @@
+<!-- sandbox -->
+<!-- title: 循环探针 · 玩一圈《我在青云宗打卡修仙》 -->
+<!-- manifest
+state: stage, hookChoice
+components: loop-rail, warroom-open, plan-cards, writing-progress, delivery-review, warroom-next, dockbar, toast
+-->
+<style>
+  /* ============ 布局骨架 ============ */
+  .probe { max-width: 960px; margin: 0 auto; padding: var(--space-5) var(--space-6) 110px; }
+  section[data-stage] { display: none; }
+  section[data-stage].on { display: block; }
+
+  /* ============ 循环指示轨 ============ */
+  .loop-rail { position: sticky; top: 52px; z-index: 40; background: rgba(12,13,16,.88); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--color-border); }
+  .loop-rail .lr-in { max-width: 960px; margin: 0 auto; padding: 10px var(--space-6); display: flex; align-items: center; gap: 4px; overflow-x: auto; }
+  .lr-step { display: flex; align-items: center; gap: 7px; padding: 4px 12px; border-radius: var(--radius-pill); font-size: var(--font-size-xs); color: var(--color-text-tertiary); white-space: nowrap; border: 1px solid transparent; }
+  .lr-step .n { width: 16px; height: 16px; border-radius: 50%; background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; font-size: 10px; font-family: var(--font-family-mono); }
+  .lr-step.cur { color: var(--color-primary); border-color: rgba(217,162,74,.35); background: var(--color-primary-soft); }
+  .lr-step.cur .n { background: var(--color-primary); color: var(--color-text-inverse); }
+  .lr-step.done { color: var(--color-success); }
+  .lr-step.done .n { background: var(--color-success-soft); color: var(--color-success); }
+  .lr-arrow { color: var(--color-text-disabled); font-size: 11px; flex: none; }
+  .lr-loopback { color: var(--color-text-disabled); font-size: 11px; margin-left: 2px; flex: none; display: flex; align-items: center; gap: 4px; }
+
+  /* ============ 通用小件 ============ */
+  .sec-head { display: flex; align-items: baseline; gap: var(--space-3); margin: var(--space-7, 28px) 0 var(--space-4); }
+  .sec-head .sec-t { font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); }
+  .sec-head .sec-hint { font-size: var(--font-size-xs); color: var(--color-text-tertiary); margin-left: auto; }
+  .card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
+  .reveal { opacity: 0; transform: translateY(8px); animation: rise var(--dur-slow) var(--ease-out) forwards; }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+  .kicker { font-size: var(--font-size-xs); letter-spacing: 2px; color: var(--color-primary); }
+  .mono { font-family: var(--font-family-mono); }
+
+  .ava { flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: var(--font-weight-semibold); color: var(--color-text); background: radial-gradient(120% 120% at 30% 25%, var(--gray-700), var(--gray-850)); border: 2px solid var(--gray-600); }
+  .ava.lin  { border-color: var(--color-primary); color: var(--color-primary); }
+  .ava.shen { border-color: #7db8e8; color: #a8d2f5; }
+  .ava.zhao { border-color: #e06a5a; color: #f09182; }
+  .ava.han  { border-color: var(--gray-400); color: var(--gray-200); }
+  .ava.wang { border-color: #58b98a; color: #7dd3a8; }
+  .ava.sun  { border-color: var(--gray-500); color: var(--gray-300); border-style: dashed; }
+
+  .tag { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 2px 9px; border-radius: var(--radius-pill); line-height: 16px; }
+  .tag.long { background: var(--color-info-soft); color: var(--color-info); }
+  .tag.once { background: transparent; border: 1px dashed var(--color-border-strong); color: var(--color-text-tertiary); }
+  .tag.new  { background: var(--color-primary-soft); color: var(--color-primary); }
+  .tag.deep { background: var(--gray-800); color: var(--color-text-tertiary); border: 1px solid var(--color-border); }
+  .tag.good { background: var(--color-success-soft); color: var(--color-success); }
+  .tag.evil { background: var(--color-danger-soft); color: var(--color-danger); }
+  .tag.unk  { background: var(--gray-800); color: var(--color-text-secondary); }
+
+  /* ============ S1 / S5 战情屏 ============ */
+  .warroom-head { padding: var(--space-6); background: linear-gradient(180deg, rgba(217,162,74,.07), transparent 70%), var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-xl); }
+  .wh-top { display: flex; align-items: flex-start; gap: var(--space-3); }
+  .wh-top h1 { margin: 2px 0 6px; font-size: var(--font-size-2xl); line-height: var(--line-2xl); font-weight: var(--font-weight-semibold); }
+  .wh-meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .wh-now { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--color-border); font-size: 15px; line-height: 1.9; color: var(--color-text); }
+  .wh-now .k { color: var(--color-primary); }
+  .wh-pos { margin-top: var(--space-3); display: flex; align-items: center; gap: 10px; font-size: var(--font-size-sm); color: var(--color-text-secondary); flex-wrap: wrap; }
+
+  .cast { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-3); }
+  .cchar { padding: var(--space-4); display: flex; flex-direction: column; gap: 8px; transition: border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out); }
+  .cchar:hover { border-color: var(--color-border-strong); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+  .cchar .ch-id { display: flex; align-items: center; gap: 10px; }
+  .cchar .ava { width: 40px; height: 40px; font-size: var(--font-size-lg); }
+  .cchar .ch-n b { display: block; font-size: var(--font-size-md); }
+  .cchar .ch-n span { font-size: 11px; color: var(--color-text-tertiary); }
+  .cchar dl { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+  .cchar .cs { display: flex; gap: 7px; font-size: var(--font-size-xs); line-height: 1.55; }
+  .cchar .cs dt { flex: none; width: 42px; color: var(--color-text-disabled); }
+  .cchar .cs dd { margin: 0; color: var(--color-text-secondary); }
+  .cchar .cs dd.hot { color: var(--color-primary); }
+  .cchar .cs dd.chg { color: var(--color-success); }
+  .cchar .secret { margin-top: auto; padding-top: 8px; border-top: 1px dashed var(--color-border); font-size: 11px; color: var(--color-text-tertiary); line-height: 1.6; }
+  .cchar .secret b { color: var(--color-text-secondary); font-weight: var(--font-weight-normal); }
+
+  .ledger2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+  .lg-col { padding: var(--space-4) var(--space-5); }
+  .lg-col h4 { margin: 0 0 4px; font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); display: flex; align-items: center; gap: 8px; }
+  .lg-col .lg-sub { font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 10px; }
+  .lg-item { display: flex; gap: 9px; align-items: flex-start; padding: 7px 0; border-top: 1px solid var(--color-border); font-size: var(--font-size-sm); color: var(--color-text-secondary); line-height: 1.6; }
+  .lg-item:first-of-type { border-top: none; }
+  .lg-item .li-ic { flex: none; margin-top: 3px; }
+  .lg-item b { color: var(--color-text); font-weight: var(--font-weight-medium); }
+  .lg-item.paid { color: var(--color-text-tertiary); }
+  .lg-item.paid b { color: var(--color-text-secondary); text-decoration: line-through; text-decoration-color: var(--gray-500); }
+  .lg-item .tag { margin-left: 6px; }
+
+  .next-strip { margin-top: var(--space-5); padding: var(--space-4) var(--space-5); display: flex; align-items: center; gap: var(--space-4); border: 1px solid rgba(217,162,74,.35); background: var(--color-primary-soft); border-radius: var(--radius-lg); }
+  .next-strip .ns-main { flex: 1; }
+  .next-strip .ns-main b { display: block; font-size: var(--font-size-md); color: var(--color-text); margin-bottom: 2px; }
+  .next-strip .ns-main span { font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+
+  /* ============ S2 章卡 ============ */
+  .seg-head { padding: var(--space-5) var(--space-6); }
+  .seg-head .sh-row { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+  .seg-head h2 { margin: 0; font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); }
+  .seg-endpoints { margin-top: 10px; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: var(--font-size-sm); }
+  .seg-endpoints dt { color: var(--color-text-tertiary); }
+  .seg-endpoints dd { margin: 0; color: var(--color-text-secondary); }
+  .seg-endpoints dd b { color: var(--color-text); font-weight: var(--font-weight-medium); }
+  .seg-debts { margin-top: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+
+  .ck { margin-top: var(--space-4); overflow: hidden; }
+  .ck-head { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--color-border); background: linear-gradient(180deg, rgba(217,162,74,.05), transparent), var(--color-surface); }
+  .ck-no { flex: none; width: 34px; height: 34px; border-radius: var(--radius-md); background: var(--color-primary-soft); color: var(--color-primary); display: flex; align-items: center; justify-content: center; font-family: var(--font-family-mono); font-size: var(--font-size-sm); }
+  .ck-head h3 { margin: 0; font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); }
+  .ck-head .ck-sub { font-size: var(--font-size-xs); color: var(--color-text-tertiary); margin-top: 1px; }
+  .ck-flag { margin-left: auto; }
+  .ck-body { padding: var(--space-4) var(--space-5) var(--space-5); display: flex; flex-direction: column; gap: var(--space-4); }
+  .ck-field .fk { display: flex; align-items: center; gap: 7px; font-size: var(--font-size-xs); letter-spacing: 1px; color: var(--color-text-tertiary); margin-bottom: 6px; }
+  .ck-field .fk svg { flex: none; }
+  .ck-plot { font-size: var(--font-size-sm); line-height: 1.85; color: var(--color-text-secondary); }
+  .ck-plot b { color: var(--color-text); font-weight: var(--font-weight-medium); }
+  .ck-punch { padding: 11px 14px; background: var(--color-primary-soft); border: 1px solid rgba(217,162,74,.3); border-radius: var(--radius-md); font-size: var(--font-size-sm); line-height: 1.8; color: var(--color-text-secondary); outline: none; }
+  .ck-punch b { color: var(--color-primary); font-weight: var(--font-weight-medium); }
+  .ck-punch[contenteditable="true"]:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(217,162,74,.12); }
+  .ck-edithint { font-size: 11px; color: var(--color-text-disabled); margin-top: 4px; }
+  .ck-cast { display: flex; gap: 8px; flex-wrap: wrap; }
+  .cchip { display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px 5px 6px; border: 1px solid var(--color-border); border-radius: var(--radius-pill); background: var(--color-surface-2); font-size: var(--font-size-xs); color: var(--color-text-secondary); }
+  .cchip .ava { width: 22px; height: 22px; font-size: 11px; border-width: 1.5px; }
+  .cchip b { color: var(--color-text); font-weight: var(--font-weight-medium); }
+  .cchip.clickable { cursor: pointer; transition: border-color var(--dur-fast); }
+  .cchip.clickable:hover { border-color: var(--color-primary); }
+  .know { display: flex; flex-direction: column; gap: 5px; }
+  .know .krow { display: flex; gap: 8px; font-size: var(--font-size-xs); color: var(--color-text-secondary); line-height: 1.6; align-items: flex-start; }
+  .know .krow svg { flex: none; margin-top: 2px; }
+  .know .krow b { color: var(--color-text); font-weight: var(--font-weight-normal); }
+  .hookline { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border: 1px dashed var(--color-border-strong); border-radius: var(--radius-md); font-size: var(--font-size-sm); color: var(--color-text); line-height: 1.75; background: var(--gray-850); }
+  .hookline .mono { color: var(--color-primary); }
+  .numline { font-size: var(--font-size-xs); color: var(--color-text-tertiary); display: flex; gap: 14px; flex-wrap: wrap; }
+  .numline b { color: var(--color-text-secondary); font-weight: var(--font-weight-normal); font-family: var(--font-family-mono); }
+  .seg2 { display: inline-flex; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); overflow: hidden; }
+  .seg2 button { appearance: none; border: none; background: transparent; color: var(--color-text-secondary); font-size: var(--font-size-xs); font-family: var(--font-family-base); padding: 7px 12px; cursor: pointer; line-height: 1.5; text-align: left; }
+  .seg2 button + button { border-left: 1px solid var(--color-border-strong); }
+  .seg2 button.sel { background: var(--color-primary-soft); color: var(--color-primary); }
+  .ck-foot { display: flex; align-items: center; gap: 8px; padding: 10px var(--space-5); border-top: 1px solid var(--color-border); background: var(--gray-900); }
+  .ck-foot .ok { font-size: var(--font-size-xs); color: var(--color-text-tertiary); display: flex; align-items: center; gap: 6px; }
+  .minibtn { appearance: none; cursor: pointer; font-family: var(--font-family-base); font-size: var(--font-size-xs); padding: 5px 11px; border-radius: var(--radius-md); border: 1px solid var(--color-border-strong); background: transparent; color: var(--color-text-tertiary); transition: all var(--dur-fast); }
+  .minibtn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+
+  /* popover */
+  .pop { position: absolute; z-index: 70; width: 300px; background: var(--gray-800); border: 1px solid var(--color-border-strong); border-radius: var(--radius-lg); box-shadow: var(--shadow-pop); padding: var(--space-4); display: none; }
+  .pop.open { display: block; }
+  .pop h5 { margin: 0 0 6px; font-size: var(--font-size-sm); color: var(--color-text); }
+  .pop p { margin: 0 0 10px; font-size: var(--font-size-xs); line-height: 1.7; color: var(--color-text-secondary); }
+  .pop .pp-btns { display: flex; gap: 8px; }
+
+  /* ============ S3 写作中 ============ */
+  .writeboard { padding: var(--space-6); }
+  .wb-title { display: flex; align-items: center; gap: 10px; margin-bottom: var(--space-5); font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); }
+  .spinner { width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--color-primary-soft); border-top-color: var(--color-primary); animation: spin .7s linear infinite; flex: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .wch { display: flex; align-items: center; gap: var(--space-3); padding: 12px 0; border-top: 1px solid var(--color-border); font-size: var(--font-size-sm); }
+  .wch:first-of-type { border-top: none; }
+  .wch .st { flex: none; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; }
+  .wch .st .pending { width: 8px; height: 8px; border-radius: 50%; background: var(--gray-600); display: block; }
+  .wch .wt { flex: 1; color: var(--color-text-secondary); }
+  .wch .wt b { color: var(--color-text); font-weight: var(--font-weight-medium); }
+  .wch .wc { font-family: var(--font-family-mono); font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+  .wch.doing .wt b { color: var(--color-primary); }
+  .wlog { margin-top: var(--space-5); border-top: 1px solid var(--color-border); padding-top: var(--space-4); display: flex; flex-direction: column; gap: 6px; min-height: 120px; }
+  .wlog .ll { display: flex; gap: 9px; font-size: var(--font-size-xs); font-family: var(--font-family-mono); color: var(--color-text-tertiary); line-height: 1.7; }
+  .wlog .ll .t { flex: none; color: var(--color-text-disabled); }
+  .wlog .ll b { color: var(--color-text-secondary); font-weight: var(--font-weight-normal); }
+  .wlog .ll.ok b { color: var(--color-success); }
+
+  /* ============ S4 交付 ============ */
+  .deliver { display: grid; grid-template-columns: minmax(0,1fr) 320px; gap: var(--space-4); align-items: start; }
+  .reader { overflow: hidden; }
+  .rd-tabs { display: flex; border-bottom: 1px solid var(--color-border); background: var(--gray-900); }
+  .rd-tab { appearance: none; border: none; background: transparent; font-family: var(--font-family-base); padding: 12px 16px; font-size: var(--font-size-sm); color: var(--color-text-tertiary); cursor: pointer; border-bottom: 2px solid transparent; transition: color var(--dur-fast); }
+  .rd-tab:hover { color: var(--color-text); }
+  .rd-tab.sel { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+  .rd-body { padding: var(--space-6) var(--space-8, 32px); max-height: 74vh; overflow-y: auto; }
+  .rd-ch { display: none; }
+  .rd-ch.on { display: block; }
+  .rd-ch h3 { margin: 0 0 4px; font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); }
+  .rd-ch .rd-meta { font-size: var(--font-size-xs); color: var(--color-text-tertiary); margin-bottom: var(--space-5); }
+  .rd-ch p { font-size: 15px; line-height: 2.0; color: var(--color-text); margin: 0 0 1em; }
+  .rd-ch p em { font-style: normal; color: var(--color-text-secondary); }
+  .rd-ch .sys { font-family: var(--font-family-mono); font-size: var(--font-size-sm); line-height: 1.9; color: var(--color-primary); margin: 0 0 1em; padding-left: 14px; border-left: 2px solid rgba(217,162,74,.4); }
+  .rd-ch hr.scene { border: none; border-top: 1px dashed var(--color-border); margin: var(--space-6) auto; width: 40%; }
+  .rd-next { margin: var(--space-4) 0 0; display: flex; justify-content: flex-end; }
+
+  .wdiff { display: flex; flex-direction: column; gap: var(--space-3); position: sticky; top: 108px; max-height: calc(100vh - 130px); overflow-y: auto; }
+  .wd-card { padding: var(--space-4) var(--space-5); }
+  .wd-card h4 { margin: 0 0 10px; font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); display: flex; align-items: center; gap: 8px; }
+  .wd-card h4 .cnt { margin-left: auto; font-size: 11px; color: var(--color-text-tertiary); font-weight: var(--font-weight-normal); }
+  .stat { display: flex; align-items: center; gap: 8px; font-size: var(--font-size-xs); color: var(--color-text-secondary); padding: 5px 0; }
+  .stat .sk { flex: none; width: 58px; color: var(--color-text-tertiary); }
+  .stat .arrow { color: var(--color-text-disabled); }
+  .stat b { color: var(--color-text); font-weight: var(--font-weight-medium); font-family: var(--font-family-mono); }
+  .stat .up { color: var(--color-success); font-family: var(--font-family-mono); }
+  .bar { flex: 1; height: 5px; border-radius: 3px; background: var(--gray-700); overflow: hidden; min-width: 40px; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--color-primary); transition: width 1.1s var(--ease-out); }
+  .entryrow { display: flex; gap: 8px; font-size: var(--font-size-xs); font-family: var(--font-family-mono); color: var(--color-text-tertiary); padding: 4px 0; }
+  .entryrow .ev { flex: 1; font-family: var(--font-family-base); color: var(--color-text-secondary); }
+  .entryrow .amt { color: var(--color-text); }
+  .entryrow .amt.minus { color: var(--color-danger); }
+  .entryrow .amt.plus { color: var(--color-success); }
+  .entryrow.total { border-top: 1px solid var(--color-border); margin-top: 3px; padding-top: 7px; }
+  .entryrow.total .amt { color: var(--color-primary); }
+  .tl { display: flex; flex-direction: column; }
+  .tl .te { display: flex; gap: 10px; padding: 6px 0; font-size: var(--font-size-xs); color: var(--color-text-secondary); line-height: 1.6; }
+  .tl .te .dot2 { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--color-primary); margin-top: 5px; }
+  .tl .te b { color: var(--color-text); font-weight: var(--font-weight-normal); }
+  .chk { display: flex; gap: 8px; align-items: flex-start; font-size: var(--font-size-xs); color: var(--color-text-secondary); padding: 5px 0; line-height: 1.6; }
+  .chk svg { flex: none; margin-top: 2px; }
+  .personrow { display: flex; align-items: center; gap: 9px; padding: 6px 0; font-size: var(--font-size-xs); color: var(--color-text-secondary); }
+  .personrow .ava { width: 24px; height: 24px; font-size: 11px; border-width: 1.5px; }
+  .personrow b { color: var(--color-text); font-weight: var(--font-weight-medium); }
+  .personrow .tag { margin-left: auto; }
+
+  /* ============ dockbar / toast ============ */
+  .dockbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 55; background: rgba(18,19,23,.94); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--color-border-strong); }
+  .dockbar .inner { max-width: 960px; margin: 0 auto; padding: 12px var(--space-6); display: flex; align-items: center; gap: var(--space-3); }
+  .dock-state { font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+  .dock-state b { color: var(--color-primary); font-weight: var(--font-weight-medium); }
+  .dockbar .grow { flex: 1; }
+  .toast { position: fixed; left: 50%; bottom: 78px; transform: translateX(-50%) translateY(12px); z-index: 90; background: var(--gray-800); border: 1px solid var(--color-border-strong); color: var(--color-text); font-size: var(--font-size-sm); padding: 9px 16px; border-radius: var(--radius-pill); box-shadow: var(--shadow-md); opacity: 0; pointer-events: none; transition: all var(--dur-base) var(--ease-out); max-width: 80vw; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast b { color: var(--color-primary); }
+
+  .probe-note { margin-top: var(--space-8); padding-top: var(--space-4); border-top: 1px dashed var(--color-border); font-size: var(--font-size-xs); color: var(--color-text-tertiary); line-height: 1.8; }
+
+  @media (max-width: 920px) {
+    .cast { grid-template-columns: repeat(2, 1fr); }
+    .ledger2 { grid-template-columns: 1fr; }
+    .deliver { grid-template-columns: 1fr; }
+    .wdiff { position: static; max-height: none; }
+  }
+</style>
+
+<div class="topbar">
+  <a class="brand" href="/p/01-bookshelf"><span class="mark">N</span>Noya</a><div class="divider"></div>
+  <span style="font-size:var(--font-size-md);font-weight:var(--font-weight-medium);">我在青云宗打卡修仙</span>
+  <span class="badge mute" style="margin-left:8px;">循环探针 · 完整玩一圈</span>
+  <div class="grow"></div>
+  <span class="badge warn" id="tb-state"><span class="dot warn"></span>该你落子</span>
+</div>
+
+<div class="loop-rail"><div class="lr-in" id="looprail">
+  <span class="lr-step" data-ls="1"><span class="n">1</span>进书 · 看战况</span><span class="lr-arrow">→</span>
+  <span class="lr-step" data-ls="2"><span class="n">2</span>过三张章卡</span><span class="lr-arrow">→</span>
+  <span class="lr-step" data-ls="3"><span class="n">3</span>Agent 写</span><span class="lr-arrow">→</span>
+  <span class="lr-step" data-ls="4"><span class="n">4</span>验收 · 世界动了</span><span class="lr-arrow">→</span>
+  <span class="lr-step" data-ls="5"><span class="n">5</span>下一圈</span>
+  <span class="lr-loopback"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>回到 1</span>
+</div></div>
+
+<div class="probe app-main">
+
+<!-- ================= S1 进书 · 开局战况 ================= -->
+<section data-stage="1">
+  <div class="warroom-head reveal">
+    <div class="wh-top">
+      <div>
+        <div class="kicker">进书 · 战情</div>
+        <h1>我在青云宗打卡修仙</h1>
+        <div class="wh-meta">
+          <span class="badge mute">题材 · 系统流修仙 × 魂穿</span>
+          <span class="badge mute">平台 · 番茄系免费</span>
+          <span class="badge run"><span class="dot run"></span>正文 0 字 · 世界已就位</span>
+        </div>
+      </div>
+    </div>
+    <div class="wh-now">
+      玄苍界，青云宗外门。三千弟子里垫底的那个叫<span class="k">林凡</span>——五行杂废灵根，炼气一层卡了半年，全部家当三块灵石半块干粮。宗规写得清楚：<span class="k">三月后外门大比，末位逐出师门</span>。外门第一人赵天雄拿他立威，内门天才沈青霜与他有一桩旧事，藏经阁的扫地老头没人多看一眼。金手指「长生签到系统」已上膛：签到攒道源、商店换一切，初始余额 100——这笔钱从哪来的，只有你知道，他不知道。
+    </div>
+    <div class="wh-pos">
+      <span class="badge warn"><span class="dot warn"></span>此刻</span>
+      开篇前夜。第一个字还没写，Agent 已经把开局三章的计划摆上了桌。
+    </div>
+  </div>
+
+  <div class="sec-head reveal" style="animation-delay:.08s"><span class="sec-t">班底</span><span class="sec-hint">建世界时定好的核心角色 · 底牌只有你（作者）看得见</span></div>
+  <div class="cast reveal" style="animation-delay:.1s">
+    <article class="card cchar"><div class="ch-id"><span class="ava lin">凡</span><div class="ch-n"><b>林凡</b><span>主角 · 穿越者</span></div></div>
+      <dl><div class="cs"><dt>境界</dt><dd>炼气一层 · 12%</dd></div><div class="cs"><dt>灵根</dt><dd>五行杂 · 伪（F）</dd></div><div class="cs"><dt>金手指</dt><dd class="hot">长生签到系统</dd></div><div class="cs"><dt>阵营</dt><dd><span class="tag good">主角</span></dd></div></dl>
+      <div class="secret"><b>底牌：</b>穿越者身份 · 有系统 · 系统来历连他自己都不知道</div></article>
+    <article class="card cchar"><div class="ch-id"><span class="ava shen">霜</span><div class="ch-n"><b>沈青霜</b><span>女主 · 内门第一天才</span></div></div>
+      <dl><div class="cs"><dt>境界</dt><dd>筑基前期</dd></div><div class="cs"><dt>法宝</dt><dd>寒潭剑（灵器）</dd></div><div class="cs"><dt>功法</dt><dd>太阴凝霜诀（地阶）</dd></div><div class="cs"><dt>阵营</dt><dd><span class="tag unk">未明 · 偏正</span></dd></div></dl>
+      <div class="secret"><b>底牌：</b>北冥剑冢隐世传人 · 原主曾替她挡过一剑，她记着</div></article>
+    <article class="card cchar"><div class="ch-id"><span class="ava zhao">雄</span><div class="ch-n"><b>赵天雄</b><span>反派 · 外门第一人</span></div></div>
+      <dl><div class="cs"><dt>境界</dt><dd>炼气七层</dd></div><div class="cs"><dt>法宝</dt><dd>烈阳环（法器上品）</dd></div><div class="cs"><dt>功法</dt><dd>焚天诀</dd></div><div class="cs"><dt>阵营</dt><dd><span class="tag evil">反派</span></dd></div></dl>
+      <div class="secret"><b>底牌：</b>偷服禁药「嗜血丹」速成——定时炸弹，留给卷一引爆</div></article>
+    <article class="card cchar"><div class="ch-id"><span class="ava han">韩</span><div class="ch-n"><b>韩拾遗</b><span>藏经阁老杂役</span></div></div>
+      <dl><div class="cs"><dt>境界</dt><dd>表面 · 炼气残废</dd></div><div class="cs"><dt>实际</dt><dd class="hot">元婴期 · 深藏</dd></div><div class="cs"><dt>声口</dt><dd>装糊涂 · 慢半拍</dd></div><div class="cs"><dt>阵营</dt><dd><span class="tag unk">未明</span></dd></div></dl>
+      <div class="secret"><b>底牌：</b>前任系统宿主的故人，认得系统的气息</div></article>
+    <article class="card cchar"><div class="ch-id"><span class="ava wang">狗</span><div class="ch-n"><b>王二狗</b><span>损友 · 信息源</span></div></div>
+      <dl><div class="cs"><dt>境界</dt><dd>炼气二层</dd></div><div class="cs"><dt>声口</dt><dd>“哥，我跟你讲——”</dd></div><div class="cs"><dt>用途</dt><dd>替读者打听八卦</dd></div><div class="cs"><dt>阵营</dt><dd><span class="tag good">友方</span></dd></div></dl>
+      <div class="secret"><b>底牌：</b>没有底牌——平民视角就是他的价值</div></article>
+  </div>
+
+  <div class="sec-head reveal" style="animation-delay:.16s"><span class="sec-t">任务账 · 一本账两面</span><span class="sec-hint">左边是书里主角的，右边是你欠读者的</span></div>
+  <div class="ledger2 reveal" style="animation-delay:.18s">
+    <div class="card lg-col">
+      <h4><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>主角面 · 系统任务</h4>
+      <div class="lg-sub">写进书里的事实，主角和读者都看得见</div>
+      <div class="lg-item"><span class="li-ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-disabled)" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg></span><div>还没有任务——<b>系统尚未觉醒</b>，这正是第一章要干的事</div></div>
+    </div>
+    <div class="card lg-col">
+      <h4><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning)" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>作者面 · 欠读者的</h4>
+      <div class="lg-sub">开局必须立起来的东西，欠着不还书就垮</div>
+      <div class="lg-item"><span class="li-ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning)" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg></span><div><b>金手指立起来</b>——三章之内系统必须响，晚了读者就走了</div></div>
+      <div class="lg-item"><span class="li-ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning)" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg></span><div><b>死线钉死</b>——三月后大比、垫底逐出，让读者替他着急</div></div>
+      <div class="lg-item"><span class="li-ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning)" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg></span><div><b>女主挂上钩</b>——沈青霜得注意到他，但不能捅破</div></div>
+      <div class="lg-item"><span class="li-ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning)" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg></span><div><b>反派立威</b>——赵天雄要压得够狠，后面打脸才够响</div></div>
+      <div class="lg-item"><span class="li-ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-disabled)" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg></span><div><b>系统的来历</b>——初始 100 道源从哪来<span class="tag deep">深埋 · 卷一不动</span></div></div>
+    </div>
+  </div>
+
+  <div class="next-strip reveal" style="animation-delay:.24s">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="4"/></svg>
+    <div class="ns-main"><b>Agent 已备好：开局三章《魂穿与签到》</b><span>三张章卡等你过目——看完顺眼就放行，不顺眼当场改。</span></div>
+    <button class="btn btn-primary" onclick="go(2)">看这一段的计划</button>
+  </div>
+
+  <div class="probe-note">这个探针用的全是真材料：世界设定、三章正文、每一笔数值账，都来自上一轮真实跑通的验证。你现在点的每一步，就是产品设想的日常。</div>
+</section>
+
+<!-- ================= S2 段计划 · 三张章卡 ================= -->
+<section data-stage="2">
+  <div class="card seg-head reveal">
+    <div class="sh-row"><div class="kicker">下一段 · 计划</div></div>
+    <div class="sh-row" style="margin-top:4px;"><h2>开局三章 · 魂穿与签到</h2><span class="badge mute">第 1–3 章 · 黄金开局段</span></div>
+    <dl class="seg-endpoints">
+      <dt>从哪起</dt><dd>魂穿当口——林凡被赵天雄堵在外门院，逼交灵石，真火压脸</dd>
+      <dt>写到哪</dt><dd>主线任务立起：<b>大比进前十 → 奖洗髓丹洗掉废灵根</b>，读者被“看他怎么苟到翻身”勾住</dd>
+    </dl>
+    <div class="seg-debts">这一段要还的账：<span class="tag new">金手指立起来</span><span class="tag new">死线钉死</span><span class="tag new">女主挂钩</span><span class="tag new">反派立威</span></div>
+  </div>
+
+  <!-- 章卡 1 -->
+  <article class="card ck reveal" style="animation-delay:.06s">
+    <div class="ck-head"><span class="ck-no">01</span><div><h3>魂穿与叮的一声</h3><div class="ck-sub">约 2,600 字 · 外门弟子院</div></div></div>
+    <div class="ck-body">
+      <div class="ck-field"><div class="fk"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>剧情</div>
+        <div class="ck-plot">加班猝死的社畜魂穿到青云宗最废的外门弟子身上，原主记忆灌进来的同一刻，赵天雄堵门逼交灵石、真火压脸。装怂交钱没换来放过，绝境里那句<b>“不甘心”</b>烧起来——章末，颅内响起第一声「叮」。</div></div>
+      <div class="ck-field"><div class="fk"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h7l-1 8 11-13h-7l0-7z"/></svg>看点 · 怎么演</div>
+        <div class="ck-punch" contenteditable="true" spellcheck="false">金手指压到<b>最后一拍</b>才响：读者全程等系统，等来的却是越来越近的真火——绝望拉满的那一瞬「叮」才落地。全章笑点靠“老网文读者穿进熟剧本”的吐槽反差（“这不就是废柴流开篇三件套？”）。</div>
+        <div class="ck-edithint">这一栏可以直接改——写手照改后的演。</div></div>
+      <div class="ck-field"><div class="fk"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>登场</div>
+        <div class="ck-cast">
+          <span class="cchip"><span class="ava lin">凡</span><b>林凡</b><span class="tag long">长期</span></span>
+          <span class="cchip"><span class="ava zhao">雄</span><b>赵天雄</b><span class="tag long">长期</span></span>
+          <span class="cchip"><span class="ava wang">狗</span><b>王二狗</b><span class="tag long">长期</span></span>
+        </div></div>
+      <div class="ck-field"><div class="fk"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>谁知道什么</div>
+        <div class="know">
+          <div class="krow"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg><span>系统章末才觉醒——<b>全世界无人知道</b>，包括正在挨打的林凡自己</span></div>
+          <div class="krow"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg><span>赵天雄不知道原主已经换了人——他打的还是“那个废物”</span></div>
+        </div></div>
+      <div class="ck-field"><div class="fk"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>章末钩</div>
+        <div class="hookline"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2" style="flex:none;margin-top:4px;"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg><span><span class="mono">【叮——长生签到系统，绑定成功。宿主初始道源：100。】</span><br>白来的 100 道源哪来的？<span class="tag deep" style="vertical-align:2px;">深埋 · 读者先不问，你记着</span></span></div></div>
+    </div>
+    <div class="ck-foot"><span class="ok"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>不新增角色 · 不动世界设定</span><div style="flex:1"></div><button class="minibtn" onclick="stubToast('换个演法：真产品里 Agent 会带你的意见重出这张卡（探针不铺这条路）')">换个演法</button></div>
+  </article>
+
+  <!-- 章卡 2 -->
+  <article class="card ck reveal" style="animation-delay:.12s">
+    <div class="ck-head"><span class="ck-no">02</span><div><h3>签到，启动</h3><div class="ck-sub">约 2,400 字 · 柴房</div></div></div>
+    <div class="ck-body">
+      <div class="ck-field"><div class="fk"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>剧情</div>
+        <div class="ck-plot">长老传唤替林凡解了围。二狗护送回柴房，借他的嘴把大比规则、沈青霜、原主替她挡剑的旧事全交代给读者。林凡首刷面板：首次签到 +20，买聚气丹服下修为 12%→20%，第一口“日拱一卒”的甜头；顺手发现两个钩——灵根标着<b>“可洗”</b>（商店 5000 道源），藏经阁是灵气 ×5 的签到福地。</div></div>
+      <div class="ck-field"><div class="fk"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h7l-1 8 11-13h-7l0-7z"/></svg>看点 · 怎么演</div>
+        <div class="ck-punch" contenteditable="true" spellcheck="false">签到流第一口爽按<b>打工人逻辑</b>演：“老板画的饼从没兑现，系统说给 20 就给 20，一分不差——这不比上班强？”系统面板毒舌供笑点（修为涨了 8%，战力评定从“蝼蚁级”更新为<b>“蝼蚁级（壮硕）”</b>）。翻身的价码当着读者标出来：洗髓丹 5000，他兜里 90。</div>
+        <div class="ck-edithint">这一栏可以直接改——写手照改后的演。</div></div>
+      <div class="ck-field"><div class="fk"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>登场</div>
+        <div class="ck-cast">
+          <span class="cchip"><span class="ava lin">凡</span><b>林凡</b><span class="tag long">长期</span></span>
+          <span class="cchip"><span class="ava wang">狗</span><b>王二狗</b><span class="tag long">长期 · 本章当信息源</span></span>
+          <span class="cchip"><span class="ava shen">霜</span><b>沈青霜</b><span class="tag long">长期 · 只闻其名不露脸</span></span>
+        </div></div>
+      <div class="ck-field"><div class="fk"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>谁知道什么</div>
+        <div class="know">
+          <div class="krow"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg><span><b>沈青霜察觉了一缕反常灵气</b>——但只知道“反常”，不知道穿越、更不知道系统；她只能远远用神识扫，不露面不说破</span></div>
+          <div class="krow"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg><span>王二狗全程在场，<b>对系统一无所知</b>——面板只有林凡看得见</span></div>
+        </div></div>
+      <div class="ck-field"><div class="fk"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>章末钩 · Agent 给了两个收法，你挑</div>
+        <div class="seg2" id="hookpick">
+          <button data-hook="a" class="sel" onclick="pickHook('a')">A · 一道冷得像冰的神识从内门扫过来——是冲他来的</button>
+          <button data-hook="b" onclick="pickHook('b')">B · 系统血红警告：检测到未知观测者</button>
+        </div></div>
+      <div class="ck-field"><div class="fk"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg>本章数值账</div>
+        <div class="numline"><span>道源 <b>100 → 120 → 90</b></span><span>修为 <b>12% → 20%</b></span><span>背包 <b>聚气丹 +1 → 0（已服）</b></span><span>签到 <b>第 1 天</b></span></div></div>
+    </div>
+    <div class="ck-foot"><span class="ok"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>不新增角色 · 数值全程对账</span><div style="flex:1"></div><button class="minibtn" onclick="stubToast('换个演法：真产品里 Agent 会带你的意见重出这张卡（探针不铺这条路）')">换个演法</button></div>
+  </article>
+
+  <!-- 章卡 3 -->
+  <article class="card ck reveal" style="animation-delay:.18s">
+    <div class="ck-head"><span class="ck-no">03</span><div><h3>扮猪吃老虎</h3><div class="ck-sub">约 2,500 字 · 藏经阁</div></div><span class="ck-flag tag new">本章新造 1 个角色</span></div>
+    <div class="ck-body">
+      <div class="ck-field"><div class="fk"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>剧情</div>
+        <div class="ck-plot">林凡领到藏经阁杂役——在他眼里这是“带薪进签到福地”。首访奖励 +100 挂起（每日限签一次，明天才能领，故意欠着）。赵天雄的跟班孙彪修炼卡关拿他撒气，林凡用前世“调了八年 bug”的思路一句点破：<b>“别硬顶，绕支脉泡开。”</b>随即缩回怂壳“我瞎说的”。书架另一头，扫地的韩拾遗，扫帚停了。章末系统发布首个主线任务。</div></div>
+      <div class="ck-field"><div class="fk"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h7l-1 8 11-13h-7l0-7z"/></svg>看点 · 怎么演</div>
+        <div class="ck-punch" contenteditable="true" spellcheck="false">露一手必须是<b>认知型不是武力型</b>——此刻他战力 108，谁也打不过；爽点=拿前世经验降维点破难题，爽完立刻装回怂（扮猪吃老虎第一次完整亮相）。韩拾遗的“认出系统”<b>只用外部动作侧写</b>：扫帚一停、鼻翼一动、一句装糊涂却有分量的话——镜头始终锁在林凡脑内，不进老头的心。</div>
+        <div class="ck-edithint">这一栏可以直接改——写手照改后的演。</div></div>
+      <div class="ck-field"><div class="fk"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>登场</div>
+        <div class="ck-cast">
+          <span class="cchip"><span class="ava lin">凡</span><b>林凡</b><span class="tag long">长期</span></span>
+          <span class="cchip clickable" id="sunchip" onclick="togglePop(event)"><span class="ava sun">彪</span><b>孙彪</b><span class="tag new">新造 · 一次性</span></span>
+          <span class="cchip"><span class="ava han">韩</span><b>韩拾遗</b><span class="tag long">长期 · 本章激活</span></span>
+        </div>
+        <div class="pop" id="sunpop">
+          <h5>孙彪 · Agent 新造的角色</h5>
+          <p><b style="color:var(--color-text)">为什么造他：</b>这章的爽点需要一个“卡关的中层跟班”当靶子——比林凡强（炼气五层）、又蠢得刚好点不破他。用完即走，标一次性，不入长期班底。</p>
+          <div class="pp-btns">
+            <button class="btn btn-primary" style="padding:5px 12px;font-size:var(--font-size-xs);" onclick="keepSun(event)">保留</button>
+            <button class="btn btn-ghost" style="padding:5px 12px;font-size:var(--font-size-xs);" onclick="stubToast('换成现成角色：真产品里 Agent 会用你指定的人重排这场戏（探针不铺这条路）')">换成现成角色</button>
+          </div>
+        </div></div>
+      <div class="ck-field"><div class="fk"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>谁知道什么</div>
+        <div class="know">
+          <div class="krow"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg><span><b>韩拾遗从本章起单向知情</b>——认得系统的气息，但不点破、不告诉任何人</span></div>
+          <div class="krow"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg><span>孙彪只当自己被“蒙对了一句”——<b>不知道系统，也不能知道</b></span></div>
+          <div class="krow"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg><span>林凡不知道自己被韩拾遗看穿——他把老头当成“神经病”</span></div>
+        </div></div>
+      <div class="ck-field"><div class="fk"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>章末钩</div>
+        <div class="hookline"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2" style="flex:none;margin-top:4px;"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg><span><span class="mono">【主线任务 · 三月之约：外门大比进前十。奖励：洗髓丹 ×1。达成概率：0.7%。】</span><br>把大比死线和翻身价码一锤钉死——读者从这里开始追“他怎么苟到翻身”。</span></div></div>
+    </div>
+    <div class="ck-foot"><span class="ok"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning)" stroke-width="2"><path d="M12 9v4M12 17h0"/><circle cx="12" cy="12" r="9"/></svg>新增 1 个一次性角色（孙彪）——点他的名字看理由，可换</span><div style="flex:1"></div><button class="minibtn" onclick="stubToast('换个演法：真产品里 Agent 会带你的意见重出这张卡（探针不铺这条路）')">换个演法</button></div>
+  </article>
+
+  <div class="probe-note">段长说明：开局段固定 3 章（黄金三章）；往后每段按剧情节拍 5–15 章。卡上四栏——剧情、看点演法、登场（长期/一次性）、谁知道什么、章末钩——就是我们这轮谈定的章卡料单。</div>
+</section>
+
+<!-- ================= S3 写作中 ================= -->
+<section data-stage="3">
+  <div class="card writeboard reveal">
+    <div class="wb-title"><span class="spinner" id="wspin"></span><span id="wtitle">写手 Agent 开工——码字的苦不归你</span></div>
+    <div id="wchapters">
+      <div class="wch" data-w="1"><span class="st"><span class="pending"></span></span><span class="wt"><b>第一章 · 魂穿与叮的一声</b></span><span class="wc">排队中</span></div>
+      <div class="wch" data-w="2"><span class="st"><span class="pending"></span></span><span class="wt"><b>第二章 · 签到，启动</b></span><span class="wc">排队中</span></div>
+      <div class="wch" data-w="3"><span class="st"><span class="pending"></span></span><span class="wt"><b>第三章 · 扮猪吃老虎</b></span><span class="wc">排队中</span></div>
+    </div>
+    <div class="wlog" id="wlog"></div>
+  </div>
+</section>
+
+<!-- ================= S4 交付 · 世界动了 ================= -->
+<section data-stage="4">
+  <div class="deliver">
+    <div class="card reader reveal">
+      <div class="rd-tabs">
+        <button class="rd-tab sel" data-rt="1" onclick="showCh(1)">第一章</button>
+        <button class="rd-tab" data-rt="2" onclick="showCh(2)">第二章</button>
+        <button class="rd-tab" data-rt="3" onclick="showCh(3)">第三章</button>
+      </div>
+      <div class="rd-body">
+        <!-- 第一章（真文） -->
+        <div class="rd-ch on" data-ch="1">
+          <h3>第一章 魂穿与叮的一声</h3>
+          <div class="rd-meta">约 2,600 字 · 写手 Agent 产出 · 未发布</div>
+          <p>林凡睁眼时，先尝到满嘴铁锈味，然后才感觉到那只碾在他手背上的靴子。</p>
+          <p>“废物，也配挡爷的道？”</p>
+          <p>靴底一转，五根手指传来钻心的疼。林凡闷哼一声，脑子却还是一团浆糊——他分明记得，自己刚在工位上改完第七版方案，甲方一句“没那味儿”打回重来，他趴在桌上想眯五分钟……怎么一睁眼，天是土黄的，地是青石板，面前站着一群灰布道袍、腰里挂剑的古装青年？</p>
+          <p>剧组？他脑子还没转过来，梦到自己进剧组了？</p>
+          <p>下一瞬，海量不属于他的记忆轰地灌进颅骨，像几十个 G 的文件硬往一部老年机里塞，胀得他太阳穴突突直跳。</p>
+          <p>青云宗。外门。弟子。林凡。</p>
+          <p>十七岁。五行杂灵根——资质 F，伪灵根，比没有还膈应的那一种。炼气一层，修为卡在 12%，半年没挪过窝。原身也叫林凡，爹娘死得早，是这外门里人人能踩一脚的垫底废柴，全部家当：三块下品灵石、一柄生锈铁剑、半块干粮。</p>
+          <p>而此刻踩着他手的这位——</p>
+          <p>赵天雄。外门第一人，长老赵铁山的亲侄子，火单灵根，炼气七层。原身的记忆里，这人像座随时会喷的火山，腰间那只暗红的烈阳环隔着两步都烤脸。</p>
+          <p>“聋了？”赵天雄居高临下地睨着他，嘴角那点笑，像玩坏了猫，“这月月俸，三块灵石，交出来。”</p>
+          <p>林凡脑子里最后一根弦“啪”地接上了。</p>
+          <p>他穿了。魂穿。一个三十岁的社畜，加班猝死在工位上，穿成了修仙世界一个十七岁的废物弟子。</p>
+          <p>他甚至来不及为前世那套没还完的房贷掉一滴眼泪——因为眼下这剧情，他太熟了。摸鱼八年，网文看了几百本，开局被恶霸堵、被逼交家当、当众羞辱……这不就是废柴流开篇三件套的头一件？</p>
+          <p><em>标配呢？</em>他脑子里飞速盘算，<em>穿越三件套，前世记忆有了，废物身份有了，金手指呢？系统呢？老天爷你倒是给个面板啊——</em></p>
+          <p>面板没来。来的是赵天雄耗尽的耐心。</p>
+          <p>“我问你话呢，废物。”他身后一个矮壮跟班嗤笑着抬脚又要踹。</p>
+          <p>围观的外门弟子哄笑成一片。人群角落，一个五短身材的圆脸小胖子急得直搓手，脚在原地蹭来蹭去，就是不敢上前——王二狗，炼气二层，原身唯一的朋友，怂，可此刻眼圈都急红了。</p>
+          <p>“这、这位师兄，”王二狗到底没忍住，往前挪了半步，声音抖得不成调，“林凡他不是成心挡道的，要不……这灵石就算了呗？”</p>
+          <p>“你算个什么东西，也配替他求情？”赵天雄眼皮都没抬，身后那矮壮跟班已经一脚把二狗踹了个趔趄。二狗“哎哟”一声坐倒在地，再不敢吭声，只拿一双急红的眼睛，可怜巴巴地望着林凡。</p>
+          <p>哄笑声更大了。这就是外门的规矩：强者立威，弱者看戏，替废物出头的，连废物一块儿踩。林凡把这一切收在眼底，面上是化不开的怂，心里那笔账，却冷冷地记下了。</p>
+          <p><em>赵天雄。</em>他垂着眼，<em>这笔，慢慢算。</em></p>
+          <p>林凡慢慢把被踩的手抽回来，指节红肿。他没敢站起来，还缩着脖子——这具身子对赵天雄的恐惧是刻进骨头里的，原身的本能很诚实。</p>
+          <p>可他脑子已经转开了：<em>别慌，先看牌。</em>他一个刚穿过来、连炼气都不会喘的废物，眼下唯一能干的，就是把命保住。</p>
+          <p>何况，他这牌，是真的烂。</p>
+          <p>原身林凡，五行杂伪灵根，在这个“灵根定终身”的地方，天生就是被踩在最底下那一档：修炼比人慢十倍，连宗门发的功法都是最次的黄阶下品《引气诀》，龟速得像拿根吸管去抽干一片海。外门弟子三千，他排最后一个。而垫底的下场，白纸黑字刻在宗规上——三月后外门大比，末位者，逐出宗门。</p>
+          <p>前有恶霸，后有绝路。前世那个加班到猝死的社畜，好不容易换了张人皮，睁眼一看，新剧本的难度，比 996 还狠。</p>
+          <p><em>金手指一件没给，倒把地狱开局先塞我手里了。</em>林凡在心里骂骂咧咧，面上却半分不敢露。</p>
+          <p>“敬酒不吃。”赵天雄脸一沉，抬手，掌心腾起一簇火苗。</p>
+          <p>那火苗不太对劲。暗红里裹着一丝说不清的腥气，原身的身体本能地发毛——这半年，赵天雄的火越来越暴，越来越腥。可林凡此刻顾不上琢磨这个。</p>
+          <p>因为那簇火，离他的脸只剩半尺。</p>
+          <p>“三月后大比，你这种 F 级废物，本就要被逐出宗门。”赵天雄慢条斯理，“爷今天先给你上一课：在青云宗，废物，没资格攥着灵石。”</p>
+          <p>热浪扑得林凡睫毛发卷。围观的人静了一瞬，有人低声劝：“赵师兄，别真闹出人命……”</p>
+          <p>“人命？”赵天雄嗤笑，“一个 F 级废物，死了就死了。”</p>
+          <p>林凡后背瞬间被冷汗浸透。</p>
+          <p>那不是吓唬。原身的记忆里，外门每年都有“意外身亡”的废物，尸首往后山乱葬岗一扔，连个来问的人都没有。灵根废，命就贱——贱到可以被一句“死了就死了”，轻飘飘地揭过去。</p>
+          <p>这一刻他才真正意识到：这不是他摸鱼时刷的爽文。爽文里主角挨欺负是为了后面打脸，有光环，死不了。可他现在，是实打实地，要被一个中二病用一簇真火烧死在异世界的黄土上，连个响都不会有。</p>
+          <p><em>稳住，别浪——</em>他脑子里那句口头禅还没喊完，身体先动了。他哆哆嗦嗦把怀里三块灵石掏出来，搁到赵天雄脚边，声音抖成筛糠：“师、师兄……给你，都给你……”</p>
+          <p>装怂。这是原身的本能，也是他前世被职场磋磨八年磨出来的本能：打不过，先跪，保命第一。</p>
+          <p>可赵天雄看着脚边那三块下品灵石，火苗非但没收，反而又逼近一分。</p>
+          <p>“给是给了。”他玩味地笑，“可爷今天，心情不好。”</p>
+          <p>火苗舔到了林凡的鼻尖前三分。</p>
+          <p><em>完了。</em>林凡闭上眼。前世看过的几百本爽文疯狂闪回——每一本主角在这个当口都该觉醒金手指的——可他等来的，只有越来越烫的空气，和赵天雄那张扭曲的、享受着的脸。</p>
+          <p>上班八年没被甲方搞死，穿越第一天，要被个古代小霸王烧成一块炭。</p>
+          <p><em>这他妈，比上班惨多了。</em></p>
+          <p>奇怪的是，到了这一步，他心里那点慌，反倒慢慢沉了下去。</p>
+          <p><em>不甘心。</em>不知是前世带来的，还是今生添上的，这三个字一齐涌上来，烫得比那簇真火还厉害。前世被人按在地上磋磨，他认了；穿越一场，连挣扎都没挣扎一下就要死，他不认。</p>
+          <p><em>老天爷，你要是还长着眼——</em></p>
+          <p>就在真火即将燎上他脸皮的刹那——</p>
+          <p>他颅骨深处，毫无征兆地，响起一道声音。</p>
+          <p>那声音没有温度。像老式电子表整点报时，又像有谁在他脑子里，不轻不重，敲了一记冰凉的磬。</p>
+          <div class="sys">【叮——】</div>
+          <div class="sys">【长生签到系统，绑定成功。】</div>
+          <div class="sys">【正在读取宿主数据……身份：今世线·林凡。】</div>
+          <div class="sys">【宿主初始道源：100。】</div>
+          <p>林凡猛地睁开眼。</p>
+          <p>就在他眼前，在那簇真火的正后方，凭空浮起一行幽蓝的字，只有他一个人看得见。</p>
+          <p>金手指……</p>
+          <p>真来了？</p>
+          <div class="rd-next"><button class="btn btn-ghost" onclick="showCh(2)">下一章 →</button></div>
+        </div>
+        <!-- 第二章（真文） -->
+        <div class="rd-ch" data-ch="2">
+          <h3>第二章 签到，启动</h3>
+          <div class="rd-meta">约 2,400 字 · 写手 Agent 产出 · 未发布</div>
+          <p>“赵师兄！赵师兄——”</p>
+          <p>一声急喝从院门口传来，一个跑得上气不接下气的弟子扒着门框：“赵长老喊你！说、说是内门来人了，让你即刻过去！”</p>
+          <p>赵天雄脸色一变。掌心那簇真火，悻悻地缩了回去。</p>
+          <p>林凡差点当场瘫软——他盯着眼前那行幽蓝的字看得太入神，竟一时忘了自己鼻尖还架着一簇火。</p>
+          <p>“算你命大。”赵天雄居高临下地啐了一口，一脚把地上那三块灵石踢回林凡脚边，“这点破石头，爷稀罕？留着给你自己收尸吧。大比见，废物——到时候，别哭着求爷。”</p>
+          <p>他甩袖走了，一群跟班嬉笑着跟上。</p>
+          <p><em>灵石：3。</em>林凡机械地把石头捡回怀里。<em>没亏。</em></p>
+          <p>“哥！哥你没事吧！”王二狗连滚带爬冲过来，圆脸憋得通红，又是想扶又是不敢碰，“我、我刚才想上去的，真的，我……”</p>
+          <p>“没事。”林凡摆摆手。他现在满脑子只有那行字，和那行字底下正缓缓展开的一整块幽蓝面板。</p>
+          <p><em>系统。我居然真有系统。</em></p>
+          <p>他强压着心跳，任由王二狗一路搀着、絮絮叨叨地把他送回外门角落那间四处漏风的柴房。二狗的嘴就没停过：“哥我跟你讲——赵天雄那孙子这回是真下狠手了，你可得当心。三月后外门大比，进前十的直升内门，垫底的……直接逐出宗门啊哥！你这灵根，唉……”</p>
+          <p><em>进前十升内门，垫底滚蛋。</em>林凡默默记下。<em>deadline 三个月，KPI 是别垫底。这不比上班熟？</em></p>
+          <p>“对了哥，”二狗压低嗓门，一脸神秘，“你知道内门来的是谁不？十有八九是沈仙子那一挂的。沈青霜啊！内门第一天才，太冰灵根，筑基前期，啧，咱外门这些泥腿子，人家正眼都不带瞧的。”他忽然咧嘴一笑，“不过哥，论胆子，整个外门还真没人比得过你——去年后山那回，沈仙子被两头妖兽围了，你个炼气一层的，愣是扑上去替她挡了一剑，差点没把命交代了！”</p>
+          <p>林凡一怔。原身的记忆里，果然翻出这么一桩头铁往事。</p>
+          <p>“可惜喽，”二狗砸吧砸吧嘴，惋惜地摇头，“人家沈仙子那样的天之骄女，早把你这号人忘干净啦。”</p>
+          <p><em>忘了才好。</em>林凡把二狗打发走，插上柴房那扇破门，长长吐出一口气。<em>我一个刚上任的废物，可经不起大人物惦记。</em></p>
+          <p>他盘腿坐到草席上，终于，郑重其事地看向那块只有他能看见的幽蓝面板。</p>
+          <div class="sys">【长生签到系统 · 宿主面板】</div>
+          <div class="sys">【境界：炼气一层（1 / 9）】【修为：12%】</div>
+          <div class="sys">【灵根：五行杂 · 伪灵根（资质 F）· 可洗】</div>
+          <div class="sys">【道源：100】【功德：0】【灵石：3（下品）】</div>
+          <div class="sys">【系统战力评定：蝼蚁级 · 108】【签到天数：第 1 天】</div>
+          <p>林凡的嘴角抽了抽。</p>
+          <p><em>蝼蚁级。战力 108。</em></p>
+          <p><em>108 是个什么概念。隔壁二狗那种炼气二层的，怕不是有小两千。我一个正儿八经的魂穿主角，开局战力，跟一只稍微壮点的蟑螂，一个段位。</em></p>
+          <p>他的目光又在“灵根”那一栏顿了顿。五行杂·伪灵根，资质 F——这个他认了，烂就烂。可后头那两个字他盯了很久：</p>
+          <p>可洗。</p>
+          <p><em>可洗？</em>林凡心跳漏了一拍。<em>废灵根……能改？</em></p>
+          <p>他强按下这点念头，先干正事。面板最上头，一个圆形的幽蓝图标正一闪一闪，底下四个字——</p>
+          <div class="sys">【今日签到】</div>
+          <p><em>来了。</em>林凡深吸一口气，在心里默念：签到，启动！</p>
+          <div class="sys">【叮——签到成功。】</div>
+          <div class="sys">【当前地点：外门弟子院（灵气系数 ×2）。获得道源：基础 10 × 2 = 20。】</div>
+          <div class="sys">【当前道源：100 → 120。】</div>
+          <p>一股温热的暖流，凭空从面板上淌进他的四肢百骸。不多，却真真切切。</p>
+          <p>林凡愣了半晌，忽然想笑。</p>
+          <p><em>我上班八年，老板画的饼从没兑现过一张。这系统，签个到，说给二十就给二十，一分不差。</em></p>
+          <p><em>这不比上班强？</em></p>
+          <p>他一鼓作气点开面板角落那个“商店”。幽蓝的货架哗啦一下铺开——</p>
+          <div class="sys">【系统商店 · 当前解锁：Lv1（签到第 1 天）】</div>
+          <div class="sys">【聚气丹 ×1 —— 30 道源（服后修为 +8%）】【《引气诀 · 全解》—— 50 道源】</div>
+          <div class="sys">【青锋剑 —— 200 道源（法器 · 黄中）】【直充 · 修为 +1% —— 20 道源 / %】</div>
+          <p>底下那排灰蒙蒙的、买不了的东西，林凡还是手贱扒拉开看了一眼。这一看，他呼吸都滞了半秒：</p>
+          <div class="sys">【《寒霜真解》—— 800 道源（功法 · 玄中 · 越阶战力）】</div>
+          <div class="sys">【洗髓丹 —— 5000 道源（灵根改造：伪灵根 → 单系提纯一档）】</div>
+          <p><em>洗髓丹。</em>林凡死死盯着那三个字。<em>五千道源。伪灵根提纯一档——这就是“可洗”两个字的出处。</em></p>
+          <p><em>我这身 F 级废灵根，能靠它翻身。</em></p>
+          <p>他咽了口唾沫。五千道源。他现在满打满算一百二。就算天天在外门院签到，一天二十，他得签到二百五十天——整整一年。</p>
+          <p><em>一年就一年。</em>林凡在心里咬牙。<em>别浪，先苟。一天二十，日拱一卒，总有薅够的那天。</em></p>
+          <p>眼下，他只有一百二，还得先活过三个月的大比。他把货架翻回 Lv1，目光落在那颗最便宜、最实在的东西上。</p>
+          <p><em>直充修为 20 道源 1%，太贵，前期氪不起。功法全解 50，回头再说。先——把根扎稳。</em></p>
+          <p>他一咬牙，点了下去。</p>
+          <div class="sys">【购买：聚气丹 ×1。消耗道源：30。当前道源：120 → 90。】</div>
+          <p>他摊开手掌，一枚拇指大、泛着淡青光泽的丹丸，凭空落在掌心，还带着点温。</p>
+          <p>林凡没犹豫，仰头吞了下去。</p>
+          <p>丹丸入腹即化，一股远比签到那点暖流磅礴百倍的灵气，轰然在丹田里炸开、游走。原身那条堵了半年的经脉，像被人从里往外一点点泡开、撑宽，又酸又胀又爽，爽得他头皮发麻。</p>
+          <div class="sys">【聚气丹已服用。修为：12% → 20%。库存：聚气丹 ×0。】</div>
+          <p>二十分钟后，那股躁动的灵气终于被他磕磕绊绊地炼化、沉淀下去。林凡睁开眼，长长呼出一口白气，只觉丹田充盈，气感前所未有地清晰——他甚至能“看”到空气里那些细小的灵气微粒，正被自己这具身体一丝丝往里吸。</p>
+          <p><em>这就是修仙？</em>他晃了晃有些发飘的脑袋，又扫了眼面板。</p>
+          <p>境界那栏，还是雷打不动的“炼气一层”。8% 而已，离突破二层差得远。</p>
+          <p>战力评定那栏——</p>
+          <div class="sys">【系统战力评定：蝼蚁级】</div>
+          <p>林凡：“……”</p>
+          <p><em>系统你礼貌吗。老子修为涨了整整 8%，评级栏还是蝼蚁级？</em></p>
+          <div class="sys">【蝼蚁级（壮硕）。】</div>
+          <p>面板不咸不淡地补了两个字。</p>
+          <p>林凡差点一口气没上来，随即又乐了。<em>行。壮硕的蝼蚁，也是进步。</em>他拍拍膝盖站起来，忽然，面板一闪，弹出一行新字——</p>
+          <div class="sys">【叮——检测到高灵气节点。已标记：藏经阁（灵气系数 ×5）。】</div>
+          <div class="sys">【提示：该地点可签到，道源产出为外门弟子院的 2.5 倍。】</div>
+          <p><em>×5？！</em>林凡眼睛一下亮了。<em>外门院才 ×2，藏经阁签一次顶两次半？一天五十道源？</em></p>
+          <p>薅羊毛的账，他前世算得比谁都精。他正美滋滋盘算着明天怎么摸进藏经阁——</p>
+          <p>面板毫无征兆地又是一闪，这次，那行字是刺眼的血红：</p>
+          <div class="sys">【警告：检测到未知神识扫描。方位：内门。强度：远超宿主。判定——未知观测者。】</div>
+          <p>林凡浑身一僵，后颈的汗毛根根竖起。</p>
+          <p>他猛地抬头，望向柴房那扇漏风破窗外、内门方向那片被暮色染红的飞檐。</p>
+          <p><em>内门？</em>他脑子里嗡的一声，<em>一个外门废物，有什么好看的……除非。</em></p>
+          <p>他想起二狗那句话——内门来人了。沈青霜。</p>
+          <p><em>不可能。</em>他强迫自己冷静，<em>我就是个签个到、吃颗丹的蝼蚁，谁会盯着我。</em></p>
+          <p>可那道扫过来的神识，冷得像冰，又收得极快，像蜻蜓点水，却又确确实实——</p>
+          <p>是冲着他来的。</p>
+          <div class="rd-next"><button class="btn btn-ghost" onclick="showCh(3)">下一章 →</button></div>
+        </div>
+        <!-- 第三章（真文） -->
+        <div class="rd-ch" data-ch="3">
+          <h3>第三章 扮猪吃老虎</h3>
+          <div class="rd-meta">约 2,500 字 · 写手 Agent 产出 · 未发布</div>
+          <p>第二天一早，林凡就领到了他穿越后的第一份“班”。</p>
+          <p>外门执事丢给他一块木牌：藏经阁，搬书、抄录、洒扫，做满一日，记贡献一分，换月俸。别的弟子都嫌这差事清苦晦气，躲还来不及，林凡却差点没笑出声。</p>
+          <p><em>藏经阁。灵气 ×5 的签到福地。</em>他把木牌揣好，脚步都轻快了。<em>这不叫上班，这叫带薪薅羊毛。</em></p>
+          <p>藏经阁在外门最深处，是一座三层的老木楼，飞檐斑驳，门口一株老得看不出年头的槐树。楼里静得能听见尘埃落地，一排排顶到房梁的书架间，常年一股旧纸和陈墨混着的味道。</p>
+          <p>林凡刚踏进门，面板就“叮”地一亮：</p>
+          <div class="sys">【叮——首次抵达：藏经阁（灵气系数 ×5）。触发首访探索奖励：道源 +100。】</div>
+          <div class="sys">【提示：奖励需在此地完成一次签到解锁。检测到宿主今日签到额度已用尽（每日限一次）。】</div>
+          <div class="sys">【奖励暂挂起，明日可领。】</div>
+          <p><em>+100 躺着等我领？！</em>林凡心里一阵狂喜，又一阵肉疼——今天的签到，一大早就在外门院用掉了。<em>明天，明天必来薅。这一百道源，谁跟我抢我跟谁急。</em></p>
+          <p>他强压下咧到耳根的嘴角。这地方还有别人，他可不敢当众对着空气傻乐。</p>
+          <p>书架尽头，一个佝偻的老杂役正拄着扫帚，有一下没一下地扫着地。老头须发花白，一身洗得发灰的粗布短打，浑浊的眼睛半睁半闭，像随时能靠着书架睡过去。林凡认得他——韩拾遗，藏经阁的掌书老杂役，炼气都没炼利索的残废，在外门比林凡还底层，是连赵天雄都懒得踩一脚的存在。</p>
+          <p>“新来的？”老头咧开缺了牙的嘴，慢吞吞地打岔，“嘿，这楼啊……冷。你多穿点。书别摆歪咯，摆歪了……唉，我也记不清摆哪了。”</p>
+          <p><em>一个老糊涂。</em>林凡礼貌地应了声，自去搬他的书。</p>
+          <p>然而清净没享上一刻钟。</p>
+          <p>“哟，这不是林大废物吗？”</p>
+          <p>一个矮壮身影堵在书架口——孙彪，赵天雄的跟班之一，炼气五层，昨天踹林凡那一脚就是他。他手里攥着一卷摊开的功法抄本，脸憋得青紫，额角还挂着汗，一副修炼不顺、正憋着火没处撒的样子。</p>
+          <p>“过来！”孙彪把抄本往桌上一拍，居高临下，“研墨。爷抄经。”</p>
+          <p>林凡缩了缩脖子，老老实实过去研墨。<em>装怂。别惹事。</em>他一边磨墨，一边眼角余光扫过那卷抄本——是一门最基础的引气法门，讲的是灵气如何过经脉、通周天。</p>
+          <p>孙彪盯着那卷抄本，越看越烦躁，忽然一拳砸在桌上：“什么破功法！‘气行淤脉，逆则伤身’，逆你个头！爷顺着引了三天，那个坎就是过不去，一顶就走火，疼得跟针扎似的！这残缺功法，写它的祖师爷就是个废物！”</p>
+          <p>他骂骂咧咧，一口闷气堵在胸口，顺手就撒到林凡脸上：“你！废物！把这段口诀给爷念顺了，念不顺，今天这墨你就跪着研！”</p>
+          <p>林凡本能地想装死。可他垂着眼，又忍不住瞟了那口诀一眼——</p>
+          <p>然后他愣住了。</p>
+          <p><em>这不就是……那个坎吗。</em></p>
+          <p>原身在这门龟速功法上卡了整整半年，每一个淤堵、每一处经脉的窄口，林凡如今熟得闭着眼都能画出来。而孙彪卡的这个坎，原身当年也卡过——原身当年也是死命“硬顶”，顶得吐血。</p>
+          <p>可林凡不是原身。他是个在工位上跟各种死循环 bug 死磕了八年的社畜。他脑子里第一反应根本不是什么修仙口诀，而是：</p>
+          <p><em>硬怼一个堵点怼三天怼不动？那不叫功法残缺，那叫方法不对。此路不通，你倒是绕一下啊。</em></p>
+          <p>这念头太自然，自然到他没忍住，低声咕哝了出来：</p>
+          <p>“……那个坎，别硬顶。气从旁边的支脉绕一下，一点点泡开它，顶，是顶不过去的。”</p>
+          <p>孙彪一愣，随即勃然大怒：“废物懂个屁！支脉引气？你当爷没试过——”</p>
+          <p>话没说完，他自己噎住了。他试过硬顶，试过加量，试过换时辰，唯独没试过“绕”。一个炼气五层的火爆脾气，遇上坎只知道往死里怼，压根没想过还能迂回。</p>
+          <p>死马当活马医。孙彪一脸不服气地重新盘膝，依言把那缕灵气从主脉分出去、贴着旁边一条细支脉，小心翼翼地往那个淤堵点外围一点点浸、一点点泡——</p>
+          <p>那个卡了他三天、一碰就走火的坎，竟“咕”地一声，松了。</p>
+          <p>灵气顺畅地淌了过去。</p>
+          <p>孙彪猛地睁眼，脸上血色褪得干干净净，像见了鬼一样死死盯着林凡：一个 F 级废灵根、炼气一层的废物，一句话，点破了他卡了三天的关？</p>
+          <p>“我、我瞎说的！”林凡的怂劲儿瞬间回笼，连连摆手，腰弯得更低了，“蒙的！蒙对的！师兄天资高，自己悟出来的，跟我没关系，真的……”</p>
+          <p>他心里却在滴血：<em>失策了失策了。装了半天怂，一时嘴欠。低调，低调啊林凡！</em></p>
+          <p>孙彪脸上青一阵白一阵，又羞又恼，可“被废物点破”这种事说出去只会更丢人。他狠狠剜了林凡一眼，一把抄起那卷功法，撂下句“算你识相”，灰溜溜地走了。</p>
+          <p>林凡松了口气，直起腰——</p>
+          <p>“唰”的一声。</p>
+          <p>书架另一头，那个老杂役的扫帚，不知何时，停了。</p>
+          <p>林凡循声看去。韩拾遗拄着扫帚，浑浊的眼睛正落在他身上。就那么一瞬，老头眼里那层昏聩的雾散了，底下是一种林凡看不懂的、极深极静的东西。老头的鼻翼极轻微地动了动，像是嗅到了什么陈年旧味。</p>
+          <p>四目相对的刹那，林凡后背莫名一凉。</p>
+          <p>可下一瞬，那点异样就没了。韩拾遗又眯起眼，咧开缺牙的嘴，慢吞吞地、像是自言自语地咕哝：</p>
+          <p>“……绕过去啊。是喽，绕过去就是了。多少人一辈子，就死在那个‘顶’字上喽……”</p>
+          <p>老头摇头晃脑，重新扫起地来，浑浊的眼皮耷拉下去，又是那副随时能睡着的老糊涂样。</p>
+          <p><em>神经病。</em>林凡揉了揉发凉的后颈，没往心里去。<em>一个连炼气都没成的扫地老头，能看出什么。</em></p>
+          <p>他没看见，在他转身搬书之后，那把扫帚，又在原地，静静停了很久。</p>
+          <hr class="scene">
+          <p>日头偏西，林凡做满了一日的杂役，拖着酸胀的胳膊往回走。刚出藏经阁那株老槐树的荫子，面板毫无征兆地大放光明，一行行金字比之前任何一次都要庄重：</p>
+          <div class="sys">【叮——检测到宿主完成阶段性成长（卑微）。触发条件达成，发布首个主线任务——】</div>
+          <div class="sys">【主线任务：三月之约】</div>
+          <div class="sys">【目标：参加三月后外门大比，最终排名进入前十。】</div>
+          <div class="sys">【奖励：洗髓丹 ×1（灵根改造：五行杂 · 伪灵根 → 单系提纯一档）。】</div>
+          <div class="sys">【失败惩罚：按宗门规，外门大比垫底者，逐出宗门。】</div>
+          <div class="sys">【宿主当前战力评定：蝼蚁级。达成概率：0.7%。祝宿主好运。】</div>
+          <p>林凡站在槐树下，盯着那行金字，盯了很久很久。</p>
+          <p>洗髓丹。</p>
+          <p>商店里标价五千道源、他得薅整整一年羊毛才够得着的那颗洗髓丹——现在，系统把它，当成大比前十的任务奖励，白送。</p>
+          <p><em>进前十，就能白嫖一颗洗髓丹。</em>他的心脏狂跳起来，<em>洗掉这身 F 级废灵根，提纯一档。翻身。</em></p>
+          <p>代价是，他得在三个月后，从一个战力 108 的壮硕蝼蚁，挤进整个外门的前十——那里头，坐着炼气七层、开局就想烧死他的赵天雄。</p>
+          <p>达成概率，系统给的，0.7%。</p>
+          <p>搁前世，老板给他派这么个 KPI，他扭头就递辞职信。</p>
+          <p>可林凡看着那行冷冰冰的“0.7%”，忽然笑了。</p>
+          <p><em>别人看这是死路。</em>他握了握拳，那句被系统噎回去的话，重新在心里响起来。</p>
+          <p><em>我看这是——签到。</em></p>
+          <p>一天二十，藏经阁一天五十，明天还有一百躺着等他领。日拱一卒，苟着，攒着，一天天变强。三个月，足够他把一只壮硕的蝼蚁，喂成一头谁都没提防的老虎。</p>
+          <p>到那时，大比场上，他倒要看看——</p>
+          <p>赵天雄那张“废物也配”的脸，会是什么颜色。</p>
+          <p>林凡最后看了一眼那颗遥遥挂在任务栏里的洗髓丹，转身，朝着外门院的方向走去。暮色把他瘦小的影子拉得很长。</p>
+          <p>“稳住，别浪——”他冲着空无一人的小径，轻声念出那句口头禅，唇角却压不住地往上扬。</p>
+          <p>“先苟。”</p>
+          <p><em>签到，启动。</em></p>
+        </div>
+      </div>
+    </div>
+
+    <aside class="wdiff">
+      <div class="card wd-card reveal">
+        <h4><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="4"/></svg>主角面板<span class="cnt">写完自动更新</span></h4>
+        <div class="stat"><span class="sk">修为</span><b>12%</b><span class="arrow">→</span><b>20%</b><span class="bar"><i data-w="20%"></i></span><span class="up">+8</span></div>
+        <div class="stat"><span class="sk">道源</span><b>100</b><span class="arrow">→</span><b>90</b></div>
+        <div class="stat"><span class="sk">战力</span><span>蝼蚁级</span><span class="arrow">→</span><span>蝼蚁级<b style="color:var(--color-success)">（壮硕）</b></span></div>
+        <div class="stat"><span class="sk">背包</span><span>聚气丹 ×1 → 已服用 · 灵石 ×3 未动</span></div>
+        <div style="margin-top:8px; border-top:1px solid var(--color-border); padding-top:8px;">
+          <div class="entryrow"><span>#0</span><span class="ev">开户 · 初始道源（来历深埋）</span><span class="amt plus">+100</span></div>
+          <div class="entryrow"><span>#1</span><span class="ev">第2章 · 首次签到 @外门院 ×2</span><span class="amt plus">+20</span></div>
+          <div class="entryrow"><span>#2</span><span class="ev">第2章 · 商店购聚气丹</span><span class="amt minus">−30</span></div>
+          <div class="entryrow"><span>#3</span><span class="ev">第3章 · 藏经阁首访奖励（明日签到解锁）</span><span class="amt">+100 挂起</span></div>
+          <div class="entryrow total"><span></span><span class="ev">期末对账 100 + 20 − 30</span><span class="amt">= 90 ✓</span></div>
+        </div>
+      </div>
+      <div class="card wd-card reveal" style="animation-delay:.08s">
+        <h4><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-info)" stroke-width="2"><path d="M12 8v8M8 12h8"/><circle cx="12" cy="12" r="9"/></svg>时间线 · 新增 3 笔</h4>
+        <div class="tl">
+          <div class="te"><span class="dot2"></span><span><b>E1</b> 魂穿入身 · 赵天雄逼灵石 · 系统觉醒绑定</span></div>
+          <div class="te"><span class="dot2"></span><span><b>E2</b> 首次签到 +20 · 服聚气丹修为 12→20% · 点亮藏经阁福地</span></div>
+          <div class="te"><span class="dot2"></span><span><b>E3</b> 藏经阁露一手 · 韩拾遗起疑 · 主线任务「三月之约」发布</span></div>
+        </div>
+      </div>
+      <div class="card wd-card reveal" style="animation-delay:.16s">
+        <h4><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-secondary)" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>人物 · 变化</h4>
+        <div class="personrow"><span class="ava sun">彪</span><span><b>孙彪</b> 新入库 · 使命完成</span><span class="tag once">一次性 · 归档</span></div>
+        <div class="personrow"><span class="ava han">韩</span><span><b>韩拾遗</b> 认出系统气息</span><span class="tag new">单向知情</span></div>
+        <div class="personrow"><span class="ava shen">霜</span><span><b>沈青霜</b> 神识扫过林凡</span><span class="tag unk">观察中</span></div>
+        <div class="personrow"><span class="ava zhao">雄</span><span><b>赵天雄</b> 敌意 −60 · 大比对决</span><span class="tag evil">预约</span></div>
+      </div>
+      <div class="card wd-card reveal" style="animation-delay:.24s">
+        <h4><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning)" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>任务账 · 过账</h4>
+        <div class="chk"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg><span>已还：金手指立起 ✓ 死线钉死 ✓ 女主挂钩 ✓ 反派立威 ✓</span></div>
+        <div class="chk"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning)" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg><span>主角面新开：<b style="color:var(--color-text)">三月之约</b>（大比前十 → 洗髓丹）</span></div>
+        <div class="chk"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning)" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg><span>作者面新欠：洗髓丹翻身债 · 韩拾遗暗线 · 沈青霜的观察 · 赵天雄禁药雷 · 明日藏经阁 +100</span></div>
+      </div>
+      <div class="card wd-card reveal" style="animation-delay:.32s">
+        <h4><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg>一致性检查 · 全过</h4>
+        <div class="chk"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg><span>沈青霜未说破穿越/系统（她只知道“灵气反常”）</span></div>
+        <div class="chk"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg><span>韩拾遗知情只外化为动作（扫帚停 / 鼻翼动），POV 未出格</span></div>
+        <div class="chk"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg><span>“资质 F / 108 / 百分比”只出现在系统面板，旁白零泄漏</span></div>
+        <div class="chk"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg><span>道源账守恒 100+20−30=90 ✓ · 每日限签一次未违例</span></div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ================= S5 下一圈 · 世界活了 ================= -->
+<section data-stage="5">
+  <div class="warroom-head reveal">
+    <div class="wh-top">
+      <div>
+        <div class="kicker">进书 · 战情（第二圈）</div>
+        <h1>我在青云宗打卡修仙</h1>
+        <div class="wh-meta">
+          <span class="badge mute">正文 3 章 · 约 7,500 字</span>
+          <span class="badge run"><span class="dot run"></span>主线任务 · 三月之约</span>
+          <span class="badge pub"><span class="dot done"></span>上一段已定格</span>
+        </div>
+      </div>
+    </div>
+    <div class="wh-now">
+      跟你第一次进书时比，这个世界已经活了：系统响了，账上躺着 90 道源和一笔<span class="k">挂起的 100</span>；大比死线钉进了读者心里；女主在暗处扫过一眼，扫地老头认出了不该认得的气息，孙彪挨了一句“绕支脉”后再没戏份。<span class="k">三月之约</span>高悬——0.7% 的达成概率，正是读者追下去的理由。
+    </div>
+    <div class="wh-pos">
+      <span class="badge warn"><span class="dot warn"></span>此刻</span>
+      第 3 章末。明天清晨，藏经阁有 100 道源等他领——Agent 正在按新战况备下一段。
+    </div>
+  </div>
+
+  <div class="sec-head reveal" style="animation-delay:.08s"><span class="sec-t">班底 · 三章后</span><span class="sec-hint">跟第一圈对照——每张卡都被正文改写过</span></div>
+  <div class="cast reveal" style="animation-delay:.1s">
+    <article class="card cchar"><div class="ch-id"><span class="ava lin">凡</span><div class="ch-n"><b>林凡</b><span>主角 · 苟系练级中</span></div></div>
+      <dl><div class="cs"><dt>境界</dt><dd>炼气一层 · <span style="color:var(--color-success)">20%</span></dd></div><div class="cs"><dt>道源</dt><dd class="chg">90（+100 挂起）</dd></div><div class="cs"><dt>任务</dt><dd class="hot">三月之约 · 大比前十</dd></div><div class="cs"><dt>状态</dt><dd>白天杂役 · 夜里盘账</dd></div></dl>
+      <div class="secret"><b>变化：</b>尝到第一口甜头，定下“日拱一卒”路线</div></article>
+    <article class="card cchar"><div class="ch-id"><span class="ava shen">霜</span><div class="ch-n"><b>沈青霜</b><span>女主 · 暗中观察</span></div></div>
+      <dl><div class="cs"><dt>境界</dt><dd>筑基前期</dd></div><div class="cs"><dt>动向</dt><dd class="chg">神识扫过外门</dd></div><div class="cs"><dt>认知</dt><dd>只知“灵气反常”</dd></div><div class="cs"><dt>阵营</dt><dd><span class="tag unk">未明 · 偏正</span></dd></div></dl>
+      <div class="secret"><b>变化：</b>锁定了那缕反常灵气的方向——还没锁定人</div></article>
+    <article class="card cchar"><div class="ch-id"><span class="ava zhao">雄</span><div class="ch-n"><b>赵天雄</b><span>反派 · 大比对手</span></div></div>
+      <dl><div class="cs"><dt>境界</dt><dd>炼气七层</dd></div><div class="cs"><dt>敌意</dt><dd class="hot">−60 · 已放话大比见</dd></div><div class="cs"><dt>隐患</dt><dd>火越来越腥（禁药）</dd></div><div class="cs"><dt>阵营</dt><dd><span class="tag evil">反派</span></dd></div></dl>
+      <div class="secret"><b>变化：</b>第 1 章正文埋了“火带腥气”一笔——雷已上膛</div></article>
+    <article class="card cchar"><div class="ch-id"><span class="ava han">韩</span><div class="ch-n"><b>韩拾遗</b><span>藏经阁 · 单向知情</span></div></div>
+      <dl><div class="cs"><dt>表面</dt><dd>还是那个老糊涂</dd></div><div class="cs"><dt>实际</dt><dd class="chg">认出了系统的气息</dd></div><div class="cs"><dt>动作</dt><dd>暗中留意，不点破</dd></div><div class="cs"><dt>阵营</dt><dd><span class="tag unk">未明</span></dd></div></dl>
+      <div class="secret"><b>变化：</b>扫帚在原地停了很久——他在等什么？</div></article>
+    <article class="card cchar"><div class="ch-id"><span class="ava wang">狗</span><div class="ch-n"><b>王二狗</b><span>损友 · 信息源</span></div></div>
+      <dl><div class="cs"><dt>境界</dt><dd>炼气二层</dd></div><div class="cs"><dt>贡献</dt><dd>把大比规则说给了读者</dd></div><div class="cs"><dt>信任</dt><dd class="chg">+40 · 挨了一脚也没跑</dd></div><div class="cs"><dt>阵营</dt><dd><span class="tag good">友方</span></dd></div></dl>
+      <div class="secret"><b>变化：</b>直觉“这兄弟要起飞”，抱腿意愿上升</div></article>
+  </div>
+
+  <div class="sec-head reveal" style="animation-delay:.16s"><span class="sec-t">任务账 · 第二圈开盘</span><span class="sec-hint">第一圈欠的还清了，新账开出来了</span></div>
+  <div class="ledger2 reveal" style="animation-delay:.18s">
+    <div class="card lg-col">
+      <h4><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>主角面 · 系统任务</h4>
+      <div class="lg-sub">写进书里的事实</div>
+      <div class="lg-item"><span class="li-ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2.5"/></svg></span><div><b>三月之约</b>——大比进前十，奖洗髓丹；达成概率 0.7%</div></div>
+      <div class="lg-item"><span class="li-ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg></span><div><b>明日 · 藏经阁签到</b>——领挂起的 100 道源，日产提到 50</div></div>
+    </div>
+    <div class="card lg-col">
+      <h4><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning)" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>作者面 · 欠读者的</h4>
+      <div class="lg-sub">第一圈还清 4 笔，新开 4 笔——账常亮，书就不偏</div>
+      <div class="lg-item paid"><span class="li-ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></span><div><b>金手指立起来 · 死线钉死 · 女主挂钩 · 反派立威</b>——三章内全部兑付</div></div>
+      <div class="lg-item"><span class="li-ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning)" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg></span><div><b>洗髓丹翻身</b>——废灵根这口气，大比是兑付日</div></div>
+      <div class="lg-item"><span class="li-ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning)" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg></span><div><b>韩拾遗暗线</b>——他认得系统，早晚要开口</div></div>
+      <div class="lg-item"><span class="li-ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning)" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg></span><div><b>沈青霜的观察 · 赵天雄的禁药雷</b>——两条都在倒计时</div></div>
+      <div class="lg-item"><span class="li-ic"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-disabled)" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg></span><div><b>系统的来历</b><span class="tag deep">仍深埋</span></div></div>
+    </div>
+  </div>
+
+  <div class="next-strip reveal" style="animation-delay:.24s">
+    <span class="spinner"></span>
+    <div class="ns-main"><b>Agent 正在备下一段：藏经阁的一百道源（第 4 章起）</b><span>起点已定——明日清晨，藏经阁签到。备好后又是三张章卡等你过目：这就是下一圈。</span></div>
+    <button class="btn btn-ghost" onclick="restart()">回到第一圈再看一遍</button>
+  </div>
+
+  <div class="probe-note">探针到此为止。你刚才走的——进书看战况 → 过三张章卡 → 点头 → Agent 写 → 验收世界变化 → 收下开下一圈——就是这个产品设想的日常创作循环。真产品里每一段 5–15 章、可连写到卷末，节奏由你定。</div>
+</section>
+
+</div>
+
+<div class="dockbar"><div class="inner" id="dockin">
+  <!-- 动态填充 -->
+</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+  let stage = 1;
+  let hookChoice = 'a';
+  let writeTimers = [];
+  let writeDone = false;
+
+  const dockHTML = {
+    1: `<span class="dock-state">第 <b>1</b> 步 · 进书看战况——底下 Agent 已备好开局三章</span><span class="grow"></span><button class="btn btn-primary" onclick="go(2)">看这一段的计划</button>`,
+    2: `<span class="dock-state">第 <b>2</b> 步 · 过卡——三张都顺眼就放行，不顺眼当场改</span><span class="grow"></span><button class="btn btn-ghost" onclick="stubToast('整段重出：真产品里 Agent 会带你的理由重新排这一段（探针不铺这条路）')">整段重出</button><button class="btn btn-primary" onclick="go(3)">没问题，开写这三章</button>`,
+    3: `<span class="dock-state">第 <b>3</b> 步 · Agent 写作中——你可以去喝口水，或者跳过等待</span><span class="grow"></span><button class="btn btn-ghost" onclick="skipWriting()">跳过等待</button><button class="btn btn-primary" id="donebtn" style="display:none" onclick="go(4)">三章写完了 · 去验收</button>`,
+    4: `<span class="dock-state">第 <b>4</b> 步 · 验收——左边读正文，右边看世界怎么动的</span><span class="grow"></span><button class="btn btn-ghost" onclick="stubToast('只改文字：直接改，保存时做事实比对，碰到已定事实会提醒（探针不铺这条路）')">只改文字</button><button class="btn btn-ghost" onclick="stubToast('打回重写：整段重写，世界回滚到这段开始之前（探针不铺这条路）')">打回重写</button><button class="btn btn-primary" onclick="go(5)">收下 · 世界定格</button>`,
+    5: `<span class="dock-state">一圈走完 · <b>落一次子，收一次世界</b>——这就是日常</span><span class="grow"></span><button class="btn btn-primary" onclick="restart()">回到第一圈再看一遍</button>`
+  };
+
+  function renderRail() {
+    document.querySelectorAll('.lr-step').forEach(el => {
+      const n = +el.dataset.ls;
+      el.classList.toggle('cur', n === stage);
+      el.classList.toggle('done', n < stage);
+    });
+    const tb = document.getElementById('tb-state');
+    if (stage === 3) tb.innerHTML = '<span class="dot run"></span>Agent 写作中';
+    else if (stage === 4) tb.innerHTML = '<span class="dot done"></span>待验收';
+    else if (stage === 5) tb.innerHTML = '<span class="dot run"></span>备下一段中';
+    else tb.innerHTML = '<span class="dot warn"></span>该你落子';
+    tb.className = 'badge ' + (stage === 4 ? 'pub' : stage === 3 || stage === 5 ? 'run' : 'warn');
+  }
+
+  function go(n) {
+    stage = n;
+    document.querySelectorAll('section[data-stage]').forEach(s => s.classList.toggle('on', +s.dataset.stage === n));
+    document.getElementById('dockin').innerHTML = dockHTML[n];
+    renderRail();
+    window.scrollTo({ top: 0 });
+    document.querySelectorAll('section.on .reveal').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = ''; });
+    if (n === 3) startWriting();
+    if (n === 4) setTimeout(() => document.querySelectorAll('.bar i').forEach(b => b.style.width = b.dataset.w), 150);
+  }
+
+  /* —— S2 交互 —— */
+  function pickHook(h) {
+    hookChoice = h;
+    document.querySelectorAll('#hookpick button').forEach(b => b.classList.toggle('sel', b.dataset.hook === h));
+    toast('章末钩已定 <b>' + (h === 'a' ? 'A · 神识扫来' : 'B · 系统警告') + '</b>——写手会照这个收尾');
+  }
+  function togglePop(e) {
+    e.stopPropagation();
+    document.getElementById('sunpop').classList.toggle('open');
+  }
+  function keepSun(e) {
+    e.stopPropagation();
+    document.getElementById('sunpop').classList.remove('open');
+    toast('已保留 <b>孙彪（一次性）</b>——写完这章他就归档');
+  }
+  document.addEventListener('click', e => {
+    const pop = document.getElementById('sunpop');
+    if (pop.classList.contains('open') && !pop.contains(e.target)) pop.classList.remove('open');
+  });
+  document.querySelectorAll('.ck-punch').forEach(el => {
+    el.addEventListener('blur', () => toast('看点已改——写手会照<b>改后的卡</b>写'));
+  });
+
+  /* —— S3 写作动画 —— */
+  const logLines = [
+    ['00:02', '读取章卡 ×3 · 世界状态就位（角色 5 · 设定 4 · 账本 3 户）', false],
+    ['00:05', '第一章开笔 · 看点：金手指压到最后一拍', false],
+    ['00:31', '第一章完成 · 防穿帮自查：赵天雄不知换人 ✓', true],
+    ['00:33', '第二章开笔 · 记账：签到 +20 → 购丹 −30', false],
+    ['00:58', '第二章完成 · 沈青霜仅“察觉反常”未说破 ✓ · 钩子按你选的收尾', true],
+    ['01:00', '第三章开笔 · 新角色孙彪入库（一次性）', false],
+    ['01:26', '第三章完成 · 韩拾遗知情仅外化动作 ✓ · 主线任务发布', true],
+    ['01:27', '三章对账：道源 100+20−30=90 ✓ · 系统词未漏入旁白 ✓', true],
+  ];
+  function startWriting() {
+    writeDone = false;
+    writeTimers.forEach(clearTimeout); writeTimers = [];
+    document.getElementById('wlog').innerHTML = '';
+    document.getElementById('wspin').style.display = '';
+    document.getElementById('wtitle').textContent = '写手 Agent 开工——码字的苦不归你';
+    document.getElementById('donebtn') && (document.getElementById('donebtn').style.display = 'none');
+    const chs = document.querySelectorAll('.wch');
+    chs.forEach(c => { c.classList.remove('doing'); c.querySelector('.st').innerHTML = '<span class="pending"></span>'; c.querySelector('.wc').textContent = '排队中'; });
+    const marks = [
+      { t: 400,  fn: () => chState(1, 'doing') },
+      { t: 2000, fn: () => chState(1, 'done', '2,613 字') },
+      { t: 2100, fn: () => chState(2, 'doing') },
+      { t: 3900, fn: () => chState(2, 'done', '2,402 字') },
+      { t: 4000, fn: () => chState(3, 'doing') },
+      { t: 5800, fn: () => { chState(3, 'done', '2,487 字'); finishWriting(); } },
+    ];
+    marks.forEach(m => writeTimers.push(setTimeout(m.fn, m.t)));
+    logLines.forEach((l, i) => writeTimers.push(setTimeout(() => addLog(l), 400 + i * 680)));
+  }
+  function chState(n, st, wc) {
+    const c = document.querySelector('.wch[data-w="' + n + '"]');
+    if (st === 'doing') { c.classList.add('doing'); c.querySelector('.st').innerHTML = '<span class="spinner" style="width:12px;height:12px;border-width:2px;"></span>'; c.querySelector('.wc').textContent = '写作中…'; }
+    else { c.classList.remove('doing'); c.querySelector('.st').innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>'; c.querySelector('.wc').textContent = wc; }
+  }
+  function addLog(l) {
+    const d = document.createElement('div');
+    d.className = 'll' + (l[2] ? ' ok' : '');
+    d.innerHTML = '<span class="t">' + l[0] + '</span><b>' + l[1] + '</b>';
+    document.getElementById('wlog').appendChild(d);
+  }
+  function finishWriting() {
+    writeDone = true;
+    document.getElementById('wspin').style.display = 'none';
+    document.getElementById('wtitle').textContent = '三章写完 · 世界已回写——去验收';
+    const btn = document.getElementById('donebtn');
+    if (btn) btn.style.display = '';
+  }
+  function skipWriting() {
+    if (writeDone) { go(4); return; }
+    writeTimers.forEach(clearTimeout); writeTimers = [];
+    chState(1, 'done', '2,613 字'); chState(2, 'done', '2,402 字'); chState(3, 'done', '2,487 字');
+    document.getElementById('wlog').innerHTML = '';
+    logLines.forEach(addLog);
+    finishWriting();
+  }
+
+  /* —— S4 阅读器 —— */
+  function showCh(n) {
+    document.querySelectorAll('.rd-tab').forEach(t => t.classList.toggle('sel', +t.dataset.rt === n));
+    document.querySelectorAll('.rd-ch').forEach(c => c.classList.toggle('on', +c.dataset.ch === n));
+    document.querySelector('.rd-body').scrollTop = 0;
+  }
+
+  /* —— 通用 —— */
+  function restart() { go(1); }
+  let toastTimer;
+  function toast(html) {
+    const t = document.getElementById('toast');
+    t.innerHTML = html;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+  }
+  function stubToast(msg) { toast(msg); }
+
+  /* 直达某步（调试/截图用）：?stage=N */
+  const qs = new URLSearchParams(location.search).get('stage');
+  go(qs ? Math.min(5, Math.max(1, +qs)) : 1);
+  if (qs === '4') skipWriting && (writeDone = true);
+</script>

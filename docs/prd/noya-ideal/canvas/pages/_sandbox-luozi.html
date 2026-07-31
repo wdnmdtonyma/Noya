@@ -1,0 +1,382 @@
+<!-- sandbox -->
+<!-- title: 落子 · 进书简报（角色备战 v5） -->
+<style>
+  .brief { max-width: 940px; margin: 0 auto; padding: var(--space-6) var(--space-6) 96px; }
+  .sec-head { display: flex; align-items: baseline; gap: var(--space-3); margin: var(--space-8) 0 var(--space-4); }
+  .sec-head:first-of-type { margin-top: var(--space-2); }
+  .sec-no { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--color-primary-soft); color: var(--color-primary); display: flex; align-items: center; justify-content: center; font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); font-family: var(--font-family-mono); }
+  .sec-t { font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); color: var(--color-text); }
+  .sec-hint { font-size: var(--font-size-xs); color: var(--color-text-tertiary); margin-left: auto; }
+
+  .recap { border: 1px solid var(--color-border); border-radius: var(--radius-xl); overflow: hidden; background: var(--color-surface); }
+  .recap-banner { position: relative; height: 220px; background: #0e1014; }
+  .recap-banner img { width: 100%; height: 100%; object-fit: cover; object-position: center 40%; display: block; }
+  .recap-banner .rb-grad { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(12,13,16,.1) 30%, rgba(18,19,23,.98) 100%); }
+  .recap-banner .rb-cap { position: absolute; left: var(--space-5); right: var(--space-5); bottom: 14px; display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-3); }
+  .recap-banner .rb-place { font-size: var(--font-size-xs); letter-spacing: 2px; color: var(--color-primary); }
+  .recap-banner .rb-ch { font-size: var(--font-size-2xl); font-weight: var(--font-weight-semibold); color: var(--color-text); margin-top: 4px; }
+  .recap-body { padding: var(--space-5) var(--space-6) var(--space-6); }
+  .recap-body p { font-size: 15px; line-height: 1.95; color: var(--color-text); margin: 0; } .recap-body p .k { color: var(--color-primary); }
+  .recap-now { display: flex; align-items: center; gap: 10px; margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--color-border); font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+
+  .genre-tag { display: inline-flex; align-items: center; gap: 6px; font-size: var(--font-size-xs); color: var(--color-text-secondary); background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: var(--radius-pill); padding: 3px 10px; } .genre-tag b { color: var(--color-primary); font-weight: var(--font-weight-medium); }
+  .cast { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3); }
+  .unit { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; display: flex; flex-direction: column; cursor: pointer; transition: border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out); }
+  .unit:hover { border-color: var(--color-primary); transform: translateY(-2px); }
+  .u-port { position: relative; aspect-ratio: 3 / 3.3; background: var(--gray-850); overflow: hidden; }
+  .u-fb { position: absolute; inset: 0; z-index: 0; display: flex; align-items: center; justify-content: center; font-size: var(--font-size-3xl); color: var(--gray-500); }
+  .u-port img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 22%; z-index: 1; }
+  .u-faction { position: absolute; top: 8px; left: 8px; z-index: 3; font-size: 11px; font-weight: var(--font-weight-medium); padding: 2px 9px; border-radius: var(--radius-pill); backdrop-filter: blur(4px); }
+  .u-faction.good { background: rgba(47,182,115,.85); color: #08130d; } .u-faction.evil { background: rgba(239,91,91,.85); color: #1a0808; } .u-faction.unk { background: rgba(154,161,173,.8); color: #12131a; }
+  .u-port .u-grad { position: absolute; inset: 0; z-index: 2; background: linear-gradient(180deg, rgba(0,0,0,.15) 0%, rgba(0,0,0,0) 30%, rgba(22,24,29,.9) 100%); }
+  .u-port .u-name { position: absolute; left: 10px; right: 10px; bottom: 8px; z-index: 3; }
+  .u-port .u-name b { display: block; font-size: var(--font-size-md); color: var(--color-text); } .u-port .u-name span { font-size: 11px; color: var(--color-text-secondary); }
+  .u-stats { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .u-stat { display: flex; gap: 8px; font-size: var(--font-size-xs); line-height: 1.5; } .u-stat dt { flex: none; width: 44px; color: var(--color-text-tertiary); } .u-stat dd { margin: 0; color: var(--color-text-secondary); } .u-stat dd.hot { color: var(--color-primary); } .u-stat dd.danger { color: var(--color-danger); }
+  .u-open { margin: 2px 10px 10px; }
+  .open-btn { width: 100%; appearance: none; cursor: pointer; font-family: var(--font-family-base); font-size: var(--font-size-xs); padding: 7px 10px; border-radius: var(--radius-md); border: 1px solid var(--color-border-strong); background: var(--color-surface-2); color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center; gap: 6px; transition: all var(--dur-fast) var(--ease-out); }
+  .unit:hover .open-btn { border-color: var(--color-primary); color: var(--color-primary); background: var(--color-primary-soft); }
+  .cast-note { margin-top: var(--space-3); font-size: var(--font-size-xs); color: var(--color-text-tertiary); } .cast-note b { color: var(--color-text-secondary); font-weight: var(--font-weight-normal); }
+
+  .dossier { display: grid; grid-template-columns: 300px 1fr; gap: var(--space-4); }
+  .dmap { position: relative; border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; background: radial-gradient(120% 100% at 60% 30%, #14171c, var(--gray-950)); min-height: 180px; } .dmap .dm-cap { position: absolute; left: 12px; bottom: 10px; font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+  .dstats { border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); padding: var(--space-4) var(--space-5); display: flex; flex-direction: column; gap: var(--space-3); }
+  .drow { display: flex; align-items: center; gap: var(--space-3); } .drow .dk { flex: none; width: 74px; font-size: var(--font-size-xs); color: var(--color-text-tertiary); } .drow .dv { font-size: var(--font-size-sm); color: var(--color-text); } .drow .dv b { color: var(--color-primary); }
+  .danger-dots { display: inline-flex; gap: 4px; margin-right: 8px; vertical-align: middle; } .danger-dots i { width: 11px; height: 11px; border-radius: 50%; background: var(--gray-600); cursor: pointer; transition: background var(--dur-fast); } .danger-dots i.on { background: var(--color-danger); } .danger-dots i:hover { outline: 2px solid var(--color-danger-soft); }
+  .crumb { display: inline-flex; align-items: center; gap: 6px; } .crumb .now { color: var(--color-primary); } .crumb .sep { color: var(--color-text-disabled); }
+  .stepper { display: inline-flex; align-items: center; gap: 2px; margin-left: 4px; vertical-align: middle; } .stepper button { appearance: none; cursor: pointer; width: 22px; height: 22px; border-radius: var(--radius-sm); border: 1px solid var(--color-border-strong); background: var(--color-surface-2); color: var(--color-text-secondary); font-size: 14px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; } .stepper button:hover { border-color: var(--color-primary); color: var(--color-primary); } .stepper .sv { min-width: 20px; text-align: center; font-family: var(--font-family-mono); color: var(--color-primary); }
+
+  .obj { border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; }
+  .obj-row { display: grid; grid-template-columns: 150px 1fr 1fr; gap: var(--space-4); padding: 12px var(--space-5); border-bottom: 1px solid var(--color-border); align-items: center; } .obj-row:last-child { border-bottom: none; }
+  .obj-row.head { background: var(--color-surface-2); padding: 9px var(--space-5); } .obj-row.head span { font-size: var(--font-size-xs); color: var(--color-text-tertiary); letter-spacing: 1px; }
+  .obj-who { display: flex; align-items: center; gap: 10px; } .obj-ava { width: 30px; height: 30px; border-radius: 50%; overflow: hidden; flex: none; background: var(--gray-800); position: relative; } .obj-ava img { width: 100%; height: 100%; object-fit: cover; object-position: center 20%; }
+  .obj-who b { font-size: var(--font-size-sm); color: var(--color-text); } .obj-who .fac { font-size: 11px; } .fac.good { color: var(--color-success); } .fac.evil { color: var(--color-danger); } .fac.unk { color: var(--color-text-tertiary); }
+  .editable { position: relative; font-size: var(--font-size-sm); color: var(--color-text-secondary); cursor: text; border-bottom: 1px dashed transparent; padding-bottom: 1px; outline: none; } .editable:hover { border-bottom-color: var(--color-border-strong); } .editable::after { content: '✎'; font-size: 10px; color: var(--color-text-disabled); margin-left: 6px; opacity: 0; transition: opacity var(--dur-fast); } .editable:hover::after { opacity: 1; } .editable[contenteditable="true"] { border-bottom-color: var(--color-primary); color: var(--color-text); }
+  .obj-end .tag { display: inline-block; margin-top: 3px; font-size: 11px; color: var(--color-primary); background: var(--color-primary-soft); border-radius: var(--radius-pill); padding: 1px 8px; }
+
+  .beats-panel { margin-top: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; }
+  .bp-head { display: flex; align-items: center; gap: 8px; padding: 11px var(--space-5); cursor: pointer; background: var(--color-surface); } .bp-head:hover { background: var(--color-surface-2); }
+  .bp-head .bp-t { font-size: var(--font-size-sm); color: var(--color-text); font-weight: var(--font-weight-medium); } .bp-head .bp-sub { font-size: var(--font-size-xs); color: var(--color-text-tertiary); } .bp-head .chev { margin-left: auto; color: var(--color-text-tertiary); transition: transform var(--dur-base); } .beats-panel.open .chev { transform: rotate(180deg); }
+  .bp-body { display: none; padding: var(--space-2) var(--space-5) var(--space-4); border-top: 1px solid var(--color-border); } .beats-panel.open .bp-body { display: block; }
+  .beat { display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; border-bottom: 1px solid var(--color-border); } .beat:last-of-type { border-bottom: none; }
+  .beat .bc { flex: none; width: 62px; font-family: var(--font-family-mono); font-size: var(--font-size-xs); color: var(--color-text-tertiary); padding-top: 2px; } .beat .bt { flex: 1; font-size: var(--font-size-sm); line-height: var(--line-sm); color: var(--color-text); outline: none; } .beat .bt[contenteditable="true"] { border-bottom: 1px dashed var(--color-primary); } .beat.climax .bt { color: var(--color-primary); } .beat.added { border-left: 3px solid var(--color-primary); padding-left: 8px; margin-left: -8px; }
+  .beat .bx { flex: none; display: flex; gap: 2px; } .ib { appearance: none; background: none; border: none; cursor: pointer; width: 24px; height: 24px; border-radius: var(--radius-sm); color: var(--color-text-tertiary); display: flex; align-items: center; justify-content: center; } .ib:hover { background: var(--color-bg-hover); color: var(--color-text); } .ib.danger:hover { color: var(--color-danger); }
+  .beat-add { margin-top: 8px; }
+
+  .dockbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 55; background: rgba(18,19,23,.92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--color-border-strong); }
+  .dockbar .inner { max-width: 940px; margin: 0 auto; padding: 12px var(--space-6); display: flex; align-items: center; gap: var(--space-3); } .dockbar .dock-state { font-size: var(--font-size-sm); color: var(--color-text-secondary); } .dockbar .dock-state b { color: var(--color-primary); } .dockbar .grow { flex: 1; }
+  .toast { position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%) translateY(12px); z-index: 90; background: var(--gray-800); border: 1px solid var(--color-border-strong); color: var(--color-text); font-size: var(--font-size-sm); padding: 9px 16px; border-radius: var(--radius-pill); box-shadow: var(--shadow-md); opacity: 0; pointer-events: none; transition: all var(--dur-base) var(--ease-out); } .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); } .toast b { color: var(--color-primary); }
+
+  /* —— 角色备战面板（master–detail） —— */
+  .cp-scrim { position: fixed; inset: 0; background: rgba(7,8,10,.68); z-index: 75; opacity: 0; pointer-events: none; transition: opacity var(--dur-base); } .cp-scrim.open { opacity: 1; pointer-events: auto; }
+  .cpanel { position: fixed; z-index: 76; left: 50%; top: 50%; width: min(940px, 96vw); max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;
+    transform: translate(-50%, -48%) scale(.97); opacity: 0; pointer-events: none; background: linear-gradient(180deg, var(--gray-900), var(--gray-950)); border: 1px solid var(--color-border-strong); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg);
+    transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-spring); }
+  .cpanel.open { opacity: 1; transform: translate(-50%, -50%) scale(1); pointer-events: auto; }
+  .cp-close { position: absolute; top: 14px; right: 14px; z-index: 4; width: 30px; height: 30px; border: none; background: rgba(0,0,0,.35); color: var(--color-text-secondary); cursor: pointer; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; } .cp-close:hover { background: var(--color-bg-hover); color: var(--color-text); }
+  .cp-hero { position: relative; display: flex; gap: var(--space-5); padding: var(--space-5) var(--space-6); border-bottom: 1px solid var(--color-border); flex: none; }
+  .cp-portrait { position: relative; width: 96px; height: 124px; flex: none; border-radius: var(--radius-lg); overflow: hidden; background: var(--gray-850); border: 1px solid var(--color-border-strong); }
+  .cp-portrait img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 20%; z-index: 1; } .cp-portrait .cp-fb { position: absolute; inset: 0; z-index: 0; display: flex; align-items: center; justify-content: center; font-size: var(--font-size-2xl); color: var(--gray-500); } .cp-portrait .cp-fac { position: absolute; top: 6px; left: 6px; z-index: 2; font-size: 11px; padding: 2px 8px; border-radius: var(--radius-pill); } .cp-fac.good { background: rgba(47,182,115,.85); color: #08130d; } .cp-fac.evil { background: rgba(239,91,91,.85); color: #1a0808; } .cp-fac.unk { background: rgba(154,161,173,.8); color: #12131a; }
+  .cp-id { flex: 1; min-width: 0; } .cp-id h3 { margin: 0 0 3px; font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); } .cp-id .cp-role { font-size: var(--font-size-sm); color: var(--color-text-tertiary); margin-bottom: 10px; }
+  .cp-vitals { margin: 0 0 10px; display: flex; flex-wrap: wrap; gap: 6px 18px; } .cp-vitals .v { display: flex; gap: 6px; font-size: var(--font-size-xs); } .cp-vitals .v dt { color: var(--color-text-tertiary); } .cp-vitals .v dd { margin: 0; color: var(--color-text); }
+  .cp-context { font-size: var(--font-size-xs); line-height: 1.6; color: var(--color-text-secondary); background: var(--color-primary-soft); border: 1px solid rgba(217,162,74,.25); border-radius: var(--radius-md); padding: 8px 12px; } .cp-context b { color: var(--color-primary); }
+
+  .cp-body { display: grid; grid-template-columns: 320px 1fr; flex: 1; min-height: 0; }
+  .cp-master { border-right: 1px solid var(--color-border); overflow-y: auto; padding: var(--space-4); }
+  .cp-grp { font-size: var(--font-size-xs); color: var(--color-text-tertiary); letter-spacing: 1px; margin: var(--space-3) 4px var(--space-2); display: flex; align-items: center; justify-content: space-between; } .cp-grp:first-child { margin-top: 0; }
+  .row-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radius-md); border: 1px solid transparent; cursor: pointer; transition: background var(--dur-fast), border-color var(--dur-fast); }
+  .row-item:hover { background: var(--color-surface); } .row-item.sel { background: var(--color-primary-soft); border-color: var(--color-primary); }
+  .ri-ic { width: 30px; height: 30px; flex: none; border-radius: var(--radius-sm); background: var(--gray-850); border: 1px solid var(--color-border-strong); display: flex; align-items: center; justify-content: center; font-size: 15px; color: var(--color-primary); position: relative; overflow: hidden; }
+  .ri-ic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .ri-main { flex: 1; min-width: 0; } .ri-main .ri-n { font-size: var(--font-size-sm); color: var(--color-text); } .ri-main .ri-t { font-size: 11px; color: var(--color-text-tertiary); }
+  .ri-badge { font-size: 10px; padding: 1px 7px; border-radius: var(--radius-pill); flex: none; } .ri-badge.eq { background: var(--color-success-soft); color: var(--color-success); } .ri-badge.learn { background: transparent; border: 1px dashed var(--color-border-strong); color: var(--color-text-tertiary); }
+  .row-item.locked { opacity: .8; } .row-item.locked .ri-ic { color: var(--color-text-tertiary); }
+
+  .cp-detail { padding: var(--space-5) var(--space-6); overflow-y: auto; }
+  .cp-empty { color: var(--color-text-tertiary); font-size: var(--font-size-sm); display: flex; align-items: center; justify-content: center; height: 100%; text-align: center; }
+  .dt-head { display: flex; align-items: center; gap: 12px; margin-bottom: var(--space-4); }
+  .dt-ic { width: 48px; height: 48px; flex: none; border-radius: var(--radius-md); background: var(--gray-850); border: 1px solid var(--color-border-strong); display: flex; align-items: center; justify-content: center; font-size: 22px; color: var(--color-primary); position: relative; overflow: hidden; } .dt-ic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .dt-head h4 { margin: 0; font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); } .dt-type { font-size: var(--font-size-xs); color: var(--color-primary); margin-top: 2px; }
+  .dt-field { margin-bottom: var(--space-4); } .dt-k { font-size: var(--font-size-xs); color: var(--color-text-tertiary); letter-spacing: 1px; margin-bottom: 4px; } .dt-v { font-size: var(--font-size-sm); line-height: 1.75; color: var(--color-text-secondary); } .dt-v b { color: var(--color-text); }
+  .dt-actions { display: flex; gap: var(--space-2); margin-top: var(--space-5); flex-wrap: wrap; }
+  .dt-owned { font-size: var(--font-size-xs); color: var(--color-success); display: inline-flex; align-items: center; gap: 5px; }
+
+  .cp-foot { flex: none; display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-6); border-top: 1px solid var(--color-border); flex-wrap: wrap; }
+  .cp-genre { margin-left: auto; font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+
+  .over { position: fixed; inset: 0; z-index: 80; background: rgba(7,8,10,.75); display: none; align-items: center; justify-content: center; padding: var(--space-6); } .over.open { display: flex; }
+  .over-card { width: min(680px, 94vw); max-height: 88vh; overflow-y: auto; background: var(--gray-900); border: 1px solid var(--color-border-strong); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); padding: var(--space-6); }
+  .over-status { display: flex; align-items: center; gap: 10px; font-size: var(--font-size-sm); color: var(--color-primary); margin-bottom: var(--space-5); }
+  .spinner { width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--color-primary-soft); border-top-color: var(--color-primary); animation: spin .7s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
+  .reveal { opacity: 0; transform: translateY(6px); animation: rise var(--dur-slow) var(--ease-out) forwards; } @keyframes rise { to { opacity: 1; transform: none; } }
+  .prose p { font-size: 15px; line-height: 1.95; color: var(--color-text); margin: 0 0 1em; } .prose p:first-child::first-letter { font-size: 2.4em; float: left; line-height: .9; padding: 4px 8px 0 0; color: var(--color-primary); font-weight: 600; }
+  .surprise { margin: var(--space-4) 0; padding: 12px 14px; background: var(--color-primary-soft); border: 1px solid rgba(217,162,74,.3); border-radius: var(--radius-md); font-size: var(--font-size-sm); color: var(--color-text-secondary); } .surprise b { color: var(--color-primary); }
+  .wb-row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin: var(--space-4) 0; } .wb-row .wl { font-size: var(--font-size-xs); color: var(--color-text-tertiary); letter-spacing: 1px; } .wb-chip { display: inline-flex; align-items: center; gap: 6px; font-size: var(--font-size-xs); color: var(--color-success); background: var(--color-success-soft); border-radius: var(--radius-pill); padding: 3px 10px; }
+
+  @media (max-width: 900px) { .cast { grid-template-columns: repeat(2, 1fr); } .dossier { grid-template-columns: 1fr; } .obj-row { grid-template-columns: 1fr; gap: 6px; } .cp-body { grid-template-columns: 1fr; } .cp-master { border-right: none; border-bottom: 1px solid var(--color-border); max-height: 240px; } }
+</style>
+
+<div class="topbar">
+  <a class="brand" href="/p/01-bookshelf"><span class="mark">N</span>Noya</a><div class="divider"></div>
+  <span style="font-size:var(--font-size-md);font-weight:var(--font-weight-medium);">我在规则怪谈里开民宿</span>
+  <span class="badge mute" style="margin-left:8px;">进书简报 · 探针 v5</span><div class="grow"></div>
+  <span class="badge warn"><span class="dot warn"></span>决策点 · 该你落子</span>
+</div>
+
+<div class="brief app-main">
+  <div class="sec-head"><span class="sec-no">1</span><span class="sec-t">剧情回顾</span><span class="sec-hint">前情 → 此刻，30 秒回到状态</span></div>
+  <div class="recap">
+    <div class="recap-banner"><img src="/assets/img/houshan.png" alt="后山禁地" onerror="this.style.display='none'"><div class="rb-grad"></div>
+      <div class="rb-cap"><div><div class="rb-place">卷二 · 山雾深处</div><div class="rb-ch">第 47 章 · 雨夜来客（终）</div></div><span class="badge run">副本刚完结</span></div></div>
+    <div class="recap-body"><p>顾栖迟的民宿开在规则怪谈里——靠一手<span class="k">「读出规则漏洞」</span>的本事，接待那些不算人的客人。他刚送走『雨夜来客』，常住客陈默却在阁楼楼梯口叫住他：钥匙圈上，十二把钥匙，却挂着<span class="k">十三个环</span>。第十三把钥匙的锁，陈默说，在<span class="k">后山</span>。那座雾锁的后山，开业至今没人上去过。</p>
+      <div class="recap-now"><span class="badge warn"><span class="dot warn"></span>此刻</span>主角站在第 47 章末的决策点，等你拍下一个剧情单元 —— <b style="color:var(--color-text)">该你落子</b>。</div></div>
+  </div>
+
+  <div class="sec-head"><span class="sec-no">2</span><span class="sec-t">登场阵容</span><span class="sec-hint"><span class="genre-tag">题材 <b>规则怪谈</b> · 点开卡备战</span></span></div>
+  <div class="cast" id="cast">
+    <article class="unit" data-char="gu"><div class="u-port"><span class="u-fb">顾</span><img src="/assets/img/char-guxichi.png" onerror="this.style.display='none'"><span class="u-faction good" data-fac>正</span><div class="u-grad"></div><div class="u-name"><b>顾栖迟</b><span>主角 · 民宿老板</span></div></div>
+      <dl class="u-stats"><div class="u-stat"><dt>金手指</dt><dd>读出规则漏洞</dd></div><div class="u-stat"><dt>掌握</dt><dd>民宿十二律</dd></div><div class="u-stat"><dt>状态</dt><dd class="hot">决策中</dd></div></dl>
+      <div class="u-open"><button class="open-btn">🎒 打开背包 · 备战</button></div></article>
+    <article class="unit" data-char="chen"><div class="u-port"><span class="u-fb">默</span><img src="/assets/img/char-chenmo.png" onerror="this.style.display='none'"><span class="u-faction unk" data-fac>未明</span><div class="u-grad"></div><div class="u-name"><b>陈默</b><span>长住客 · 规则观察者</span></div></div>
+      <dl class="u-stats"><div class="u-stat"><dt>掌握</dt><dd>十三环之谜</dd></div><div class="u-stat"><dt>信任</dt><dd>62 ↑</dd></div><div class="u-stat"><dt>状态</dt><dd class="hot">主动引路</dd></div></dl>
+      <div class="u-open"><button class="open-btn">🎒 打开背包 · 备战</button></div></article>
+    <article class="unit" data-char="bai"><div class="u-port"><span class="u-fb">白</span><img src="/assets/img/char-baiqun.png" onerror="this.style.display='none'"><span class="u-faction evil" data-fac>邪·疑</span><div class="u-grad"></div><div class="u-name"><b>白裙女客</b><span>身份未知 · 疑似本体</span></div></div>
+      <dl class="u-stats"><div class="u-stat"><dt>威胁度</dt><dd class="danger">高</dd></div><div class="u-stat"><dt>规则</dt><dd>未知</dd></div><div class="u-stat"><dt>状态</dt><dd>疑似尾随</dd></div></dl>
+      <div class="u-open"><button class="open-btn">🎒 打开背包 · 备战</button></div></article>
+    <article class="unit" data-char="zao"><div class="u-port"><span class="u-fb">灶</span><img src="/assets/img/char-zaowang.png" onerror="this.style.display='none'"><span class="u-faction good" data-fac>正</span><div class="u-grad"></div><div class="u-name"><b>灶王爷</b><span>民宿守护灵 · 盟友</span></div></div>
+      <dl class="u-stats"><div class="u-stat"><dt>契约度</dt><dd>40</dd></div><div class="u-stat"><dt>规则</dt><dd>不离灶间十丈</dd></div><div class="u-stat"><dt>状态</dt><dd>可召唤·受限</dd></div></dl>
+      <div class="u-open"><button class="open-btn">🎒 打开背包 · 备战</button></div></article>
+  </div>
+  <p class="cast-note"><b>题材化：</b>技能位 / 道具格同一套，到仙侠长成 <b>功法 / 法宝 / 丹药</b>，到经营流是 <b>铺面 / 账本 / 人脉</b>。</p>
+
+  <div class="sec-head"><span class="sec-no">3</span><span class="sec-t">副本档案</span><span class="sec-hint">危险度、量级可调</span></div>
+  <div class="dossier">
+    <div class="dmap"><svg width="100%" height="180" viewBox="0 0 300 180" preserveAspectRatio="xMidYMid slice">
+      <defs><radialGradient id="pulse" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#d9a24a" stop-opacity=".5"/><stop offset="100%" stop-color="#d9a24a" stop-opacity="0"/></radialGradient></defs>
+      <ellipse cx="70" cy="142" rx="46" ry="24" fill="#1a1e1a"/><text x="70" y="145" fill="#6b7280" font-size="10" text-anchor="middle">云隐镇</text>
+      <ellipse cx="150" cy="106" rx="44" ry="24" fill="#221d14"/><text x="150" y="109" fill="#9aa1ad" font-size="10" text-anchor="middle">迷雾民宿</text><circle cx="150" cy="106" r="5" fill="#d9a24a"/>
+      <circle cx="232" cy="54" r="38" fill="url(#pulse)"/><ellipse cx="232" cy="56" rx="46" ry="25" fill="#14171c" stroke="#d9a24a" stroke-width="1.5" stroke-dasharray="3 4"/>
+      <text x="232" y="53" fill="#d9a24a" font-size="10" text-anchor="middle" font-weight="600">后山禁地</text><text x="232" y="67" fill="#6b7280" font-size="8" text-anchor="middle">本副本点亮</text>
+      <path d="M112 132 C 150 114, 175 94, 196 74" stroke="#6f6046" stroke-width="1.5" fill="none" stroke-dasharray="2 5"/></svg>
+      <span class="dm-cap">主角当前 · 迷雾民宿 → 后山禁地</span></div>
+    <div class="dstats">
+      <div class="drow"><span class="dk">危险度</span><span class="dv"><span class="danger-dots" id="danger"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span><b id="danger-label">高</b> · 揭秘型高潮，牵动本体级反派</span></div>
+      <div class="drow"><span class="dk">大纲位置</span><span class="dv"><span class="crumb"><span>卷二 山雾深处</span><span class="sep">›</span><span class="now">第 3 / 4 个副本</span></span></span></div>
+      <div class="drow"><span class="dk">量级</span><span class="dv">约 <span class="stepper"><button id="len-dec">−</button><span class="sv" id="len">6</span><button id="len-inc">+</button></span> 章 · 卷二次高潮</span></div>
+      <div class="drow"><span class="dk">触发</span><span class="dv">回收到期伏笔「第 13 把钥匙」· 点亮后山地图</span></div>
+    </div>
+  </div>
+
+  <div class="sec-head"><span class="sec-no">4</span><span class="sec-t">目的与结局 · 棋路</span><span class="sec-hint">点任意格直接改 · 下面展开章纲</span></div>
+  <div class="obj" id="obj">
+    <div class="obj-row head"><span>登场角色</span><span>在这副本里想要什么</span><span>预定结局</span></div>
+    <div class="obj-row" data-char="gu"><div class="obj-who"><span class="obj-ava"><img src="/assets/img/char-guxichi.png" onerror="this.style.display='none'"></span><div><b>顾栖迟</b> <span class="fac good" data-fac>正</span></div></div><div class="editable" data-goal>查明第 13 把钥匙到底开什么</div><div class="obj-end"><span class="editable" data-end>拿到钥匙、窥破后山与民宿的契约</span><span class="tag">主线揭秘</span></div></div>
+    <div class="obj-row" data-char="chen"><div class="obj-who"><span class="obj-ava"><img src="/assets/img/char-chenmo.png" onerror="this.style.display='none'"></span><div><b>陈默</b> <span class="fac unk" data-fac>未明</span></div></div><div class="editable" data-goal>引主角上山（动机存疑）</div><div class="obj-end"><span class="editable" data-end>暴露他与后山的旧关联</span><span class="tag">埋线·卷三</span></div></div>
+    <div class="obj-row" data-char="bai"><div class="obj-who"><span class="obj-ava"><img src="/assets/img/char-baiqun.png" onerror="this.style.display='none'"></span><div><b>白裙女客</b> <span class="fac evil" data-fac>邪</span></div></div><div class="editable" data-goal>尾随、试探主角虚实</div><div class="obj-end"><span class="editable" data-end>露出半张真身后退走</span><span class="tag">反派线推进</span></div></div>
+    <div class="obj-row" data-char="zao"><div class="obj-who"><span class="obj-ava"><img src="/assets/img/char-zaowang.png" onerror="this.style.display='none'"></span><div><b>灶王爷</b> <span class="fac good" data-fac>正</span></div></div><div class="editable" data-goal>阻止 / 警告主角别上山</div><div class="obj-end"><span class="editable" data-end>给出关键规则提示后失联</span><span class="tag">受限盟友</span></div></div>
+  </div>
+
+  <div class="beats-panel" id="bpanel">
+    <div class="bp-head" id="bp-head"><span class="bp-t">章纲</span><span class="bp-sub">· <span id="beat-n">6</span> 拍，Agent 按这一子排的 · 可改</span>
+      <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+    <div class="bp-body"><div id="beats"></div><button class="btn btn-ghost beat-add" id="beat-add"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg>加一拍</button></div>
+  </div>
+</div>
+
+<div class="cp-scrim" id="cp-scrim"></div>
+<aside class="cpanel" id="cpanel" role="dialog" aria-modal="true"></aside>
+
+<div class="dockbar"><div class="inner">
+  <span class="dock-state" id="dock-state">顺着这份简报走 · <b>未改动</b></span><div class="grow"></div>
+  <button class="btn btn-ghost" id="tune">细调棋路</button>
+  <button class="btn btn-primary" id="commit"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 6"/></svg>就这么走 · 开写</button>
+</div></div>
+
+<div class="toast" id="toast"></div>
+<div class="over" id="over"><div class="over-card" id="over-card"></div></div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const FAC = ['good', 'unk', 'evil']; const FT = { good: '正', unk: '未明', evil: '邪' };
+  let changes = 0, uid = 20;
+  function toast(html) { const t = $('toast'); t.innerHTML = html; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2600); }
+  function bump(n) { changes += (n || 1); $('dock-state').innerHTML = changes ? '你已备战 <b>' + changes + '</b> 处调整 · 随时可开写' : '顺着这份简报走 · <b>未改动</b>'; }
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+  function inlineEdit(node, done) {
+    node.setAttribute('contenteditable', 'true'); node.focus();
+    const r = document.createRange(); r.selectNodeContents(node); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    const save = () => { node.removeAttribute('contenteditable'); done(node.textContent.trim()); };
+    node.addEventListener('blur', save, { once: true });
+    node.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); node.blur(); } });
+  }
+
+  /* —— 角色数据（技能/道具都带详情） —— */
+  const CHAR = {
+    gu: { name: '顾栖迟', fac: 'good', role: '主角 · 民宿老板', port: 'char-guxichi',
+      vitals: [['金手指', '读规则漏洞'], ['状态', '决策中'], ['阵营', '正']],
+      ctx: '本副本要<b>出民宿、上后山</b>——你的『民宿十二律』在山上<b>失效</b>。掂量下带什么、学什么。',
+      skills: [
+        { n: '读出规则漏洞', g: '★', type: '金手指 · 主动 · 三阶', desc: '能"读"出任何怪谈规则的字面漏洞——规则写死的地方，就是能钻的缝。', apply: '全程可用。对"有明文规则"的怪谈体最强；对无规则的本体级（如白裙女客）暂时读不出。', cost: '每次读取心神消耗大，短时间只能读一条；读错会反噬。' },
+        { n: '民宿十二律', g: '▤', type: '被动 · 领域', desc: '开业立下的十二条待客铁律，在民宿地界内对所有客人（含非人）生效。', apply: '仅限民宿范围内。出了民宿（如后山）失效——正是本副本的风险点。', cost: '无消耗；但一旦破律，反噬极重。' }
+      ],
+      learn: [
+        { n: '山野辨路', g: '✦', type: '被动', why: '后山无规则、易困于雾——学它可在野外辨路不迷', desc: '脱离民宿规则庇护，也能在浓雾中辨明方向，不被"鬼打墙"式规则困住。' },
+        { n: '规则速记', g: '✦', type: '主动强化', why: '后山规则可能连续出现——学它缩短金手指冷却', desc: '读取规则漏洞的心神冷却减半，可短时间连读两条。' }
+      ],
+      items: [
+        { n: '铜钥匙', ic: 'item-key', g: '🗝', type: '关键道具 · 剧情', desc: '刻着"山"字的黄铜钥匙，陈默从钥匙圈多出的第十三个环上取下。', effect: '后山那栋楼的门锁正是它的形状——本副本的开锁关键。', use: '剧情推进时自动触发，无需装备。', kind: 'key' },
+        { n: '灶王契', ic: 'item-stovecharm', g: '符', type: '装备 · 常驻', desc: '与灶王爷立的契约凭证。', effect: '带上它，灶王爷的召唤/庇护范围略微延展（但仍受"十丈"硬限）。', use: '装备后常驻生效。', kind: 'gear', equipped: true },
+        { n: '朱砂符', ic: 'item-talisman', g: '符', type: '消耗品 · 一次性', desc: '灶王爷塞给他的一张应急符。', effect: '关键时刻可挡下一次规则反噬。', use: '主动使用，用了即耗尽。', kind: 'use' }
+      ] },
+    chen: { name: '陈默', fac: 'unk', role: '长住客 · 规则观察者', port: 'char-chenmo',
+      vitals: [['信任', '62 ↑'], ['状态', '主动引路'], ['阵营', '未明']],
+      ctx: '他<b>主动</b>要带主角上山。动机存疑——你可以在这里给他埋伏笔、定他这一程的底牌。',
+      skills: [
+        { n: '冷眼观察', g: '★', type: '被动', desc: '总比旁人先一步看穿规则的运作。', apply: '全程可用，尤其在信息不全时给主角提示。', cost: '无。' },
+        { n: '十三环之谜', g: '?', type: '线索 · 未明', desc: '他知道钥匙圈上第十三个环的来历，但没全说。', apply: '本副本触发——他掌握多少，由你定。', cost: '揭得太早会散了悬念。' }
+      ],
+      learn: [{ n: '旧山识途', g: '✦', type: '被动 · 隐藏', why: '若设定他早年上过后山，可解释他为何敢领路', desc: '他其实认得后山的路——这会把"动机存疑"推向"他早有目的"。' }],
+      items: [{ n: '铜钥匙', ic: 'item-key', g: '🗝', type: '关键道具 · 剧情', desc: '他递给主角的那枚，刻"山"。', effect: '把主线钥匙交到主角手里的关键物。', use: '剧情道具。', kind: 'key' },
+        { n: '旧照片', ic: 'item-register', g: '▤', type: '关键道具 · 剧情', desc: '一张泛黄的合影，其中一张脸被人抠掉。', effect: '被抠掉的人，是后山线的一个钩子。', use: '查阅可解锁线索。', kind: 'key' }] },
+    bai: { name: '白裙女客', fac: 'evil', role: '身份未知 · 疑似本体', port: 'char-baiqun',
+      vitals: [['威胁度', '高'], ['规则', '未知'], ['阵营', '邪·疑']],
+      ctx: '她是<b>本体级</b>反派——没有明文规则，主角的金手指<b>读不出她</b>。这副本她只该"露半张脸"，别过早摊牌。',
+      skills: [{ n: '无名之诱', g: '☾', type: '规则 · 未知', desc: '规则尚未显形。接触她的人会……（未揭示）。', apply: '本体级：不受"读规则漏洞"克制。', cost: '一旦规则显形，就是她的弱点——留到卷三。' }],
+      learn: [], items: [{ n: '一缕湿发', ic: 'item-talisman', g: '发', type: '关键道具 · 剧情', desc: '她经过处留下的一缕滴水的黑发。', effect: '本体存在过的证物——主角唯一能抓的实体线索。', use: '剧情道具。', kind: 'key' }] },
+    zao: { name: '灶王爷', fac: 'good', role: '民宿守护灵 · 盟友', port: 'char-zaowang',
+      vitals: [['契约度', '40'], ['状态', '受限'], ['阵营', '正']],
+      ctx: '他是主角最强的盟友，但<b>「不离灶间十丈」</b>——所以他默认<b>上不了后山</b>。想让他帮忙，得在这儿想办法。',
+      skills: [
+        { n: '灶火占卜', g: '★', type: '主动', desc: '灶膛的火色能预示当日凶吉。', apply: '每章限一次，只在灶间可用。', cost: '泄天机，用多了折损契约度。' },
+        { n: '镇宅', g: '▤', type: '被动 · 受限', desc: '镇住宅邸内的邪祟。', apply: '只在灶间十丈内有效——出了范围即失效。', cost: '无。' }
+      ],
+      learn: [{ n: '魂火外延', g: '✦', type: '主动 · 破限', why: '想让灶王爷上后山帮忙，必须先破"十丈"限制', desc: '以长明灯为锚，把庇护范围临时延伸出灶间——代价是灯油剧耗。这一步直接决定他能否在后山出手。' }],
+      items: [{ n: '灶王符', ic: 'item-stovecharm', g: '符', type: '装备 · 常驻', desc: '贴在灶台上的守护符。', effect: '维持他与民宿的契约锚点。', use: '常驻。', kind: 'gear', equipped: true },
+        { n: '长明灯', ic: 'item-lantern', g: '灯', type: '装备 · 常驻', desc: '一盏不灭的油灯。', effect: '灭则契约破。带上山可作"魂火外延"的锚。', use: '装备后可随主角移动。', kind: 'gear', equipped: false }] },
+    _obj: {}
+  };
+  ['gu', 'chen', 'bai', 'zao'].forEach(k => CHAR._obj[k] = document.querySelector('.obj-row[data-char="' + k + '"]'));
+
+  /* —— 角色备战面板 —— */
+  const panel = $('cpanel'), scrim = $('cp-scrim'); let curKey = null, sel = null; // sel: {kind:'skill'|'learn'|'item', i}
+  function iconHTML(o, cls) { return '<span class="' + cls + '">' + (o.ic ? '<img src="/assets/img/' + o.ic + '.png" onerror="this.style.display=\'none\'">' : '') + (o.g || '◈') + '</span>'; }
+  function detailHTML() {
+    if (!sel) return '<div class="cp-empty">← 点左边的技能或道具，看它的详情、决定带不带 / 学不学</div>';
+    const c = CHAR[curKey];
+    if (sel.kind === 'skill' || sel.kind === 'learn') {
+      const s = (sel.kind === 'skill' ? c.skills : c.learn)[sel.i]; if (!s) return '';
+      let a = sel.kind === 'learn'
+        ? '<button class="btn btn-primary" id="dt-learn">学会这一门</button><span class="dt-owned" style="color:var(--color-text-tertiary)">为上「后山」而学</span>'
+        : '<span class="dt-owned">✓ 已掌握</span>';
+      return '<div class="dt-head">' + iconHTML(s, 'dt-ic') + '<div><h4>' + esc(s.n) + '</h4><div class="dt-type">' + esc(s.type) + '</div></div></div>'
+        + (s.why ? '<div class="dt-field"><div class="dt-k">为什么学</div><div class="dt-v" style="color:var(--color-primary)">' + esc(s.why) + '</div></div>' : '')
+        + '<div class="dt-field"><div class="dt-k">是什么</div><div class="dt-v">' + esc(s.desc) + '</div></div>'
+        + (s.apply ? '<div class="dt-field"><div class="dt-k">适用 / 对谁有效</div><div class="dt-v">' + esc(s.apply) + '</div></div>' : '')
+        + (s.cost ? '<div class="dt-field"><div class="dt-k">代价 / 限制</div><div class="dt-v">' + esc(s.cost) + '</div></div>' : '')
+        + '<div class="dt-actions">' + a + '</div>';
+    } else {
+      const it = c.items[sel.i]; if (!it) return '';
+      let a = it.kind === 'gear'
+        ? '<button class="btn ' + (it.equipped ? 'btn-ghost' : 'btn-primary') + '" id="dt-eq">' + (it.equipped ? '卸下' : '装备带上') + '</button>' + (it.equipped ? '<span class="dt-owned">✓ 已装备，进副本随身</span>' : '<span class="dt-owned" style="color:var(--color-text-tertiary)">未装备</span>')
+        : it.kind === 'use' ? '<span class="dt-owned" style="color:var(--color-warning)">消耗品 · 副本中可用一次</span>'
+        : '<span class="dt-owned" style="color:var(--color-text-tertiary)">关键道具 · 随剧情自动生效</span>';
+      return '<div class="dt-head">' + iconHTML(it, 'dt-ic') + '<div><h4>' + esc(it.n) + '</h4><div class="dt-type">' + esc(it.type) + '</div></div></div>'
+        + '<div class="dt-field"><div class="dt-k">是什么</div><div class="dt-v">' + esc(it.desc) + '</div></div>'
+        + '<div class="dt-field"><div class="dt-k">有啥用</div><div class="dt-v">' + esc(it.effect) + '</div></div>'
+        + '<div class="dt-field"><div class="dt-k">怎么用</div><div class="dt-v">' + esc(it.use) + '</div></div>'
+        + '<div class="dt-actions">' + a + '</div>';
+    }
+  }
+  function masterHTML() {
+    const c = CHAR[curKey];
+    const skillRows = c.skills.map((s, i) => '<div class="row-item' + (sel && sel.kind === 'skill' && sel.i === i ? ' sel' : '') + '" data-k="skill" data-i="' + i + '">' + iconHTML(s, 'ri-ic') + '<div class="ri-main"><div class="ri-n">' + esc(s.n) + '</div><div class="ri-t">' + esc(s.type) + '</div></div></div>').join('');
+    const learnRows = c.learn.map((s, i) => '<div class="row-item locked' + (sel && sel.kind === 'learn' && sel.i === i ? ' sel' : '') + '" data-k="learn" data-i="' + i + '">' + iconHTML(s, 'ri-ic') + '<div class="ri-main"><div class="ri-n">' + esc(s.n) + '</div><div class="ri-t">' + esc(s.type) + '</div></div><span class="ri-badge learn">可学</span></div>').join('');
+    const itemRows = c.items.map((it, i) => '<div class="row-item' + (sel && sel.kind === 'item' && sel.i === i ? ' sel' : '') + '" data-k="item" data-i="' + i + '">' + iconHTML(it, 'ri-ic') + '<div class="ri-main"><div class="ri-n">' + esc(it.n) + '</div><div class="ri-t">' + esc(it.type) + '</div></div>' + (it.kind === 'gear' && it.equipped ? '<span class="ri-badge eq">已装备</span>' : '') + '</div>').join('');
+    return '<div class="cp-grp">技能 / 掌握的规则</div>' + skillRows
+      + (learnRows ? '<div class="cp-grp">可学的（为本副本）</div>' + learnRows : '')
+      + '<div class="cp-grp">道具 / 装备 · 背包</div>' + itemRows;
+  }
+  function renderPanel(k) {
+    const c = CHAR[k];
+    const fac = FAC.find(f => document.querySelector('.unit[data-char="' + k + '"] [data-fac]').classList.contains(f)) || c.fac;
+    panel.innerHTML =
+      '<button class="cp-close" id="cp-close" aria-label="关闭"><svg width="14" height="14" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><path d="M5 5l14 14M19 5L5 19"/></svg></button>'
+      + '<div class="cp-hero"><div class="cp-portrait"><span class="cp-fb">' + c.name[0] + '</span><img src="/assets/img/' + c.port + '.png" onerror="this.style.display=\'none\'"><span class="cp-fac ' + fac + '">' + FT[fac] + '</span></div>'
+      + '<div class="cp-id"><h3>' + c.name + '</h3><div class="cp-role">' + c.role + '</div>'
+      + '<dl class="cp-vitals">' + c.vitals.map(v => '<div class="v"><dt>' + v[0] + '</dt><dd>' + v[1] + '</dd></div>').join('') + '</dl>'
+      + '<div class="cp-context">备战 · ' + c.ctx + '</div></div></div>'
+      + '<div class="cp-body"><div class="cp-master" id="cp-master">' + masterHTML() + '</div><div class="cp-detail" id="cp-detail">' + detailHTML() + '</div></div>'
+      + '<div class="cp-foot"><button class="btn btn-ghost" id="cp-scene"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v11H4zM8 20h8"/></svg>给 TA 加一场戏</button>'
+      + '<button class="btn btn-ghost" id="cp-fac">调阵营</button><span class="cp-genre">仙侠题材：技能位=功法，道具格=法宝 / 丹药</span></div>';
+    $('cp-close').addEventListener('click', closePanel);
+    $('cp-master').addEventListener('click', (e) => { const r = e.target.closest('.row-item'); if (!r) return; sel = { kind: r.dataset.k, i: Number(r.dataset.i) }; refresh(); });
+    $('cp-scene').addEventListener('click', () => { addBeat(c.name + '在本单元多一场戏'); openBeats(); bump(); toast('已给 <b>' + c.name + '</b> 加一场戏 · 章纲 +1 拍'); });
+    $('cp-fac').addEventListener('click', () => {
+      const chip = document.querySelector('.unit[data-char="' + k + '"] [data-fac]'); const cur = FAC.find(f => chip.classList.contains(f)) || 'unk'; const nx = FAC[(FAC.indexOf(cur) + 1) % 3];
+      [chip, CHAR._obj[k].querySelector('[data-fac]'), panel.querySelector('.cp-fac')].forEach(ch => { ch.classList.remove('good', 'unk', 'evil'); ch.classList.add(nx); ch.textContent = FT[nx]; });
+      bump(); toast('<b>' + c.name + '</b> 阵营 → ' + FT[nx]);
+    });
+    bindDetail();
+  }
+  function refresh() { $('cp-master').innerHTML = masterHTML(); $('cp-detail').innerHTML = detailHTML(); $('cp-master').__b || ($('cp-master').addEventListener('click', (e) => { const r = e.target.closest('.row-item'); if (!r) return; sel = { kind: r.dataset.k, i: Number(r.dataset.i) }; refresh(); }), $('cp-master').__b = 1); bindDetail(); }
+  function bindDetail() {
+    const c = CHAR[curKey];
+    const lb = $('dt-learn'); if (lb) lb.addEventListener('click', () => { const s = c.learn.splice(sel.i, 1)[0]; s.type = s.type + ' · 新学'; delete s.why; c.skills.push(s); sel = { kind: 'skill', i: c.skills.length - 1 }; refresh(); bump(); toast('<b>' + c.name + '</b> 学会了「' + s.n + '」 · 这 6 章 Agent 就能用它来写'); });
+    const eb = $('dt-eq'); if (eb) eb.addEventListener('click', () => { const it = c.items[sel.i]; it.equipped = !it.equipped; refresh(); bump(); toast(it.equipped ? '已装备「' + it.n + '」，带进副本' : '已卸下「' + it.n + '」'); });
+  }
+  function openPanel(k) { curKey = k; sel = null; renderPanel(k); scrim.classList.add('open'); panel.classList.add('open'); }
+  function closePanel() { scrim.classList.remove('open'); panel.classList.remove('open'); }
+  document.querySelectorAll('.unit').forEach(u => u.addEventListener('click', () => openPanel(u.dataset.char)));
+  scrim.addEventListener('click', closePanel);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanel(); });
+
+  /* —— 章纲 —— */
+  let beats = [
+    { id: ++uid, text: '陈默领路，主角踏入雾锁的后山禁地' }, { id: ++uid, text: '雾里现出一栋与民宿一模一样的楼' },
+    { id: ++uid, text: '阁楼铜钥匙对上门锁，门后是空置的登记房' }, { id: ++uid, text: '旧登记簿上，一个名字反复出现：上一任老板' },
+    { id: ++uid, text: '主角摸清后山结界的运作规律' }, { id: ++uid, text: '揭穿后山与民宿的契约真相，回收「第 13 把钥匙」', climax: true },
+  ];
+  function renderBeats() {
+    $('beats').innerHTML = beats.map((b, i) => '<div class="beat' + (b.climax ? ' climax' : '') + (b.added ? ' added' : '') + '" data-id="' + b.id + '">'
+      + '<div class="bc">第 ' + (48 + i) + ' 章' + (b.climax ? '·高潮' : '') + '</div><div class="bt" data-role="text">' + b.text + '</div>'
+      + '<div class="bx"><button class="ib" data-role="edit" title="改"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20h4L18 10l-4-4L4 16z"/><path d="M13 5l4 4"/></svg></button>'
+      + '<button class="ib danger" data-role="cut" title="砍"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 7h12M9 7V5h6v2M8 7l1 12h6l1-12"/></svg></button></div></div>').join('');
+    $('beat-n').textContent = beats.length; $('len').textContent = beats.length;
+  }
+  function addBeat(text) { const b = { id: ++uid, text: text, added: true }; const ci = beats.findIndex(x => x.climax); if (ci === -1) beats.push(b); else beats.splice(ci, 0, b); renderBeats(); return b; }
+  $('beats').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-role]'); if (!btn) return; const row = e.target.closest('.beat'); const id = Number(row.dataset.id);
+    if (btn.dataset.role === 'cut') { beats = beats.filter(b => b.id !== id); renderBeats(); bump(); }
+    else inlineEdit(row.querySelector('[data-role="text"]'), (v) => { const b = beats.find(x => x.id === id); if (b && v) { b.text = v; bump(); } });
+  });
+  $('beat-add').addEventListener('click', () => { const b = addBeat('新的一拍…'); bump(); const row = document.querySelector('.beat[data-id="' + b.id + '"] [data-role="text"]'); if (row) inlineEdit(row, (v) => { b.text = v || b.text; }); });
+  function openBeats() { $('bpanel').classList.add('open'); }
+  $('bp-head').addEventListener('click', () => $('bpanel').classList.toggle('open'));
+  $('tune').addEventListener('click', () => { openBeats(); $('bpanel').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+
+  $('obj').addEventListener('click', (e) => { const cell = e.target.closest('.editable'); if (!cell || cell.getAttribute('contenteditable') === 'true') return; const before = cell.textContent; inlineEdit(cell, (v) => { if (v && v !== before) { bump(); toast('已改棋路'); } }); });
+
+  const DL = ['低', '偏低', '中', '高', '极高'];
+  $('danger').addEventListener('click', (e) => { const dots = [...$('danger').children]; const i = dots.indexOf(e.target); if (i < 0) return; dots.forEach((d, k) => d.classList.toggle('on', k <= i)); $('danger-label').textContent = DL[i + 1] || '高'; bump(); toast('危险度 → <b>' + $('danger-label').textContent + '</b>'); });
+  $('len-dec').addEventListener('click', () => { if (beats.length > 3) { let idx = beats.map(b => !!b.climax).lastIndexOf(false); if (idx < 0) idx = beats.length - 1; beats.splice(idx, 1); renderBeats(); bump(); } });
+  $('len-inc').addEventListener('click', () => { addBeat('加长的一拍…'); bump(); });
+
+  $('commit').addEventListener('click', () => {
+    $('over').classList.add('open');
+    $('over-card').innerHTML = '<div class="over-status"><span class="spinner"></span>落子完成' + (changes ? '（含你的 ' + changes + ' 处备战）' : '') + ' · Agent 正在把这一子演成正文…</div>';
+    setTimeout(() => {
+      $('over-card').innerHTML = '<div class="over-status reveal"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 6"/></svg>第 48 章《上山》· 已成文，世界状态已回写</div>'
+        + '<div class="prose reveal" style="animation-delay:.05s"><p>陈默在雾里停了一下，回头看他：“想好了？上去，就不全是你说了算。”</p><p>顾栖迟没答。他伸手探进白雾，指尖触到一段冰凉的石阶——民宿后墙从没有过的石阶。雾像帘子，被这一探，掀开了一道缝。</p><p>缝里立着一栋楼。飞檐、灯笼、门口那对石狮子——和他每天开门的民宿，一模一样。</p></div>'
+        + '<div class="surprise reveal" style="animation-delay:.12s">✨ <b>你没写这句</b>，但 Agent 让灶王爷的警告在主角踏上石阶那刻回响了一下——<b>对味</b>。</div>'
+        + '<div class="wb-row reveal" style="animation-delay:.18s"><span class="wl">回写 → 世界状态</span><span class="wb-chip">✓ 「第 13 把钥匙」线索 +1</span><span class="wb-chip">✓ 后山禁地 · 地图点亮</span><span class="wb-chip">✓ 白裙女客 · 疑似跟随</span></div>'
+        + '<div class="reveal" style="animation-delay:.24s;display:flex;gap:12px;flex-wrap:wrap;margin-top:16px;"><button class="btn btn-primary" id="read">读第 48 章</button><button class="btn btn-ghost" id="back">回到简报</button></div>';
+      const bk = $('back'); if (bk) bk.addEventListener('click', () => $('over').classList.remove('open'));
+      const rd = $('read'); if (rd) rd.addEventListener('click', () => { rd.textContent = '（原型里翻到章节阅读页）'; });
+    }, 1300);
+  });
+
+  renderBeats();
+  const _p = new URLSearchParams(location.search), _o = _p.get('open'); if (_o && CHAR[_o]) { openPanel(_o); const _pk = _p.get('pick'); if (_pk) { const a = _pk.split('.'); sel = { kind: a[0], i: Number(a[1]) }; refresh(); } }
+})();
+</script>

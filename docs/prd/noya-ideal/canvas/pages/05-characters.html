@@ -1,0 +1,159 @@
+<!-- title: 书 · 人物 -->
+<style>
+  .char-list .avatar-chip { width: 34px; height: 34px; border-radius: 50%; background: var(--gray-800); border: 1px solid var(--gray-500); color: var(--color-text); display: flex; align-items: center; justify-content: center; font-size: var(--font-size-sm); flex: none; }
+  .char-list .list-row { display: flex; align-items: center; gap: var(--space-3); }
+  .char-list .lr-main { flex: 1; min-width: 0; }
+  .char-list .lr-name { font-size: var(--font-size-md); color: var(--color-text); }
+  .char-list .lr-role { font-size: var(--font-size-xs); color: var(--color-text-tertiary); margin-top: 1px; }
+
+  .cd-head { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-4); }
+  .cd-avatar { width: 56px; height: 56px; border-radius: 50%; background: var(--gray-800); border: 2px solid var(--color-primary); color: var(--color-primary); display: flex; align-items: center; justify-content: center; font-size: var(--font-size-xl); flex: none; }
+  .cd-name { font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); }
+  .cd-role { font-size: var(--font-size-sm); color: var(--color-text-tertiary); margin-top: 2px; }
+  .cd-badges { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+  .cd-cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5); }
+  .cd-sec h4 { margin: 0 0 var(--space-2); font-size: var(--font-size-xs); color: var(--color-text-tertiary); letter-spacing: 1px; font-weight: var(--font-weight-normal); }
+  .cd-sec dl { margin: 0 0 var(--space-4); display: grid; grid-template-columns: 68px 1fr; row-gap: 7px; font-size: var(--font-size-sm); }
+  .cd-sec dt { color: var(--color-text-tertiary); }
+  .cd-sec dd { margin: 0; color: var(--color-text-secondary); }
+
+  .arc-line { position: relative; padding-left: 18px; }
+  .arc-line::before { content: ""; position: absolute; left: 5px; top: 6px; bottom: 6px; width: 1px; background: var(--color-border-strong); }
+  .arc-item { position: relative; padding: 6px 0; font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+  .arc-item::before { content: ""; position: absolute; left: -17px; top: 12px; width: 7px; height: 7px; border-radius: 50%; background: var(--gray-500); }
+  .arc-item.hot::before { background: var(--color-primary); }
+  .arc-item.future { color: var(--color-text-tertiary); }
+  .arc-item.future::before { background: transparent; border: 1px dashed var(--gray-500); }
+  .arc-item .a-ch { font-family: var(--font-family-mono); font-size: var(--font-size-xs); color: var(--color-text-tertiary); margin-right: 8px; }
+  .link-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-pill); color: var(--color-text-secondary); font-size: var(--font-size-xs); text-decoration: none; margin: 0 6px 6px 0; transition: border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+  .link-chip:hover { border-color: var(--color-primary); color: var(--color-primary); }
+</style>
+
+<div class="topbar">
+  <a class="brand" href="/p/01-bookshelf"><span class="mark">N</span>Noya</a>
+  <div class="divider"></div>
+  <span style="font-size:var(--font-size-md);font-weight:var(--font-weight-medium);">我在规则怪谈里开民宿</span>
+  <div class="grow"></div>
+  <span class="badge warn" id="state-badge"><span class="dot warn"></span>决策点 · 等你拍板</span>
+</div>
+
+<div class="book-layout app-main">
+  <nav class="book-nav">
+    <a class="nav-item" href="/p/01-bookshelf" style="color:var(--color-text-tertiary);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M15 6l-6 6 6 6" /></svg>书架</a>
+    <a class="nav-item" href="/p/02-book-home"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>总览</a>
+    <div class="nav-group">世界观 · 影响内容</div>
+    <a class="nav-item" href="/p/025-outline"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M6 3h12v18H6z" /><path d="M9 8h6M9 12h6M9 16h4" /></svg>大纲</a>
+    <a class="nav-item" href="/p/03-map"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="12" r="9" /><path d="M15.5 8.5 13 13l-4.5 2.5L11 11z" /></svg>地图</a>
+    <a class="nav-item" href="/p/04-relations"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="6" r="2.4" /><circle cx="5" cy="18" r="2.4" /><circle cx="19" cy="18" r="2.4" /><path d="M10.8 8 6.4 15.8M13.2 8l4.4 7.8M7.4 18h9.2" /></svg>关系网</a>
+    <a class="nav-item is-active" href="/p/05-characters"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="8" r="3.6" /><path d="M5.5 20a6.5 6.5 0 0 1 13 0" /></svg>人物</a>
+    <a class="nav-item" href="/p/06-monsters"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M6 21V10a6 6 0 0 1 12 0v11l-3-2.4-3 2.4-3-2.4z" /><circle cx="10" cy="10" r=".8" fill="currentColor" /><circle cx="14" cy="10" r=".8" fill="currentColor" /></svg>怪物</a>
+    <div class="nav-group">产物 · 给读者的</div>
+    <a class="nav-item" href="/p/07-chapters"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M5 19V6a2 2 0 0 1 2-2h12v15H7a2 2 0 0 0-2 2zm0 0a2 2 0 0 0 2 2h12" /><path d="M9 8h6" /></svg>章节</a>
+    <a class="nav-item" href="/p/08-tasks"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 20l4-1L20 7l-3-3L5 16zM14 6l3 3" /></svg>写作任务</a>
+  </nav>
+
+  <div class="book-content">
+    <div class="content-pad">
+      <div class="page-head">
+        <h1>人物</h1>
+        <div class="ph-sub">世界观资产 · 每张卡由建世界生成、随章节定稿回写生长</div>
+      </div>
+
+      <div class="split">
+        <div class="list-col char-list" id="char-list">
+          <div class="list-row" data-char="hero"><span class="avatar-chip" style="border-color:var(--color-primary);color:var(--color-primary);">顾</span><span class="lr-main"><span class="lr-name">顾栖迟</span><span class="lr-role" style="display:block;">主角 · 民宿老板</span></span><span class="badge run">主角</span></div>
+          <div class="list-row" data-char="chenmo"><span class="avatar-chip">墨</span><span class="lr-main"><span class="lr-name">陈默</span><span class="lr-role" style="display:block;">长住常客 · 规则观察者</span></span></div>
+          <div class="list-row" data-char="baiqun"><span class="avatar-chip">白</span><span class="lr-main"><span class="lr-name">白裙女客</span><span class="lr-role" style="display:block;">身份未知</span></span></div>
+          <div class="list-row" data-char="zhou"><span class="avatar-chip">周</span><span class="lr-main"><span class="lr-name">周守义</span><span class="lr-role" style="display:block;">云隐镇村长</span></span><span class="badge warn">14 章未见</span></div>
+          <div class="list-row" data-char="zaowang"><span class="avatar-chip">灶</span><span class="lr-main"><span class="lr-name">灶王爷</span><span class="lr-role" style="display:block;">民宿守护灵</span></span></div>
+        </div>
+
+        <div class="detail-col">
+          <div class="panel-card">
+            <div class="cd-head">
+              <div class="cd-avatar" id="cd-avatar">墨</div>
+              <div><div class="cd-name" id="cd-name">陈默</div><div class="cd-role" id="cd-role">长住常客 · 规则观察者</div></div>
+              <div class="cd-badges" id="cd-badges"></div>
+            </div>
+            <div class="cd-cols">
+              <div class="cd-sec">
+                <h4>档案</h4>
+                <dl id="cd-rows"></dl>
+                <h4>关联</h4>
+                <div id="cd-links"></div>
+              </div>
+              <div class="cd-sec">
+                <h4>故事线</h4>
+                <div class="arc-line" id="cd-arc"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pending-note" style="margin:var(--space-8) 0 0;">
+        <strong>⚑ 待确认（参数层）</strong>
+        <ul>
+          <li>人物卡字段集 [假设] 定位/动机/关系/状态/口癖/成长弧 + 故事线；写作时全量喂给 Agent</li>
+          <li>故事线取数 [假设] 只记"改变了人物状态或关系"的章，不逐章记流水</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    let mode = 'decide', writing = '第 48 章《上山》';
+    try { mode = sessionStorage.getItem('noya-mode') || 'decide'; writing = sessionStorage.getItem('noya-writing') || writing; } catch (e) {}
+    const M = { decide: ['badge warn', 'dot warn', '决策点 · 等你拍板'], cruise: ['badge run', 'dot run', '巡航中 · 按卷二骨架推进'], write: ['badge run', 'dot run', '写作中 · ' + writing.split('《')[0].trim()] };
+    const b = document.getElementById('state-badge'), m = M[mode] || M.decide;
+    b.className = m[0]; b.innerHTML = '<span class="' + m[1] + '"></span>' + m[2];
+  })();
+
+  const CHARS = {
+    hero: {
+      a: '顾', name: '顾栖迟', role: '主角 · 迷雾民宿老板', badges: ['<span class="badge run">主角</span>'],
+      rows: { '定位': '经营流主角 · 怪谈规则的破局者', '金手指': '能"读出"怪谈规则的漏洞', '动机': '查清民宿上一任老板的下落', '此刻': '民宿大堂，站在决策点', '成长弧': '从"躲规则"到"改规则"（卷三目标）' },
+      links: [['伏笔 · 第 13 把钥匙', '/p/03-map'], ['章节 · 第 47 章', '/p/07-chapters']],
+      arc: [['12', '接手民宿，发现阁楼第 13 把钥匙', 'hot'], ['19', '破解「敲门声」规则，站稳脚跟', ''], ['32', '卷一终：送走第一批"客人"', ''], ['47', '陈默提起钥匙的来历', 'hot'], ['48+', '（待拍板）后山 / 白裙女客 / 旧账', 'future']]
+    },
+    chenmo: {
+      a: '墨', name: '陈默', role: '长住常客 · 规则观察者', badges: ['<span class="badge mute">信任 62 ↑</span>'],
+      rows: { '定位': '亦师亦谜的引路人', '动机': '在找"第十三个房间"（自述存疑）', '与主角': '信任 62 ↑（第 41 章 +12）', '口癖': '说重要的事之前会先摘眼镜', '暗线': '与白裙女客疑似旧识（未挖）' },
+      links: [['关系网 · 暗线', '/p/04-relations'], ['章节 · 第 41 章', '/p/07-chapters']],
+      arc: [['33', '入住 301，一次付了一年房费', 'hot'], ['38', '副本「名册的空行」中出手相助', ''], ['41', '雨夜长谈，透露自己"住过很多家民宿"', 'hot'], ['45', '与白裙女客擦肩，当晚换到顶楼', ''], ['47', '第一次主动提起第 13 把钥匙', 'hot'], ['48', '（已排）带主角上后山——等拍板', 'future']]
+    },
+    baiqun: {
+      a: '白', name: '白裙女客', role: '身份未知 · 疑似怪谈本体', badges: ['<span class="badge warn">敌意未明</span>'],
+      rows: { '定位': '卷二反派线候选', '首次登场': '第 35 章，未登记入住', '规则疑点': '名册写不上她的名字', '与主角': '敌意未明', '暗线': '与陈默疑似旧识' },
+      links: [['怪物 · 关联疑点', '/p/06-monsters'], ['章节 · 第 35 章', '/p/07-chapters']],
+      arc: [['35', '雾夜首次叩门，名册留不下字', 'hot'], ['45', '第二次出现，只在走廊尽头站着', ''], ['47', '雨夜第三次叩门（未接待）', 'hot'], ['48', '（候选）带着行李再来——等拍板', 'future']]
+    },
+    zhou: {
+      a: '周', name: '周守义', role: '云隐镇村长 · 话事人', badges: ['<span class="badge warn">14 章未出场</span>'],
+      rows: { '定位': '镇子明面上的秩序 · 隐瞒者', '与主角': '表面和善 · 有隐瞒', '牵涉': '上一任老板失踪案（血指印伏笔）', '上次出场': '第 33 章' },
+      links: [['伏笔 · 血指印', '/p/03-map'], ['章节 · 第 33 章', '/p/07-chapters']],
+      arc: [['5', '第一个来"提醒规矩"的镇民', ''], ['22', '白雾夜里替主角圆了一次谎', 'hot'], ['33', '劝主角"别翻阁楼的旧东西"', 'hot'], ['?', '（富矿提示）旧账、失踪案都指向他', 'future']]
+    },
+    zaowang: {
+      a: '灶', name: '灶王爷', role: '民宿守护灵 · 盟友', badges: ['<span class="badge pub">契约 40</span>'],
+      rows: { '定位': '主场景的规则底牌 · 吐槽役', '约束': '不能离开民宿灶间十丈', '与主角': '盟友 · 契约度 40', '交换条件': '每晚一碗新米饭', '上次出场': '第 43 章' },
+      links: [['地图 · 迷雾民宿', '/p/03-map'], ['章节 · 第 43 章', '/p/07-chapters']],
+      arc: [['9', '被一碗剩饭"雇佣"，缔结契约', 'hot'], ['19', '点破「敲门声」的第三条规则', ''], ['43', '警告：后山的东西"辈分比我大"', 'hot'], ['?', '契约升级条件未触发', 'future']]
+    }
+  };
+  function renderChar(key) {
+    const c = CHARS[key];
+    document.getElementById('cd-avatar').textContent = c.a;
+    document.getElementById('cd-name').textContent = c.name;
+    document.getElementById('cd-role').textContent = c.role;
+    document.getElementById('cd-badges').innerHTML = c.badges.join('');
+    document.getElementById('cd-rows').innerHTML = Object.entries(c.rows).map(([k, v]) => '<dt>' + k + '</dt><dd>' + v + '</dd>').join('');
+    document.getElementById('cd-links').innerHTML = c.links.map(l => '<a class="link-chip" href="' + l[1] + '">' + l[0] + ' →</a>').join('');
+    document.getElementById('cd-arc').innerHTML = c.arc.map(a => '<div class="arc-item ' + a[2] + '"><span class="a-ch">' + (a[0].match(/^\d/) ? '第 ' + a[0] + ' 章' : a[0]) + '</span>' + a[1] + '</div>').join('');
+    document.querySelectorAll('#char-list .list-row').forEach(r => r.classList.toggle('is-active', r.dataset.char === key));
+  }
+  document.querySelectorAll('#char-list .list-row').forEach(r => r.addEventListener('click', () => renderChar(r.dataset.char)));
+  renderChar('chenmo');
+</script>

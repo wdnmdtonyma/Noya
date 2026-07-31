@@ -1,0 +1,1654 @@
+<!-- sandbox -->
+<!-- title: 世界棋盘 · 游戏壳探针《我在青云宗打卡修仙》 -->
+<!-- manifest
+state: gameState(start|playing|loot|after), planOpen, activeDrawer
+components: world-map [complex], outline-track, hero-hud, quest-drawer, codex-drawer, char-panel, plan-dialog, playout-sequencer, loot-panel, reader-overlay, toast
+-->
+<style>
+  html, body { height: 100%; overflow: hidden; }
+
+  /* ================= 舞台 ================= */
+  .stage { position: fixed; inset: 0; overflow: hidden; background:
+      radial-gradient(140% 90% at 70% 10%, #10141c 0%, #0b0d12 45%, #07080b 100%); user-select: none; }
+  .stage svg.terrain { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .vignette { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 220px 60px rgba(0,0,0,.72); z-index: 6; }
+  .grain { position: absolute; inset: 0; pointer-events: none; opacity: .05; z-index: 6;
+      background-image: radial-gradient(rgba(255,255,255,.6) .5px, transparent .5px); background-size: 5px 5px; }
+
+  .mist { position: absolute; border-radius: 50%; filter: blur(46px); pointer-events: none; z-index: 3; opacity: .5; }
+  .mist.m1 { width: 620px; height: 200px; left: -6%; top: 56%; background: rgba(120,150,190,.10); animation: drift 46s ease-in-out infinite alternate; }
+  .mist.m2 { width: 760px; height: 240px; left: 48%; top: 30%; background: rgba(140,160,200,.08); animation: drift 58s ease-in-out infinite alternate-reverse; }
+  .mist.m3 { width: 520px; height: 190px; left: 68%; top: 66%; background: rgba(110,140,180,.10); animation: drift 40s ease-in-out infinite alternate; }
+  @keyframes drift { from { transform: translateX(-40px); } to { transform: translateX(60px); } }
+
+  .mote { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: var(--color-primary); opacity: 0; z-index: 4; animation: twinkle 6s ease-in-out infinite; pointer-events: none; }
+  @keyframes twinkle { 0%,100% { opacity: 0; transform: translateY(0); } 50% { opacity: .7; transform: translateY(-14px); } }
+
+  /* ================= 地点 ================= */
+  .loc { position: absolute; transform: translate(-50%, -50%); z-index: 36; display: flex; flex-direction: column; align-items: center; gap: 7px; cursor: pointer; }
+  .loc .dot { width: 13px; height: 13px; border-radius: 50%; background: var(--gray-500); border: 2px solid var(--gray-400); box-shadow: 0 0 0 4px rgba(255,255,255,.03); transition: all var(--dur-base) var(--ease-out); }
+  .loc .lbl { font-size: 13px; letter-spacing: 3px; color: var(--gray-200); text-shadow: 0 0 7px #05070b, 0 0 14px rgba(5,7,11,.95), 0 2px 8px rgba(0,0,0,.9); white-space: nowrap; padding-left: 3px; }
+  .loc .sub { font-size: 10px; letter-spacing: 1px; color: var(--color-text-tertiary); margin-top: -4px; text-shadow: 0 0 6px #05070b, 0 0 12px rgba(5,7,11,.9); }
+  .loc:hover .dot { transform: scale(1.25); }
+  .loc.visited .dot { background: rgba(217,162,74,.35); border-color: rgba(217,162,74,.6); }
+  .loc.dim { opacity: .55; }
+  .loc.locked { opacity: .38; cursor: help; }
+  .loc.locked .lbl { color: var(--gray-400); }
+  .loc.next-target .dot { background: var(--color-primary); border-color: #ffd98a; box-shadow: 0 0 0 0 rgba(217,162,74,.55); animation: ring 1.8s var(--ease-out) infinite; }
+  @keyframes ring { 0% { box-shadow: 0 0 0 0 rgba(217,162,74,.55); } 100% { box-shadow: 0 0 0 22px rgba(217,162,74,0); } }
+  .loc .flag { display: none; position: absolute; bottom: calc(100% + 46px); left: 50%; align-items: center; gap: 5px; font-size: 11px; color: var(--color-text-inverse); background: linear-gradient(135deg, #e8b765, #c78f3e); padding: 3px 10px; border-radius: var(--radius-pill); box-shadow: 0 4px 14px rgba(217,162,74,.35); white-space: nowrap; animation: flagbob 2.6s ease-in-out infinite; }
+  .loc.next-target .flag { display: inline-flex; }
+  .loc .flag::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: #cf9743; }
+  @keyframes flagbob { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(-5px); } }
+  @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+
+  .npc { position: absolute; transform: translate(-50%, -50%); z-index: 11; cursor: pointer; }
+  .npc .ava { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: var(--color-text); background: radial-gradient(120% 120% at 30% 25%, var(--gray-700), var(--gray-850)); border: 2px solid var(--gray-500); box-shadow: 0 3px 10px rgba(0,0,0,.5); transition: transform var(--dur-fast); }
+  .npc:hover .ava { transform: scale(1.18); }
+  .npc.shen .ava { border-color: #7db8e8; color: #a8d2f5; }
+  .npc.zhao .ava { border-color: #e06a5a; color: #f09182; }
+  .npc.han .ava  { border-color: var(--gray-400); color: var(--gray-200); }
+  .npc.wang .ava { border-color: #58b98a; color: #7dd3a8; }
+  .npc .glow { display: none; position: absolute; inset: -5px; border-radius: 50%; border: 1.5px solid rgba(217,162,74,.65); animation: ring 2.2s var(--ease-out) infinite; pointer-events: none; }
+  .npc.informed .glow { display: block; }
+
+  /* 主角棋子 */
+  .piece { position: absolute; transform: translate(-50%, -104%); z-index: 14; cursor: pointer; transition: left 1.8s var(--ease-in-out), top 1.8s var(--ease-in-out); text-align: center; }
+  .piece .token { width: 40px; height: 40px; border-radius: 50%; margin: 0 auto; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 700; color: #ffe9c4;
+      background: radial-gradient(120% 120% at 32% 26%, #3d3223, #17130c); border: 2px solid var(--color-primary); box-shadow: 0 6px 18px rgba(0,0,0,.6), 0 0 22px rgba(217,162,74,.28); animation: bob 3.2s ease-in-out infinite; }
+  .piece .pin { width: 2px; height: 10px; margin: -2px auto 0; background: linear-gradient(180deg, rgba(217,162,74,.8), transparent); }
+  .piece .pname { font-size: 11px; color: var(--color-primary); letter-spacing: 2px; text-shadow: 0 2px 6px rgba(0,0,0,.9); margin-top: 1px; }
+
+  /* ================= HUD ================= */
+  .hud-book { position: absolute; top: 18px; left: 20px; z-index: 20; display: flex; align-items: center; gap: 10px; }
+  .hud-chip { display: inline-flex; align-items: center; gap: 8px; background: rgba(14,16,21,.72); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--color-border); border-radius: var(--radius-pill); padding: 7px 14px; color: var(--color-text-secondary); font-size: var(--font-size-sm); }
+  .hud-chip b { color: var(--color-text); font-weight: var(--font-weight-medium); }
+  .hud-chip a { color: var(--color-text-tertiary); text-decoration: none; display: flex; align-items: center; }
+  .hud-chip a:hover { color: var(--color-primary); }
+
+  .hud-actions { position: absolute; top: 18px; right: 20px; z-index: 20; display: flex; gap: 8px; }
+  .hbtn { position: relative; display: inline-flex; align-items: center; gap: 7px; background: rgba(14,16,21,.72); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--color-border); border-radius: var(--radius-pill); padding: 8px 15px; color: var(--color-text-secondary); font-size: var(--font-size-sm); cursor: pointer; font-family: var(--font-family-base); transition: all var(--dur-fast); }
+  .hbtn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+  .hbtn svg { flex: none; }
+  .hbtn .bdg { position: absolute; top: -5px; right: -3px; min-width: 17px; height: 17px; border-radius: var(--radius-pill); background: var(--color-primary); color: var(--color-text-inverse); font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
+  .hbtn .bdg.pop { animation: popn .5s var(--ease-spring); }
+  @keyframes popn { 0% { transform: scale(.2); } 70% { transform: scale(1.35); } 100% { transform: scale(1); } }
+
+  .hud-hero { position: absolute; left: 20px; bottom: 86px; z-index: 20; display: flex; align-items: center; gap: 11px; background: rgba(14,16,21,.78); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 9px 14px 9px 9px; cursor: pointer; transition: border-color var(--dur-fast); }
+  .hud-hero:hover { border-color: var(--color-primary); }
+  .hud-hero .tok { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #ffe9c4; background: radial-gradient(120% 120% at 32% 26%, #3d3223, #17130c); border: 2px solid var(--color-primary); }
+  .hud-hero .hh-main { display: flex; flex-direction: column; gap: 3px; }
+  .hud-hero .hh-name { font-size: var(--font-size-sm); color: var(--color-text); }
+  .hud-hero .hh-name span { color: var(--color-text-tertiary); font-size: 11px; margin-left: 6px; }
+  .hud-hero .hh-bar { width: 130px; height: 5px; border-radius: 3px; background: var(--gray-700); overflow: hidden; }
+  .hud-hero .hh-bar i { display: block; height: 100%; width: 12%; background: linear-gradient(90deg, #b9853a, #e8b765); transition: width 1s var(--ease-out); }
+  .hud-hero .hh-sub { font-size: 10px; color: var(--color-text-tertiary); }
+  .hud-hero .hh-sub b { color: var(--color-primary); font-weight: 500; }
+
+  /* ================= 大纲轨道 ================= */
+  .track { position: absolute; left: 0; right: 0; bottom: 0; z-index: 20; background: linear-gradient(180deg, transparent, rgba(8,9,12,.88) 34%); padding: 26px 22px 14px; }
+  .track .tk-in { display: flex; align-items: center; gap: 0; max-width: 1080px; margin: 0 auto; }
+  .tk-vol { flex: none; font-size: 11px; letter-spacing: 2px; color: var(--color-text-tertiary); margin-right: 16px; display: flex; flex-direction: column; gap: 2px; }
+  .tk-vol b { color: var(--color-text-secondary); font-weight: 500; font-size: var(--font-size-xs); }
+  .tk-node { flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; position: relative; padding: 0 2px; }
+  .tk-node .nd { width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--gray-500); background: var(--gray-800); transition: all var(--dur-base); }
+  .tk-node .nl { font-size: 11px; color: var(--color-text-tertiary); white-space: nowrap; max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
+  .tk-node.done .nd { background: var(--color-primary); border-color: var(--color-primary); box-shadow: 0 0 10px rgba(217,162,74,.4); }
+  .tk-node.done .nl { color: var(--color-text-secondary); }
+  .tk-node.current .nd { background: var(--color-primary-soft); border-color: var(--color-primary); animation: ring 1.8s var(--ease-out) infinite; }
+  .tk-node.current .nl { color: var(--color-primary); }
+  .tk-node.boss .nd { border-radius: 4px; transform: rotate(45deg); width: 14px; height: 14px; }
+  .tk-link { flex: 1 1 34px; min-width: 18px; height: 2px; background: var(--gray-700); position: relative; top: -10px; }
+  .tk-link.done { background: linear-gradient(90deg, var(--color-primary), rgba(217,162,74,.35)); }
+  .tk-fade { flex: none; margin-left: 16px; font-size: 11px; color: var(--gray-500); letter-spacing: 2px; }
+
+  /* ================= 通用面板 / 抽屉 ================= */
+  .scrim { position: fixed; inset: 0; z-index: 40; background: rgba(5,6,8,.55); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); opacity: 0; pointer-events: none; transition: opacity var(--dur-base); }
+  .scrim.on { opacity: 1; pointer-events: auto; }
+
+  .gpanel { position: fixed; z-index: 50; background: linear-gradient(180deg, #14161c, #0e1015); border: 1px solid var(--color-border-strong); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); }
+  .gpanel::before, .gpanel::after { content: ''; position: absolute; width: 14px; height: 14px; border: 1.5px solid rgba(217,162,74,.55); pointer-events: none; }
+  .gpanel::before { top: -1px; left: -1px; border-right: none; border-bottom: none; border-top-left-radius: var(--radius-xl); }
+  .gpanel::after { bottom: -1px; right: -1px; border-left: none; border-top: none; border-bottom-right-radius: var(--radius-xl); }
+
+  .dialog { left: 50%; top: 50%; transform: translate(-50%, -47%) scale(.97); width: min(560px, 94vw); max-height: 86vh; display: flex; flex-direction: column; opacity: 0; pointer-events: none; transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-spring); }
+  .dialog.on { opacity: 1; transform: translate(-50%, -50%) scale(1); pointer-events: auto; }
+  .dlg-head { padding: 18px 22px 14px; border-bottom: 1px solid var(--color-border); }
+  .dlg-kicker { font-size: 11px; letter-spacing: 3px; color: var(--color-primary); margin-bottom: 4px; }
+  .dlg-head h3 { margin: 0; font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); color: var(--color-text); }
+  .dlg-head .dh-sub { display: flex; gap: 12px; margin-top: 7px; font-size: var(--font-size-xs); color: var(--color-text-tertiary); flex-wrap: wrap; }
+  .dlg-head .dh-sub b { color: var(--color-text-secondary); font-weight: 500; }
+  .danger-dots { display: inline-flex; gap: 3px; vertical-align: -1px; margin-left: 2px; }
+  .danger-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--gray-600); }
+  .danger-dots i.on { background: var(--color-danger); }
+  .dlg-body { padding: 12px 22px 16px; overflow-y: auto; }
+  .dlg-foot { padding: 13px 22px; border-top: 1px solid var(--color-border); display: flex; align-items: center; gap: 10px; }
+  .x { position: absolute; top: 12px; right: 12px; width: 30px; height: 30px; border: none; background: rgba(255,255,255,.04); color: var(--color-text-tertiary); cursor: pointer; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; z-index: 3; }
+  .x:hover { background: var(--color-bg-hover); color: var(--color-text); }
+
+  .drawer { top: 0; right: 0; bottom: 0; width: min(400px, 92vw); border-radius: 0; border-top: none; border-bottom: none; border-right: none; transform: translateX(102%); transition: transform var(--dur-slow) var(--ease-out); display: flex; flex-direction: column; position: fixed; z-index: 50; }
+  .drawer.on { transform: translateX(0); }
+  .drawer::before, .drawer::after { display: none; }
+  .dw-head { padding: 18px 20px 0; }
+  .dw-title { font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); color: var(--color-text); margin-bottom: 12px; }
+  .dw-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--color-border); }
+  .dw-tab { appearance: none; background: none; border: none; font-family: var(--font-family-base); font-size: var(--font-size-sm); color: var(--color-text-tertiary); padding: 8px 13px; cursor: pointer; border-bottom: 2px solid transparent; }
+  .dw-tab:hover { color: var(--color-text); }
+  .dw-tab.sel { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+  .dw-body { flex: 1; overflow-y: auto; padding: 14px 20px 20px; }
+  .dw-sec { font-size: 11px; letter-spacing: 2px; color: var(--color-text-tertiary); margin: 14px 0 8px; }
+  .dw-sec:first-child { margin-top: 0; }
+
+  .q-item { display: flex; gap: 10px; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-md); margin-bottom: 8px; background: rgba(255,255,255,.015); font-size: var(--font-size-sm); color: var(--color-text-secondary); line-height: 1.65; align-items: flex-start; }
+  .q-item .qi-ic { flex: none; margin-top: 3px; }
+  .q-item b { color: var(--color-text); font-weight: 500; }
+  .q-item.main { border-color: rgba(217,162,74,.4); background: var(--color-primary-soft); }
+  .q-item.paid { opacity: .55; }
+  .q-item.paid b { text-decoration: line-through; text-decoration-color: var(--gray-500); }
+  .q-item .tag { margin-left: auto; flex: none; }
+
+  .tag { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; padding: 2px 8px; border-radius: var(--radius-pill); line-height: 15px; }
+  .tag.gold { background: var(--color-primary-soft); color: var(--color-primary); }
+  .tag.dim  { background: var(--gray-800); color: var(--color-text-tertiary); border: 1px solid var(--color-border); }
+  .tag.blue { background: var(--color-info-soft); color: var(--color-info); }
+  .tag.red  { background: var(--color-danger-soft); color: var(--color-danger); }
+  .tag.green{ background: var(--color-success-soft); color: var(--color-success); }
+
+  .cx-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radius-md); cursor: pointer; }
+  .cx-row:hover { background: rgba(255,255,255,.03); }
+  .cx-row .ava { width: 30px; height: 30px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; background: radial-gradient(120% 120% at 30% 25%, var(--gray-700), var(--gray-850)); border: 1.5px solid var(--gray-500); color: var(--color-text); }
+  .cx-row.lin .ava { border-color: var(--color-primary); color: var(--color-primary); }
+  .cx-row.shen .ava { border-color: #7db8e8; color: #a8d2f5; }
+  .cx-row.zhao .ava { border-color: #e06a5a; color: #f09182; }
+  .cx-row.han .ava { border-color: var(--gray-400); color: var(--gray-200); }
+  .cx-row.wang .ava { border-color: #58b98a; color: #7dd3a8; }
+  .cx-row .cm { flex: 1; min-width: 0; }
+  .cx-row .cm b { display: block; font-size: var(--font-size-sm); color: var(--color-text); font-weight: 500; }
+  .cx-row .cm span { font-size: 11px; color: var(--color-text-tertiary); }
+  .cx-more { padding: 4px 10px 12px 50px; font-size: var(--font-size-xs); color: var(--color-text-secondary); line-height: 1.8; display: none; }
+  .cx-more.on { display: block; }
+  .cx-more b { color: var(--color-primary); font-weight: 500; }
+
+  .tl-item { display: flex; gap: 10px; padding: 8px 0; font-size: var(--font-size-sm); color: var(--color-text-secondary); line-height: 1.65; }
+  .tl-item .td { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--color-primary); margin-top: 7px; }
+  .tl-item b { color: var(--color-text); font-weight: 500; }
+  .tl-item .tc { flex: none; font-family: var(--font-family-mono); font-size: 11px; color: var(--color-text-disabled); margin-top: 3px; }
+  .empty { padding: 26px 10px; text-align: center; color: var(--color-text-tertiary); font-size: var(--font-size-sm); line-height: 1.8; }
+
+  .set-item { padding: 9px 0; border-bottom: 1px solid var(--color-border); font-size: var(--font-size-sm); color: var(--color-text-secondary); line-height: 1.7; }
+  .set-item b { color: var(--color-text); font-weight: 500; }
+  .set-item:last-child { border-bottom: none; }
+
+  /* 角色面板 */
+  .cp { width: min(460px, 94vw); }
+  .cp-hero { display: flex; gap: 14px; padding: 20px 22px 14px; align-items: center; }
+  .cp-hero .tok { width: 58px; height: 58px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700; color: #ffe9c4; background: radial-gradient(120% 120% at 32% 26%, #3d3223, #17130c); border: 2px solid var(--color-primary); flex: none; }
+  .cp-hero h3 { margin: 0 0 3px; font-size: var(--font-size-xl); }
+  .cp-hero .cp-sub { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+  .cp-tabs { display: flex; gap: 2px; padding: 0 22px; border-bottom: 1px solid var(--color-border); }
+  .cp-body { padding: 14px 22px 20px; max-height: 52vh; overflow-y: auto; }
+  .attr { display: flex; align-items: center; gap: 10px; padding: 7px 0; font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+  .attr .ak { flex: none; width: 56px; color: var(--color-text-tertiary); font-size: var(--font-size-xs); }
+  .attr b { color: var(--color-text); font-weight: 500; }
+  .attr .bar { flex: 1; height: 5px; border-radius: 3px; background: var(--gray-700); overflow: hidden; max-width: 150px; }
+  .attr .bar i { display: block; height: 100%; background: linear-gradient(90deg, #b9853a, #e8b765); }
+  .attr .up { color: var(--color-success); font-size: var(--font-size-xs); font-family: var(--font-family-mono); }
+  .inv { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
+  .slot { aspect-ratio: 1; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: rgba(255,255,255,.02); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11px; color: var(--color-text-secondary); text-align: center; padding: 4px; position: relative; }
+  .slot svg { opacity: .85; }
+  .slot .cnt { position: absolute; right: 5px; bottom: 4px; font-family: var(--font-family-mono); font-size: 10px; color: var(--color-text-tertiary); }
+  .slot.empty-slot { border-style: dashed; color: var(--color-text-disabled); }
+  .slot.used { opacity: .5; }
+  .slot.used::after { content: '已服用'; position: absolute; inset: auto 0 4px; font-size: 9px; color: var(--color-success); }
+
+  /* ================= 副本计划弹窗 ================= */
+  .beat { border: 1px solid var(--color-border); border-radius: var(--radius-md); margin-bottom: 9px; overflow: hidden; background: rgba(255,255,255,.015); }
+  .beat-h { display: flex; align-items: center; gap: 10px; padding: 11px 13px; cursor: pointer; }
+  .beat-h:hover { background: rgba(255,255,255,.025); }
+  .beat-h .bno { flex: none; width: 24px; height: 24px; border-radius: var(--radius-sm); background: var(--color-primary-soft); color: var(--color-primary); font-family: var(--font-family-mono); font-size: 11px; display: flex; align-items: center; justify-content: center; }
+  .beat-h .bt { flex: 1; min-width: 0; }
+  .beat-h .bt b { display: block; font-size: var(--font-size-sm); color: var(--color-text); font-weight: 500; }
+  .beat-h .bt span { display: block; font-size: var(--font-size-xs); color: var(--color-text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .beat-h .chev { flex: none; color: var(--color-text-disabled); transition: transform var(--dur-base); }
+  .beat.open .chev { transform: rotate(180deg); }
+  .beat-d { display: none; padding: 2px 13px 13px 47px; }
+  .beat.open .beat-d { display: block; }
+  .bd-k { font-size: 10px; letter-spacing: 2px; color: var(--color-text-tertiary); margin: 10px 0 4px; }
+  .bd-v { font-size: var(--font-size-xs); line-height: 1.8; color: var(--color-text-secondary); }
+  .bd-v b { color: var(--color-text); font-weight: 500; }
+  .bd-v.punch { padding: 8px 11px; background: var(--color-primary-soft); border: 1px solid rgba(217,162,74,.28); border-radius: var(--radius-md); outline: none; }
+  .bd-v.punch b { color: var(--color-primary); }
+  .bd-hint { font-size: 10px; color: var(--color-text-disabled); margin-top: 3px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chips .cc { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--color-text-secondary); border: 1px solid var(--color-border); border-radius: var(--radius-pill); padding: 3px 9px; background: rgba(255,255,255,.02); }
+  .chips .cc b { color: var(--color-text); font-weight: 500; }
+
+  /* ================= 写作过场 ================= */
+  .cine { position: absolute; left: 50%; top: 20px; transform: translateX(-50%); z-index: 30; display: none; align-items: center; gap: 12px; background: rgba(14,16,21,.85); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(217,162,74,.35); border-radius: var(--radius-pill); padding: 10px 20px; }
+  .cine.on { display: flex; }
+  .cine .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--color-primary-soft); border-top-color: var(--color-primary); animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .cine .ct { font-size: var(--font-size-sm); color: var(--color-text); }
+  .cine .ct b { color: var(--color-primary); font-weight: 500; }
+  .cine .skip { appearance: none; border: none; background: none; color: var(--color-text-tertiary); font-size: var(--font-size-xs); cursor: pointer; padding: 2px 6px; font-family: var(--font-family-base); }
+  .cine .skip:hover { color: var(--color-primary); }
+
+  .evt { position: absolute; z-index: 28; transform: translate(-50%, -100%); background: rgba(16,18,24,.92); border: 1px solid var(--color-border-strong); border-left: 2px solid var(--color-primary); border-radius: var(--radius-md); padding: 8px 13px; font-size: var(--font-size-xs); color: var(--color-text-secondary); box-shadow: var(--shadow-md); opacity: 0; animation: evtin 3.4s var(--ease-out) forwards; pointer-events: none; white-space: nowrap; }
+  .evt b { color: var(--color-primary); font-weight: 500; }
+  @keyframes evtin { 0% { opacity: 0; transform: translate(-50%, -84%); } 8% { opacity: 1; transform: translate(-50%, -108%); } 82% { opacity: 1; transform: translate(-50%, -118%); } 100% { opacity: 0; transform: translate(-50%, -132%); } }
+
+  /* ================= 通关结算 ================= */
+  .loot { width: min(620px, 94vw); text-align: center; }
+  .loot .dlg-body { padding: 8px 30px 24px; }
+  .loot-title { font-size: 11px; letter-spacing: 5px; color: var(--color-primary); margin: 18px 0 4px; }
+  .loot h2 { margin: 0 0 4px; font-size: var(--font-size-2xl); color: var(--color-text); font-weight: var(--font-weight-semibold); }
+  .loot .lsub { font-size: var(--font-size-xs); color: var(--color-text-tertiary); margin-bottom: 18px; }
+  .loot-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: left; }
+  .litem { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 11px 13px; background: rgba(255,255,255,.02); opacity: 0; transform: translateY(10px) scale(.96); animation: lin .45s var(--ease-spring) forwards; }
+  @keyframes lin { to { opacity: 1; transform: none; } }
+  .litem .lk { display: flex; align-items: center; gap: 7px; font-size: 10px; letter-spacing: 1px; margin-bottom: 5px; }
+  .litem .lv { font-size: var(--font-size-sm); color: var(--color-text); line-height: 1.5; }
+  .litem .lv small { display: block; font-size: 11px; color: var(--color-text-tertiary); margin-top: 2px; }
+  .litem.gold { border-color: rgba(217,162,74,.5); background: var(--color-primary-soft); }
+  .litem.gold .lk { color: var(--color-primary); }
+  .litem.blue .lk { color: var(--color-info); }
+  .litem.green .lk { color: var(--color-success); }
+  .litem.gray .lk { color: var(--color-text-tertiary); }
+  .litem.click { cursor: pointer; transition: border-color var(--dur-fast), transform var(--dur-fast); }
+  .litem.click:hover { border-color: var(--color-primary); transform: translateY(-2px); }
+
+  /* ================= 阅读器 ================= */
+  .reader-ov { position: fixed; inset: 0; z-index: 60; background: #0b0c0f; display: none; flex-direction: column; }
+  .reader-ov.on { display: flex; }
+  .ro-top { flex: none; display: flex; align-items: center; gap: 12px; padding: 14px 26px; border-bottom: 1px solid var(--color-border); }
+  .ro-top .rt-t { font-size: var(--font-size-md); color: var(--color-text); }
+  .ro-top .rt-tabs { display: flex; gap: 2px; margin-left: 14px; }
+  .ro-top .rtab { appearance: none; background: none; border: 1px solid var(--color-border); border-radius: var(--radius-pill); color: var(--color-text-tertiary); font-size: var(--font-size-xs); padding: 5px 13px; cursor: pointer; font-family: var(--font-family-base); }
+  .ro-top .rtab.sel { color: var(--color-primary); border-color: var(--color-primary); background: var(--color-primary-soft); }
+  .ro-top .grow { flex: 1; }
+  .ro-body { flex: 1; overflow-y: auto; }
+  .ro-page { max-width: 680px; margin: 0 auto; padding: 40px 26px 90px; display: none; }
+  .ro-page.on { display: block; }
+  .ro-page h3 { font-size: var(--font-size-2xl); margin: 0 0 6px; font-weight: var(--font-weight-semibold); }
+  .ro-page .rm { font-size: var(--font-size-xs); color: var(--color-text-tertiary); margin-bottom: 30px; }
+  .ro-page p { font-size: 16px; line-height: 2.1; color: var(--color-text); margin: 0 0 1em; }
+  .ro-page p em { font-style: normal; color: var(--color-text-secondary); }
+  .ro-page .sys { font-family: var(--font-family-mono); font-size: var(--font-size-sm); line-height: 1.9; color: var(--color-primary); margin: 0 0 1em; padding-left: 14px; border-left: 2px solid rgba(217,162,74,.4); }
+  .ro-page hr.scene { border: none; border-top: 1px dashed var(--color-border); margin: 34px auto; width: 40%; }
+  .ro-next { display: flex; justify-content: flex-end; margin-top: 20px; }
+
+  /* toast */
+  .toast { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%) translateY(12px); z-index: 90; background: var(--gray-800); border: 1px solid var(--color-border-strong); color: var(--color-text); font-size: var(--font-size-sm); padding: 9px 16px; border-radius: var(--radius-pill); box-shadow: var(--shadow-md); opacity: 0; pointer-events: none; transition: all var(--dur-base) var(--ease-out); max-width: 84vw; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast b { color: var(--color-primary); }
+
+  .probe-chip { position: absolute; right: 20px; bottom: 86px; z-index: 20; font-size: 10px; letter-spacing: 1px; color: var(--color-text-disabled); background: rgba(14,16,21,.6); border: 1px solid var(--color-border); border-radius: var(--radius-pill); padding: 4px 11px; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 9px 18px; border-radius: var(--radius-md); border: 1px solid transparent; font-size: var(--font-size-md); font-weight: var(--font-weight-medium); font-family: var(--font-family-base); cursor: pointer; transition: all var(--dur-fast) var(--ease-out); white-space: nowrap; }
+  .btn-primary { background: linear-gradient(135deg, #e0aa52, #c78f3e); color: var(--color-text-inverse); box-shadow: 0 4px 16px rgba(217,162,74,.25); }
+  .btn-primary:hover { background: linear-gradient(135deg, #e8b765, #d19a45); }
+  .btn-ghost { border-color: var(--color-border-strong); color: var(--color-text-secondary); background: transparent; }
+  .btn-ghost:hover { border-color: var(--color-primary); color: var(--color-primary); }
+
+  /* ================= 可拖拽世界 + 真图槽 ================= */
+  .world { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform; }
+  .stage { cursor: grab; }
+  .stage.grabbing { cursor: grabbing; }
+  .mapbg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .mapdim { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(7,8,11,.5), rgba(7,8,11,.12) 30%, rgba(7,8,11,.16) 68%, rgba(7,8,11,.7)); }
+  svg.paths { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .ava { position: relative; overflow: hidden; }
+  .ava img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 16%; z-index: 1; }
+  .ava i { font-style: normal; position: relative; z-index: 0; }
+  .hud-hero .tok, .cp-hero .tok { position: relative; overflow: hidden; }
+  .hud-hero .tok img, .cp-hero .tok img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 12%; }
+
+  /* ================= 悬浮提示 / 地点详情卡 ================= */
+  .tip { position: fixed; z-index: 82; transform: translate(-50%, -100%); background: rgba(16,18,24,.95); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); padding: 7px 12px; font-size: var(--font-size-xs); color: var(--color-text-secondary); box-shadow: var(--shadow-md); pointer-events: none; opacity: 0; transition: opacity var(--dur-fast); max-width: 250px; line-height: 1.65; }
+  .tip.on { opacity: 1; }
+  .tip b { color: var(--color-text); font-weight: 500; }
+  .tip .tt { color: var(--color-primary); font-weight: 500; display: block; }
+  .locpop { position: fixed; z-index: 81; width: 248px; transform: translate(-50%, 14px); background: linear-gradient(180deg, #14161c, #0e1015); border: 1px solid var(--color-border-strong); border-radius: var(--radius-lg); box-shadow: var(--shadow-pop); padding: 14px 16px 13px; opacity: 0; pointer-events: none; transition: opacity var(--dur-fast), transform var(--dur-fast); }
+  .locpop.on { opacity: 1; pointer-events: auto; transform: translate(-50%, 8px); }
+  .locpop h5 { margin: 0 0 1px; font-size: var(--font-size-md); color: var(--color-text); }
+  .locpop .lp-sub { font-size: 11px; color: var(--color-primary); margin-bottom: 7px; }
+  .locpop p { margin: 0 0 9px; font-size: var(--font-size-xs); color: var(--color-text-secondary); line-height: 1.7; }
+  .locpop .lp-who { display: flex; gap: 6px; align-items: center; }
+  .locpop .lp-who .ava { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; border: 1.5px solid var(--gray-500); background: var(--gray-800); color: var(--color-text); flex: none; }
+  .locpop .lp-who span.wt { font-size: 10px; color: var(--color-text-tertiary); }
+  .locpop .lp-act { margin-top: 10px; }
+
+  /* ================= 世界的呼吸 ================= */
+  .evt.amb { border-left-color: var(--gray-500); color: var(--color-text-tertiary); animation-duration: 4.6s; }
+  .evt.amb b { color: var(--color-text-secondary); }
+  .lamp { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: #ffb45e; box-shadow: 0 0 10px 3px rgba(255,160,70,.45); animation: flick 3.4s ease-in-out infinite; z-index: 9; pointer-events: none; }
+  @keyframes flick { 0%,100% { opacity: .85; } 42% { opacity: .35; } 60% { opacity: .9; } 78% { opacity: .5; } }
+  @keyframes wanderA { 0%,100% { transform: translate(-50%,-50%) translate(0,0); } 50% { transform: translate(-50%,-50%) translate(8px,-4px); } }
+  @keyframes wanderB { 0%,100% { transform: translate(-50%,-50%) translate(0,0); } 50% { transform: translate(-50%,-50%) translate(-7px,5px); } }
+  .npc.w-a { animation: wanderA 12s ease-in-out infinite; }
+  .npc.w-b { animation: wanderB 15s ease-in-out infinite; }
+
+  /* ================= 会走路的小人 ================= */
+  .sprite { position: absolute; transform: translate(-50%, -90%); z-index: 12; cursor: pointer; }
+  .sprite .sbody { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+  .sprite img.simg { height: var(--sh, 60px); width: auto; filter: drop-shadow(0 5px 7px rgba(0,0,0,.5)); }
+  .sprite.flip img.simg { transform: scaleX(-1); }
+  .sprite .sname { font-size: 10px; letter-spacing: 1px; color: var(--gray-100); text-shadow: 0 1px 5px rgba(0,0,0,.95); white-space: nowrap; transition: opacity .3s ease; }
+  .sprite .sname.namehide { opacity: 0; }
+  .sprite.walking .sbody { animation: waddle .4s ease-in-out infinite; }
+  @keyframes waddle { 0%,100% { transform: translateY(0) rotate(-1.5deg); } 50% { transform: translateY(-3px) rotate(1.5deg); } }
+  .sprite.minor { opacity: .88; pointer-events: none; }
+  .sprite.hero::before { content: ''; position: absolute; left: 50%; bottom: -3px; transform: translateX(-50%); width: 36px; height: 13px; border-radius: 50%; border: 1.5px solid rgba(217,162,74,.75); box-shadow: 0 0 12px rgba(217,162,74,.35); animation: ringpulse 2s var(--ease-in-out) infinite; }
+  @keyframes ringpulse { 0%,100% { opacity: .9; } 50% { opacity: .3; } }
+  .sprite .glow { display: none; position: absolute; left: 50%; bottom: -4px; transform: translateX(-50%); width: 42px; height: 14px; border-radius: 50%; border: 1.5px solid rgba(217,162,74,.65); animation: ringpulse 2.2s var(--ease-in-out) infinite; pointer-events: none; }
+  .sprite.informed .glow { display: block; }
+  .sfb { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: var(--color-text); background: radial-gradient(120% 120% at 30% 25%, var(--gray-700), var(--gray-850)); border: 2px solid var(--gray-500); box-shadow: 0 3px 10px rgba(0,0,0,.5); }
+  .sfb.lin { border-color: var(--color-primary); color: var(--color-primary); }
+  .sfb.shen { border-color: #7db8e8; color: #a8d2f5; }
+  .sfb.zhao { border-color: #e06a5a; color: #f09182; }
+  .sfb.han { border-color: var(--gray-400); color: var(--gray-200); }
+  .sfb.wang { border-color: #58b98a; color: #7dd3a8; }
+  .swordlight { position: absolute; z-index: 8; width: 130px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, rgba(180,220,255,.9), transparent); box-shadow: 0 0 14px rgba(160,210,255,.55); pointer-events: none; animation: swfly 2.6s var(--ease-in-out) forwards; }
+  @keyframes swfly { 0% { opacity: 0; transform: translate(0,0) rotate(-8deg); } 12% { opacity: 1; } 88% { opacity: 1; } 100% { opacity: 0; transform: translate(46vw, -12vh) rotate(-8deg); } }
+
+  /* ================= 场景层：走进一个地点 ================= */
+  .scene-ov { position: fixed; inset: 0; z-index: 45; background: #08090c; display: none; }
+  .scene-ov.on { display: block; }
+  .scn-fallback { position: absolute; inset: 0; background: radial-gradient(120% 90% at 50% 18%, #171b23, #0a0b0e); }
+  .scn-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .scn-dim { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(7,8,11,.6), rgba(7,8,11,.08) 30%, rgba(7,8,11,.12) 60%, rgba(7,8,11,.78)); }
+  .scn-head { position: absolute; top: 18px; left: 20px; right: 20px; display: flex; align-items: flex-start; gap: 12px; z-index: 3; }
+  .scn-title h2 { margin: 0 0 3px; font-size: var(--font-size-2xl); text-shadow: 0 2px 12px rgba(0,0,0,.85); font-weight: var(--font-weight-semibold); }
+  .scn-title .sa { font-size: var(--font-size-xs); color: var(--color-text-secondary); text-shadow: 0 1px 6px rgba(0,0,0,.9); }
+  .scn-back { margin-left: auto; }
+  .scn-chips { position: absolute; left: 20px; bottom: 20px; display: flex; gap: 8px; z-index: 3; flex-wrap: wrap; max-width: 44%; }
+  .scn-right { position: absolute; right: 20px; bottom: 20px; width: 340px; z-index: 3; display: flex; flex-direction: column; gap: 10px; }
+  .scn-card { background: rgba(14,16,21,.84); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 13px 15px; }
+  .scn-card h5 { margin: 0 0 7px; font-size: 11px; letter-spacing: 2px; color: var(--color-text-tertiary); }
+  .scn-card .se { display: flex; gap: 9px; padding: 5px 0; font-size: var(--font-size-xs); color: var(--color-text-secondary); line-height: 1.7; }
+  .scn-card .se .sc-ch { flex: none; font-family: var(--font-family-mono); color: var(--color-text-disabled); font-size: 10px; margin-top: 3px; }
+  .scn-card .se b { color: var(--color-text); font-weight: 500; }
+  .scn-person { position: absolute; z-index: 2; cursor: pointer; }
+  .scn-person img { height: 170px; filter: drop-shadow(0 12px 16px rgba(0,0,0,.65)); }
+  .scn-person .sbob { animation: waddle 4.5s ease-in-out infinite; display: block; }
+  .scn-person .sfb { width: 52px; height: 52px; font-size: 20px; }
+  .scn-person .pn { text-align: center; font-size: 11px; color: var(--gray-100); text-shadow: 0 1px 6px rgba(0,0,0,.95); margin-top: 3px; letter-spacing: 1px; }
+  .fogbox { position: relative; height: 62px; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--color-border); margin-bottom: 9px; background: radial-gradient(80% 130% at 50% 100%, #1d2432, #0b0d12); }
+  .fogbox .fx { position: absolute; inset: 0; background: repeating-linear-gradient(100deg, rgba(160,180,210,.07) 0 14px, transparent 14px 30px); filter: blur(4px); animation: drift 22s ease-in-out infinite alternate; }
+  .fogbox span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; letter-spacing: 5px; color: var(--gray-300); }
+
+  /* ================= 书架 = 存档位 ================= */
+  .shelf { position: fixed; inset: 0; z-index: 70; background: radial-gradient(120% 100% at 50% 0%, #13161d, #08090c); display: none; flex-direction: column; align-items: center; justify-content: center; gap: 38px; }
+  .shelf.on { display: flex; }
+  .shelf .sh-t { text-align: center; }
+  .shelf .sh-t h1 { margin: 0 0 8px; font-size: var(--font-size-2xl); letter-spacing: 10px; font-weight: var(--font-weight-semibold); }
+  .shelf .sh-t span { font-size: var(--font-size-xs); color: var(--color-text-tertiary); letter-spacing: 2px; }
+  .saves { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; padding: 0 20px; }
+  .save { width: 208px; min-height: 218px; border-radius: var(--radius-lg); border: 1px solid var(--color-border-strong); background: linear-gradient(165deg, #181b22, #0e1014); padding: 18px 17px; cursor: pointer; transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base), box-shadow var(--dur-base); position: relative; overflow: hidden; }
+  .save:hover { transform: translateY(-6px); border-color: var(--color-primary); box-shadow: var(--shadow-md); }
+  .save .sv-glow { position: absolute; top: -30px; right: -30px; width: 100px; height: 100px; border-radius: 50%; background: radial-gradient(circle, rgba(217,162,74,.22), transparent 70%); }
+  .save .sv-genre { font-size: 10px; letter-spacing: 2px; color: var(--color-primary); }
+  .save h3 { margin: 7px 0 11px; font-size: var(--font-size-lg); line-height: 1.5; font-weight: var(--font-weight-semibold); }
+  .save .sv-meta { font-size: 11px; color: var(--color-text-tertiary); line-height: 1.95; }
+  .save .sv-cta { margin-top: 14px; font-size: var(--font-size-xs); color: var(--color-primary); display: flex; align-items: center; gap: 6px; }
+  .save.dormant { opacity: .62; }
+  .save.newbook { border-style: dashed; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--color-text-tertiary); font-size: var(--font-size-sm); }
+  .save.newbook:hover { color: var(--color-primary); }
+
+  /* ================= 创世：观星 → 炼种 → 世界长出来 ================= */
+  .gen { position: fixed; inset: 0; z-index: 72; display: none; background: radial-gradient(130% 100% at 50% 16%, #0a0e18 0%, #05060a 58%, #030407 100%); }
+  .gen.on { display: block; }
+  .gen.off { opacity: 0; pointer-events: none; transition: opacity 1.1s ease; }
+  .gen-step { position: absolute; inset: 0; display: none; }
+  .gen.sky #gen-sky { display: block; }
+  .gen.forge #gen-forge { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
+  .gen-head { position: absolute; top: 46px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 4; pointer-events: none; width: 90vw; }
+  .gen-head h2 { margin: 0 0 8px; font-size: var(--font-size-2xl); letter-spacing: 14px; padding-left: 14px; font-weight: var(--font-weight-semibold); }
+  .gen-head span { font-size: var(--font-size-xs); color: var(--color-text-tertiary); letter-spacing: 2px; }
+  .gen-back { position: absolute; top: 20px; left: 20px; z-index: 6; }
+  .gdust { position: absolute; border-radius: 50%; background: rgba(214,224,255,.9); animation: gtw var(--d, 4s) ease-in-out infinite; pointer-events: none; }
+  @keyframes gtw { 0%,100% { opacity: .1; } 50% { opacity: .7; } }
+  #gen-lines { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+  .gstar { position: absolute; transform: translate(-50%, -50%); background: none; border: none; cursor: pointer; font-family: var(--font-family-base); display: flex; flex-direction: column; align-items: center; gap: 9px; z-index: 3; padding: 14px; }
+  .gstar i { position: relative; width: var(--sz, 14px); height: var(--sz, 14px); border-radius: 50%; background: radial-gradient(circle, #fff 0%, #ffeec8 42%, rgba(255,220,150,0) 72%); box-shadow: 0 0 8px rgba(255,244,214,.9), 0 0 22px rgba(240,214,150,.55), 0 0 48px rgba(220,190,120,.28); animation: starbr 3.8s ease-in-out infinite; animation-delay: var(--dl, 0s); }
+  @keyframes starbr { 0%,100% { opacity: .72; } 50% { opacity: 1; } }
+  .gstar i::before { content: ''; position: absolute; left: 50%; top: 50%; width: calc(var(--sz) * 3.4); height: calc(var(--sz) * 3.4); transform: translate(-50%, -50%); pointer-events: none; background:
+      linear-gradient(90deg, transparent 15%, rgba(255,240,210,.55), transparent 85%) center / 100% 1px no-repeat,
+      linear-gradient(0deg, transparent 15%, rgba(255,240,210,.55), transparent 85%) center / 1px 100% no-repeat; }
+  .gstar b { font-size: 12px; letter-spacing: 2px; font-weight: 500; color: var(--gray-300); text-shadow: 0 2px 8px rgba(0,0,0,.9); transition: color var(--dur-fast); white-space: nowrap; }
+  .gstar:hover b { color: var(--color-text); }
+  .gstar.on i { background: radial-gradient(circle at 35% 30%, #fff, #ffd98a 40%, rgba(217,162,74,.4) 75%, transparent); box-shadow: 0 0 26px rgba(233,186,101,.85), 0 0 60px rgba(217,162,74,.3); animation: none; opacity: 1; }
+  .gstar.on i::after { content: ''; position: absolute; inset: -9px; border-radius: 50%; border: 1px solid rgba(233,186,101,.6); animation: ring 2.2s var(--ease-out) infinite; }
+  .gstar.on b { color: var(--color-primary); }
+  .gen-foot { position: absolute; left: 50%; bottom: 36px; transform: translateX(-50%); z-index: 5; display: flex; align-items: center; gap: 12px; background: rgba(14,16,21,.78); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--color-border); border-radius: var(--radius-pill); padding: 10px 12px 10px 16px; max-width: 92vw; }
+  .gf-hint { font-size: var(--font-size-xs); color: var(--color-text-tertiary); white-space: nowrap; }
+  .seed { width: 76px; height: 76px; border-radius: 50%; background: radial-gradient(circle at 34% 28%, #fff7e2, #ecc06a 36%, #8a5c1e 74%, #3a2508); box-shadow: 0 0 36px rgba(231,181,92,.55), 0 0 100px rgba(217,162,74,.22); animation: seedpulse 2.6s ease-in-out infinite; }
+  @keyframes seedpulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+  #gen-forge.planting .seed { animation: seeddrop 1.05s var(--ease-in-out) forwards; }
+  @keyframes seeddrop { 0% { transform: scale(1); opacity: 1; } 100% { transform: translateY(44vh) scale(.15); opacity: 0; } }
+  .seedcard { width: min(440px, 92vw); background: linear-gradient(180deg, #14161c, #0e1015); border: 1px solid var(--color-border-strong); border-radius: var(--radius-xl); padding: 18px 24px 20px; text-align: center; }
+  .seedcard h3 { margin: 0 0 7px; font-size: var(--font-size-xl); }
+  .seedcard .sc-one { font-size: var(--font-size-sm); color: var(--color-text-secondary); line-height: 1.8; }
+  .seedrow { justify-content: center; margin-top: 13px; }
+  .seednote { max-width: 460px; font-size: var(--font-size-xs); color: var(--color-text-tertiary); line-height: 1.7; text-align: center; padding: 0 16px; }
+  .seednote b { color: var(--color-text-secondary); font-weight: 500; }
+  .forge-btns { display: flex; gap: 10px; }
+
+  /* 世界生长 */
+  #veil { position: absolute; inset: 0; z-index: 5; display: none; opacity: 1; background: radial-gradient(120% 100% at 50% 40%, rgba(6,7,10,.96), rgba(3,4,6,.995)); pointer-events: none; }
+  #veil.fade { opacity: 0; transition: opacity 3s ease; }
+  .stage.pregen .hud-book, .stage.pregen .hud-actions, .stage.pregen .hud-hero, .stage.pregen .track, .stage.pregen .probe-chip, .stage.pregen .lamp { opacity: 0; }
+  .hud-book, .hud-actions, .track, .probe-chip, .lamp { transition: opacity 1.2s ease; }
+  .hud-hero { transition: border-color var(--dur-fast), opacity 1.2s ease; }
+  .stage.pregen .loc .flag { display: none; }
+  .loc.unborn { opacity: 0; pointer-events: none; }
+  .loc.born { animation: locborn .8s var(--ease-spring) both; }
+  @keyframes locborn { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.15); } 55% { opacity: 1; transform: translate(-50%,-50%) scale(1.14); } 100% { opacity: 1; transform: translate(-50%,-50%) scale(1); } }
+  .sprite.unborn { opacity: 0; pointer-events: none; }
+  .sprite.reveal { animation: sprin 1s ease both; }
+  @keyframes sprin { from { opacity: 0; } to { opacity: 1; } }
+  .sprite.drop { animation: herodrop 1.1s var(--ease-out) both; }
+  @keyframes herodrop { 0% { opacity: 0; transform: translate(-50%, -300%); } 55% { opacity: 1; transform: translate(-50%, -82%); } 75% { transform: translate(-50%, -96%); } 100% { transform: translate(-50%, -90%); } }
+  .ripple { position: absolute; left: 50%; top: 46%; width: 200px; height: 80px; margin: -40px 0 0 -100px; border-radius: 50%; border: 1.5px solid rgba(231,181,92,.65); z-index: 6; pointer-events: none; animation: rip 1.6s ease-out forwards; }
+  @keyframes rip { 0% { transform: scale(.12); opacity: .9; } 100% { transform: scale(2.7); opacity: 0; } }
+  .genfin { position: fixed; left: 50%; top: 44%; transform: translate(-50%, -50%) scale(.95); z-index: 74; text-align: center; opacity: 0; pointer-events: none; transition: opacity .6s var(--ease-out), transform .6s var(--ease-spring); padding: 52px 84px 44px; background: radial-gradient(ellipse at center, rgba(5,6,9,.82) 30%, rgba(5,6,9,0) 72%); }
+  .genfin.on { opacity: 1; transform: translate(-50%, -50%) scale(1); pointer-events: auto; }
+  .genfin .gf-k { font-size: 11px; letter-spacing: 8px; color: var(--color-primary); margin-bottom: 10px; }
+  .genfin h2 { margin: 0 0 10px; font-size: 32px; letter-spacing: 8px; padding-left: 8px; font-weight: var(--font-weight-semibold); text-shadow: 0 4px 30px rgba(0,0,0,.85); }
+  .genfin p { margin: 0 0 18px; font-size: var(--font-size-sm); color: var(--color-text-secondary); line-height: 1.9; text-shadow: 0 2px 10px rgba(0,0,0,.9); }
+</style>
+
+<div class="stage" id="stage">
+  <div class="world" id="world">
+  <!-- 山水 -->
+  <svg class="terrain" viewBox="0 0 1440 810" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs>
+      <linearGradient id="mFar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b2230"/><stop offset="1" stop-color="#10141c"/></linearGradient>
+      <linearGradient id="mMid" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#161c27"/><stop offset="1" stop-color="#0d1118"/></linearGradient>
+      <linearGradient id="mNear" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#10141b"/><stop offset="1" stop-color="#090b0f"/></linearGradient>
+      <radialGradient id="moon" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="rgba(233,214,175,.9)"/><stop offset=".55" stop-color="rgba(233,214,175,.18)"/><stop offset="1" stop-color="transparent"/></radialGradient>
+    </defs>
+    <circle cx="1150" cy="120" r="120" fill="url(#moon)" opacity=".5"/>
+    <circle cx="1150" cy="120" r="34" fill="#e7d6ad" opacity=".85"/>
+    <path fill="url(#mFar)" opacity=".8" d="M0 430 C 90 360 170 400 260 350 C 340 306 400 380 500 330 C 590 285 660 350 760 310 C 850 275 930 340 1030 300 C 1130 260 1200 330 1300 290 C 1370 262 1410 300 1440 280 L 1440 810 L 0 810 Z"/>
+    <path fill="url(#mMid)" opacity=".9" d="M0 560 C 110 480 220 540 330 480 C 430 425 520 510 640 455 C 750 405 830 480 950 440 C 1060 403 1140 470 1250 430 C 1340 398 1400 440 1440 420 L 1440 810 L 0 810 Z"/>
+    <path fill="url(#mNear)" d="M0 690 C 140 620 260 670 400 625 C 540 580 660 650 800 610 C 930 573 1050 640 1180 600 C 1290 566 1380 610 1440 590 L 1440 810 L 0 810 Z"/>
+  </svg>
+  <img class="mapbg" src="/assets/img/x-map.png" alt="" onerror="this.remove()">
+  <div class="mapdim"></div>
+  <svg class="paths" viewBox="0 0 1440 810" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <!-- 路径 -->
+    <g fill="none" stroke="#3a4049" stroke-width="1.6" stroke-dasharray="3 7" opacity=".8">
+      <path d="M 432 518 C 520 480 620 430 720 373"/>
+      <path d="M 432 518 C 480 560 520 596 576 616"/>
+      <path d="M 720 373 C 810 340 900 305 979 275"/>
+      <path d="M 979 275 C 1040 240 1100 200 1152 162"/>
+      <path d="M 979 275 C 1070 340 1160 430 1238 486"/>
+    </g>
+    <path id="routeNext" fill="none" stroke="#d9a24a" stroke-width="2" stroke-dasharray="5 7" opacity="0" d="M 432 518 C 520 480 620 430 720 373">
+      <animate attributeName="stroke-dashoffset" from="120" to="0" dur="3s" repeatCount="indefinite"/>
+    </path>
+  </svg>
+
+  <div class="mist m1"></div><div class="mist m2"></div><div class="mist m3"></div>
+  <div class="mote" style="left:24%;top:52%;animation-delay:0s"></div>
+  <div class="mote" style="left:56%;top:38%;animation-delay:1.6s"></div>
+  <div class="mote" style="left:44%;top:64%;animation-delay:3s"></div>
+  <div class="mote" style="left:74%;top:30%;animation-delay:4.2s"></div>
+  <div class="mote" style="left:86%;top:56%;animation-delay:2.2s"></div>
+  <span class="lamp" style="left:30.9%;top:62.6%"></span>
+  <span class="lamp" style="left:50.8%;top:44.8%;animation-delay:1.4s"></span>
+
+  <!-- 地点 -->
+  <div class="loc next-target" id="loc-waimen" style="left:30%;top:64%" onclick="onLoc('waimen')">
+    <span class="flag" id="flag-waimen"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2 3 14h7l-1 8 11-13h-7l0-7z"/></svg>下一副本 · 开局三章</span>
+    <span class="dot"></span><span class="lbl">外门弟子院</span><span class="sub">主角在此 · 灵气 ×2</span>
+  </div>
+  <div class="loc dim" id="loc-cangjing" style="left:50%;top:46%" onclick="onLoc('cangjing')">
+    <span class="flag" id="flag-cangjing"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2 3 14h7l-1 8 11-13h-7l0-7z"/></svg>下一副本 · 藏经阁的一百道源</span>
+    <span class="dot"></span><span class="lbl">藏经阁</span><span class="sub">灵气 ×5 · 未探明</span>
+  </div>
+  <div class="loc dim" id="loc-yanwu" style="left:40%;top:76%" onclick="onLoc('yanwu')"><span class="dot"></span><span class="lbl">演武场</span><span class="sub">三月后 · 外门大比</span></div>
+  <div class="loc dim" id="loc-neimen" style="left:68%;top:34%" onclick="onLoc('neimen')"><span class="dot"></span><span class="lbl">内门</span><span class="sub">天才所居</span></div>
+  <div class="loc locked" id="loc-houshan" style="left:80%;top:20%" onclick="onLoc('houshan')"><span class="dot"></span><span class="lbl">后山禁地</span><span class="sub">迷雾未开</span></div>
+  <div class="loc locked" id="loc-mijing" style="left:86%;top:60%" onclick="onLoc('mijing')"><span class="dot"></span><span class="lbl">青冥秘境</span><span class="sub">卷一后段 · 封印中</span></div>
+
+  <!-- 会走路的小人 -->
+  <script>
+    function spriteFB(img, cls, ch) {
+      const host = img.parentElement;
+      img.remove();
+      if (!ch) { const s = host.closest('.sprite'); if (s) s.remove(); return; }
+      const fb = document.createElement('span');
+      fb.className = 'sfb ' + cls;
+      fb.textContent = ch;
+      host.prepend(fb);
+    }
+  </script>
+  <div class="sprite" id="sp-wang" style="left:27.5%;top:67%;--sh:56px"><span class="glow"></span><div class="sbody"><img class="simg" src="/assets/img/s-wang.png" alt="" onerror="spriteFB(this,'wang','狗')"><span class="sname">王二狗</span></div></div>
+  <div class="sprite" id="sp-zhao" style="left:43.5%;top:73%;--sh:62px"><span class="glow"></span><div class="sbody"><img class="simg" src="/assets/img/s-zhao.png" alt="" onerror="spriteFB(this,'zhao','雄')"><span class="sname">赵天雄</span></div></div>
+  <div class="sprite" id="sp-han" style="left:52.5%;top:44%;--sh:54px"><span class="glow"></span><div class="sbody"><img class="simg" src="/assets/img/s-han.png" alt="" onerror="spriteFB(this,'han','韩')"><span class="sname">韩拾遗</span></div></div>
+  <div class="sprite" id="sp-shen" style="left:70.5%;top:31.5%;--sh:60px"><span class="glow"></span><div class="sbody"><img class="simg" src="/assets/img/s-shen.png" alt="" onerror="spriteFB(this,'shen','霜')"><span class="sname">沈青霜</span></div></div>
+  <div class="sprite minor" id="sp-d1" style="left:32%;top:60%;--sh:48px"><div class="sbody"><img class="simg" src="/assets/img/s-npc1.png" alt="" onerror="spriteFB(this,'','')"></div></div>
+  <div class="sprite minor" id="sp-d2" style="left:37.5%;top:78.5%;--sh:48px"><div class="sbody"><img class="simg" src="/assets/img/s-npc2.png" alt="" onerror="spriteFB(this,'','')"></div></div>
+
+  <!-- 主角 -->
+  <div class="sprite hero" id="piece" style="left:30%;top:64%;--sh:66px" onclick="openChar()"><div class="sbody"><img class="simg" src="/assets/img/s-linfan.png" alt="" onerror="spriteFB(this,'lin','凡')"><span class="sname">林凡</span></div></div>
+  </div><!-- /world -->
+  <div id="veil"></div>
+  <div class="vignette"></div><div class="grain"></div>
+
+  <!-- HUD -->
+  <div class="hud-book">
+    <span class="hud-chip"><a href="/p/01-bookshelf" title="回书架"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></a><b>我在青云宗打卡修仙</b><span style="color:var(--color-text-disabled)">·</span>玄苍界</span>
+  </div>
+  <div class="hud-actions">
+    <button class="hbtn" onclick="openDrawer('quest')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21V4"/><path d="M4 4h14l-2.5 4L18 12H4"/></svg>任务<span class="bdg" id="qbdg">4</span></button>
+    <button class="hbtn" onclick="openDrawer('codex')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>册子</button>
+  </div>
+
+  <div class="hud-hero" onclick="openChar()">
+    <span class="tok"><img src="/assets/img/x-linfan.png" alt="" onerror="this.remove()"><span style="position:relative">凡</span></span>
+    <div class="hh-main">
+      <span class="hh-name">林凡<span id="hh-realm">炼气一层</span></span>
+      <span class="hh-bar"><i id="hh-cult" style="width:12%"></i></span>
+      <span class="hh-sub">修为 <b id="hh-pct">12%</b> · 道源 <b id="hh-daoyuan">100</b></span>
+    </div>
+  </div>
+
+  <span class="probe-chip">游戏壳探针 · 全部真材料</span>
+
+  <!-- 大纲轨道 -->
+  <div class="track"><div class="tk-in" id="tkin">
+    <span class="tk-vol"><b>卷一 · 外门篇</b><span>大纲 · 点节点看计划</span></span>
+  </div></div>
+
+  <!-- 写作过场横幅 -->
+  <div class="cine" id="cine"><span class="spinner"></span><span class="ct" id="cinet">写手 Agent 开工…</span><button class="skip" onclick="skipPlay()">跳过 »</button></div>
+</div>
+
+<!-- 遮罩 -->
+<div class="scrim" id="scrim" onclick="closeAll()"></div>
+
+<!-- 副本计划弹窗 -->
+<div class="gpanel dialog" id="dlg-plan">
+  <button class="x" onclick="closeAll()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  <div class="dlg-head">
+    <div class="dlg-kicker">副本 · 外门弟子院</div>
+    <h3>开局三章 · 魂穿与签到</h3>
+    <div class="dh-sub">
+      <span>危险度<span class="danger-dots"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span></span>
+      <span>量级 <b>3 章 · 黄金开局</b></span>
+      <span>从 <b>魂穿被堵</b> 写到 <b>主线任务立起</b></span>
+    </div>
+  </div>
+  <div class="dlg-body">
+    <div class="beat" id="beat1">
+      <div class="beat-h" onclick="toggleBeat(1)"><span class="bno">01</span><div class="bt"><b>魂穿与叮的一声</b><span>金手指压到最后一拍才响——绝望拉满那一瞬「叮」落地</span></div><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></div>
+      <div class="beat-d">
+        <div class="bd-k">剧情</div><div class="bd-v">社畜魂穿最废外门弟子，赵天雄堵门逼灵石、真火压脸；装怂交钱没换来放过，绝境里那句<b>“不甘心”</b>烧起来——章末系统觉醒。</div>
+        <div class="bd-k">看点 · 怎么演（可改）</div><div class="bd-v punch" contenteditable="true" spellcheck="false">读者全程等系统，等来的却是越来越近的真火——<b>最后一拍</b>「叮」才落地。笑点靠“老网文读者穿进熟剧本”的吐槽反差。</div>
+        <div class="bd-k">登场 · 谁知道什么</div>
+        <div class="chips"><span class="cc"><b>林凡</b>长期</span><span class="cc"><b>赵天雄</b>长期</span><span class="cc"><b>王二狗</b>长期</span></div>
+        <div class="bd-v" style="margin-top:6px;">系统章末才觉醒，<b>全世界无人知</b>；章末钩＝「绑定成功 · 初始道源 100」（来历深埋）。</div>
+      </div>
+    </div>
+    <div class="beat" id="beat2">
+      <div class="beat-h" onclick="toggleBeat(2)"><span class="bno">02</span><div class="bt"><b>签到，启动</b><span>签到流第一口爽按打工人逻辑演——“说给 20 就给 20”</span></div><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></div>
+      <div class="beat-d">
+        <div class="bd-k">剧情</div><div class="bd-v">解围回柴房；借二狗的嘴交代大比规则与沈青霜旧事；首刷面板、首次签到 +20、服聚气丹修为 12→20%；发现<b>“灵根可洗”</b>（5000 道源）和藏经阁福地。</div>
+        <div class="bd-k">看点 · 怎么演（可改）</div><div class="bd-v punch" contenteditable="true" spellcheck="false">“老板画的饼从没兑现，系统<b>说给 20 就给 20</b>——这不比上班强？”面板毒舌：战力从“蝼蚁级”更新为<b>“蝼蚁级（壮硕）”</b>。翻身价码当着读者标出：洗髓丹 5000，他兜里 90。</div>
+        <div class="bd-k">登场 · 谁知道什么</div>
+        <div class="chips"><span class="cc"><b>林凡</b></span><span class="cc"><b>王二狗</b>信息源</span><span class="cc"><b>沈青霜</b>只闻其名</span></div>
+        <div class="bd-v" style="margin-top:6px;">沈青霜只察觉<b>“灵气反常”</b>，不知系统、不露面；章末钩＝一道冷得像冰的神识扫过来。</div>
+      </div>
+    </div>
+    <div class="beat" id="beat3">
+      <div class="beat-h" onclick="toggleBeat(3)"><span class="bno">03</span><div class="bt"><b>扮猪吃老虎</b><span>认知型露一手：一句“绕支脉”点破难题，随即装回怂</span></div><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></div>
+      <div class="beat-d">
+        <div class="bd-k">剧情</div><div class="bd-v">领藏经阁杂役（带薪进福地）；首访奖励 +100 挂起故意欠着；孙彪卡关撒气，林凡一句<b>“别硬顶，绕支脉泡开”</b>点破后立刻装怂；韩拾遗扫帚停了；章末主线任务发布。</div>
+        <div class="bd-k">看点 · 怎么演（可改）</div><div class="bd-v punch" contenteditable="true" spellcheck="false">露一手必须<b>认知型不是武力型</b>（战力 108 打不过任何人）；韩拾遗的知情<b>只用外部动作侧写</b>——扫帚一停、鼻翼一动，镜头不进老头的心。</div>
+        <div class="bd-k">登场 · 谁知道什么</div>
+        <div class="chips"><span class="cc"><b>林凡</b></span><span class="cc" style="border-style:dashed" onclick="toast('孙彪：Agent 新造的一次性角色——这章需要一个卡关的中层跟班当靶子。真产品里可换成现成角色。')"><b>孙彪</b><span class="tag gold">新造·一次性</span></span><span class="cc"><b>韩拾遗</b>本章激活</span></div>
+        <div class="bd-v" style="margin-top:6px;">韩拾遗起<b>单向知情</b>不点破；孙彪不知系统；章末钩＝「三月之约：大比进前十，奖洗髓丹，0.7%」。</div>
+      </div>
+    </div>
+  </div>
+  <div class="dlg-foot">
+    <span style="font-size:11px;color:var(--color-text-tertiary);">要还的账：金手指立起 · 死线钉死 · 女主挂钩 · 反派立威</span>
+    <span style="flex:1"></span>
+    <button class="btn btn-ghost" onclick="toast('换个打法：真产品里 Agent 会带你的意见重排这一段（探针不铺这条路）')">换个打法</button>
+    <button class="btn btn-primary" onclick="startPlay()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 3 14 9-14 9V3z"/></svg>出征 · 开写</button>
+  </div>
+</div>
+
+<!-- 通关结算 -->
+<div class="gpanel dialog loot" id="dlg-loot">
+  <div class="dlg-body">
+    <div class="loot-title">副 本 通 关</div>
+    <h2>开局三章 · 魂穿与签到</h2>
+    <div class="lsub">三章 · 约 7,500 字 · 一致性检查全过 · 世界已回写</div>
+    <div class="loot-grid">
+      <div class="litem gold click" style="animation-delay:.05s" onclick="openReader(1)"><div class="lk"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>战利品 · 正文</div><div class="lv">三章成稿，点开就读<small>魂穿与叮的一声 / 签到，启动 / 扮猪吃老虎</small></div></div>
+      <div class="litem green" style="animation-delay:.15s"><div class="lk"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 15-6-6-6 6"/></svg>主角成长</div><div class="lv">修为 12% → 20%<small>道源 100→90 · 战力：蝼蚁级（壮硕）</small></div></div>
+      <div class="litem gold" style="animation-delay:.25s"><div class="lk"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>主线任务</div><div class="lv">三月之约<small>大比进前十 → 洗髓丹 · 达成概率 0.7%</small></div></div>
+      <div class="litem blue" style="animation-delay:.35s"><div class="lk"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>情报</div><div class="lv">韩拾遗认出了系统的气息<small>单向知情 · 不点破——地图上他亮了</small></div></div>
+      <div class="litem blue" style="animation-delay:.45s"><div class="lk"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>情报</div><div class="lv">沈青霜察觉灵气反常<small>只知“反常” · 暗中观察</small></div></div>
+      <div class="litem gray" style="animation-delay:.55s"><div class="lk"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="4"/></svg>过场角色</div><div class="lv">孙彪 · 一次性<small>挨了一句“绕支脉”，已归档</small></div></div>
+    </div>
+  </div>
+  <div class="dlg-foot" style="justify-content:center;">
+    <button class="btn btn-ghost" onclick="toast('打回重写：整段重写，世界回滚到副本开始之前（探针不铺这条路）')">不满意 · 打回</button>
+    <button class="btn btn-primary" onclick="acceptLoot()">收下 · 回到世界</button>
+  </div>
+</div>
+
+<!-- 任务抽屉 -->
+<div class="gpanel drawer" id="dw-quest">
+  <button class="x" onclick="closeAll()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  <div class="dw-head"><div class="dw-title">任务</div></div>
+  <div class="dw-body" id="questbody"></div>
+</div>
+
+<!-- 册子抽屉：人物 / 大事记 / 设定 -->
+<div class="gpanel drawer" id="dw-codex">
+  <button class="x" onclick="closeAll()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  <div class="dw-head"><div class="dw-title">册子</div>
+    <div class="dw-tabs">
+      <button class="dw-tab sel" data-cx="people" onclick="cxTab('people')">人物</button>
+      <button class="dw-tab" data-cx="events" onclick="cxTab('events')">大事记</button>
+      <button class="dw-tab" data-cx="lore" onclick="cxTab('lore')">世界观</button>
+    </div></div>
+  <div class="dw-body" id="codexbody"></div>
+</div>
+
+<!-- 角色面板 -->
+<div class="gpanel dialog cp" id="dlg-char">
+  <button class="x" onclick="closeAll()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  <div class="cp-hero"><span class="tok"><img src="/assets/img/x-linfan.png" alt="" onerror="this.remove()"><span style="position:relative">凡</span></span><div><h3>林凡</h3><div class="cp-sub">主角 · 穿越者 · 青云宗外门</div></div></div>
+  <div class="dw-tabs cp-tabs">
+    <button class="dw-tab sel" data-cp="attr" onclick="cpTab('attr')">属性</button>
+    <button class="dw-tab" data-cp="bag" onclick="cpTab('bag')">背包</button>
+    <button class="dw-tab" data-cp="gf" onclick="cpTab('gf')">功法</button>
+  </div>
+  <div class="cp-body" id="charbody"></div>
+</div>
+
+<!-- 场景层 · 藏经阁 -->
+<div class="scene-ov" id="scene">
+  <div class="scn-fallback"></div>
+  <img class="scn-bg" src="/assets/img/sc-cangjing.png" alt="" onerror="this.remove()">
+  <div class="scn-dim"></div>
+  <div class="scn-head">
+    <div class="scn-title"><h2>藏经阁 · 一层</h2><div class="sa">旧纸与陈墨的味道 · 一排排顶到房梁的书架 · 门口那株老槐树</div></div>
+    <span class="scn-back"><button class="btn btn-ghost" onclick="leaveScene()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>回到大图</button></span>
+  </div>
+  <div class="scn-person" id="scn-han" style="left:58%;bottom:16%">
+    <span class="sbob"><img src="/assets/img/s-han.png" alt="" onerror="spriteFB(this,'han','韩')"><div class="pn">韩拾遗</div></span>
+  </div>
+  <div class="scn-chips" id="scn-chips"></div>
+  <div class="scn-right">
+    <div class="scn-card" id="scn-events"></div>
+    <div class="scn-card" id="scn-threads"></div>
+  </div>
+</div>
+
+<!-- 阅读器 -->
+<div class="reader-ov" id="reader">
+  <div class="ro-top">
+    <span class="rt-t">《我在青云宗打卡修仙》</span>
+    <div class="rt-tabs">
+      <button class="rtab sel" data-r="1" onclick="rTab(1)">第一章</button>
+      <button class="rtab" data-r="2" onclick="rTab(2)">第二章</button>
+      <button class="rtab" data-r="3" onclick="rTab(3)">第三章</button>
+    </div>
+    <span class="grow"></span>
+    <button class="btn btn-ghost" style="padding:6px 14px;font-size:var(--font-size-sm);" onclick="toast('润色：直接改文字，保存时做轻量事实比对，碰到已定事实会提醒（探针不铺这条路）')">润色</button>
+    <button class="btn btn-ghost" style="padding:6px 14px;font-size:var(--font-size-sm);" onclick="toast('打回：这一段重写，世界回滚到副本开始之前（探针不铺这条路）')">打回这段</button>
+    <button class="btn btn-ghost" onclick="closeReader()" style="padding:6px 14px;font-size:var(--font-size-sm);">回到世界</button>
+  </div>
+  <div class="ro-body">
+    <div class="ro-page on" data-rp="1">
+      <h3>第一章 魂穿与叮的一声</h3><div class="rm">约 2,600 字 · 写手 Agent 产出 · 未发布</div>
+      <p>林凡睁眼时，先尝到满嘴铁锈味，然后才感觉到那只碾在他手背上的靴子。</p>
+      <p>“废物，也配挡爷的道？”</p>
+      <p>靴底一转，五根手指传来钻心的疼。林凡闷哼一声，脑子却还是一团浆糊——他分明记得，自己刚在工位上改完第七版方案，甲方一句“没那味儿”打回重来，他趴在桌上想眯五分钟……怎么一睁眼，天是土黄的，地是青石板，面前站着一群灰布道袍、腰里挂剑的古装青年？</p>
+      <p>剧组？他脑子还没转过来，梦到自己进剧组了？</p>
+      <p>下一瞬，海量不属于他的记忆轰地灌进颅骨，像几十个 G 的文件硬往一部老年机里塞，胀得他太阳穴突突直跳。</p>
+      <p>青云宗。外门。弟子。林凡。</p>
+      <p>十七岁。五行杂灵根——资质 F，伪灵根，比没有还膈应的那一种。炼气一层，修为卡在 12%，半年没挪过窝。原身也叫林凡，爹娘死得早，是这外门里人人能踩一脚的垫底废柴，全部家当：三块下品灵石、一柄生锈铁剑、半块干粮。</p>
+      <p>而此刻踩着他手的这位——</p>
+      <p>赵天雄。外门第一人，长老赵铁山的亲侄子，火单灵根，炼气七层。原身的记忆里，这人像座随时会喷的火山，腰间那只暗红的烈阳环隔着两步都烤脸。</p>
+      <p>“聋了？”赵天雄居高临下地睨着他，嘴角那点笑，像玩坏了猫，“这月月俸，三块灵石，交出来。”</p>
+      <p>林凡脑子里最后一根弦“啪”地接上了。</p>
+      <p>他穿了。魂穿。一个三十岁的社畜，加班猝死在工位上，穿成了修仙世界一个十七岁的废物弟子。</p>
+      <p>他甚至来不及为前世那套没还完的房贷掉一滴眼泪——因为眼下这剧情，他太熟了。摸鱼八年，网文看了几百本，开局被恶霸堵、被逼交家当、当众羞辱……这不就是废柴流开篇三件套的头一件？</p>
+      <p><em>标配呢？</em>他脑子里飞速盘算，<em>穿越三件套，前世记忆有了，废物身份有了，金手指呢？系统呢？老天爷你倒是给个面板啊——</em></p>
+      <p>面板没来。来的是赵天雄耗尽的耐心。</p>
+      <p>“我问你话呢，废物。”他身后一个矮壮跟班嗤笑着抬脚又要踹。</p>
+      <p>围观的外门弟子哄笑成一片。人群角落，一个五短身材的圆脸小胖子急得直搓手，脚在原地蹭来蹭去，就是不敢上前——王二狗，炼气二层，原身唯一的朋友，怂，可此刻眼圈都急红了。</p>
+      <p>“这、这位师兄，”王二狗到底没忍住，往前挪了半步，声音抖得不成调，“林凡他不是成心挡道的，要不……这灵石就算了呗？”</p>
+      <p>“你算个什么东西，也配替他求情？”赵天雄眼皮都没抬，身后那矮壮跟班已经一脚把二狗踹了个趔趄。二狗“哎哟”一声坐倒在地，再不敢吭声，只拿一双急红的眼睛，可怜巴巴地望着林凡。</p>
+      <p>哄笑声更大了。这就是外门的规矩：强者立威，弱者看戏，替废物出头的，连废物一块儿踩。林凡把这一切收在眼底，面上是化不开的怂，心里那笔账，却冷冷地记下了。</p>
+      <p><em>赵天雄。</em>他垂着眼，<em>这笔，慢慢算。</em></p>
+      <p>林凡慢慢把被踩的手抽回来，指节红肿。他没敢站起来，还缩着脖子——这具身子对赵天雄的恐惧是刻进骨头里的，原身的本能很诚实。</p>
+      <p>可他脑子已经转开了：<em>别慌，先看牌。</em>他一个刚穿过来、连炼气都不会喘的废物，眼下唯一能干的，就是把命保住。</p>
+      <p>何况，他这牌，是真的烂。</p>
+      <p>原身林凡，五行杂伪灵根，在这个“灵根定终身”的地方，天生就是被踩在最底下那一档：修炼比人慢十倍，连宗门发的功法都是最次的黄阶下品《引气诀》，龟速得像拿根吸管去抽干一片海。外门弟子三千，他排最后一个。而垫底的下场，白纸黑字刻在宗规上——三月后外门大比，末位者，逐出宗门。</p>
+      <p>前有恶霸，后有绝路。前世那个加班到猝死的社畜，好不容易换了张人皮，睁眼一看，新剧本的难度，比 996 还狠。</p>
+      <p><em>金手指一件没给，倒把地狱开局先塞我手里了。</em>林凡在心里骂骂咧咧，面上却半分不敢露。</p>
+      <p>“敬酒不吃。”赵天雄脸一沉，抬手，掌心腾起一簇火苗。</p>
+      <p>那火苗不太对劲。暗红里裹着一丝说不清的腥气，原身的身体本能地发毛——这半年，赵天雄的火越来越暴，越来越腥。可林凡此刻顾不上琢磨这个。</p>
+      <p>因为那簇火，离他的脸只剩半尺。</p>
+      <p>“三月后大比，你这种 F 级废物，本就要被逐出宗门。”赵天雄慢条斯理，“爷今天先给你上一课：在青云宗，废物，没资格攥着灵石。”</p>
+      <p>热浪扑得林凡睫毛发卷。围观的人静了一瞬，有人低声劝：“赵师兄，别真闹出人命……”</p>
+      <p>“人命？”赵天雄嗤笑，“一个 F 级废物，死了就死了。”</p>
+      <p>林凡后背瞬间被冷汗浸透。</p>
+      <p>那不是吓唬。原身的记忆里，外门每年都有“意外身亡”的废物，尸首往后山乱葬岗一扔，连个来问的人都没有。灵根废，命就贱——贱到可以被一句“死了就死了”，轻飘飘地揭过去。</p>
+      <p>这一刻他才真正意识到：这不是他摸鱼时刷的爽文。爽文里主角挨欺负是为了后面打脸，有光环，死不了。可他现在，是实打实地，要被一个中二病用一簇真火烧死在异世界的黄土上，连个响都不会有。</p>
+      <p><em>稳住，别浪——</em>他脑子里那句口头禅还没喊完，身体先动了。他哆哆嗦嗦把怀里三块灵石掏出来，搁到赵天雄脚边，声音抖成筛糠：“师、师兄……给你，都给你……”</p>
+      <p>装怂。这是原身的本能，也是他前世被职场磋磨八年磨出来的本能：打不过，先跪，保命第一。</p>
+      <p>可赵天雄看着脚边那三块下品灵石，火苗非但没收，反而又逼近一分。</p>
+      <p>“给是给了。”他玩味地笑，“可爷今天，心情不好。”</p>
+      <p>火苗舔到了林凡的鼻尖前三分。</p>
+      <p><em>完了。</em>林凡闭上眼。前世看过的几百本爽文疯狂闪回——每一本主角在这个当口都该觉醒金手指的——可他等来的，只有越来越烫的空气，和赵天雄那张扭曲的、享受着的脸。</p>
+      <p>上班八年没被甲方搞死，穿越第一天，要被个古代小霸王烧成一块炭。</p>
+      <p><em>这他妈，比上班惨多了。</em></p>
+      <p>奇怪的是，到了这一步，他心里那点慌，反倒慢慢沉了下去。</p>
+      <p><em>不甘心。</em>不知是前世带来的，还是今生添上的，这三个字一齐涌上来，烫得比那簇真火还厉害。前世被人按在地上磋磨，他认了；穿越一场，连挣扎都没挣扎一下就要死，他不认。</p>
+      <p><em>老天爷，你要是还长着眼——</em></p>
+      <p>就在真火即将燎上他脸皮的刹那——</p>
+      <p>他颅骨深处，毫无征兆地，响起一道声音。</p>
+      <p>那声音没有温度。像老式电子表整点报时，又像有谁在他脑子里，不轻不重，敲了一记冰凉的磬。</p>
+      <div class="sys">【叮——】</div>
+      <div class="sys">【长生签到系统，绑定成功。】</div>
+      <div class="sys">【正在读取宿主数据……身份：今世线·林凡。】</div>
+      <div class="sys">【宿主初始道源：100。】</div>
+      <p>林凡猛地睁开眼。</p>
+      <p>就在他眼前，在那簇真火的正后方，凭空浮起一行幽蓝的字，只有他一个人看得见。</p>
+      <p>金手指……</p>
+      <p>真来了？</p>
+      <div class="ro-next"><button class="btn btn-ghost" onclick="rTab(2)">下一章 →</button></div>
+    </div>
+    <div class="ro-page" data-rp="2">
+      <h3>第二章 签到，启动</h3><div class="rm">约 2,400 字 · 写手 Agent 产出 · 未发布</div>
+      <p>“赵师兄！赵师兄——”</p>
+      <p>一声急喝从院门口传来，一个跑得上气不接下气的弟子扒着门框：“赵长老喊你！说、说是内门来人了，让你即刻过去！”</p>
+      <p>赵天雄脸色一变。掌心那簇真火，悻悻地缩了回去。</p>
+      <p>林凡差点当场瘫软——他盯着眼前那行幽蓝的字看得太入神，竟一时忘了自己鼻尖还架着一簇火。</p>
+      <p>“算你命大。”赵天雄居高临下地啐了一口，一脚把地上那三块灵石踢回林凡脚边，“这点破石头，爷稀罕？留着给你自己收尸吧。大比见，废物——到时候，别哭着求爷。”</p>
+      <p>他甩袖走了，一群跟班嬉笑着跟上。</p>
+      <p><em>灵石：3。</em>林凡机械地把石头捡回怀里。<em>没亏。</em></p>
+      <p>“哥！哥你没事吧！”王二狗连滚带爬冲过来，圆脸憋得通红，又是想扶又是不敢碰，“我、我刚才想上去的，真的，我……”</p>
+      <p>“没事。”林凡摆摆手。他现在满脑子只有那行字，和那行字底下正缓缓展开的一整块幽蓝面板。</p>
+      <p><em>系统。我居然真有系统。</em></p>
+      <p>他强压着心跳，任由王二狗一路搀着、絮絮叨叨地把他送回外门角落那间四处漏风的柴房。二狗的嘴就没停过：“哥我跟你讲——赵天雄那孙子这回是真下狠手了，你可得当心。三月后外门大比，进前十的直升内门，垫底的……直接逐出宗门啊哥！你这灵根，唉……”</p>
+      <p><em>进前十升内门，垫底滚蛋。</em>林凡默默记下。<em>deadline 三个月，KPI 是别垫底。这不比上班熟？</em></p>
+      <p>“对了哥，”二狗压低嗓门，一脸神秘，“你知道内门来的是谁不？十有八九是沈仙子那一挂的。沈青霜啊！内门第一天才，太冰灵根，筑基前期，啧，咱外门这些泥腿子，人家正眼都不带瞧的。”他忽然咧嘴一笑，“不过哥，论胆子，整个外门还真没人比得过你——去年后山那回，沈仙子被两头妖兽围了，你个炼气一层的，愣是扑上去替她挡了一剑，差点没把命交代了！”</p>
+      <p>林凡一怔。原身的记忆里，果然翻出这么一桩头铁往事。</p>
+      <p>“可惜喽，”二狗砸吧砸吧嘴，惋惜地摇头，“人家沈仙子那样的天之骄女，早把你这号人忘干净啦。”</p>
+      <p><em>忘了才好。</em>林凡把二狗打发走，插上柴房那扇破门，长长吐出一口气。<em>我一个刚上任的废物，可经不起大人物惦记。</em></p>
+      <p>他盘腿坐到草席上，终于，郑重其事地看向那块只有他能看见的幽蓝面板。</p>
+      <div class="sys">【长生签到系统 · 宿主面板】</div>
+      <div class="sys">【境界：炼气一层（1 / 9）】【修为：12%】</div>
+      <div class="sys">【灵根：五行杂 · 伪灵根（资质 F）· 可洗】</div>
+      <div class="sys">【道源：100】【功德：0】【灵石：3（下品）】</div>
+      <div class="sys">【系统战力评定：蝼蚁级 · 108】【签到天数：第 1 天】</div>
+      <p>林凡的嘴角抽了抽。</p>
+      <p><em>蝼蚁级。战力 108。</em></p>
+      <p><em>108 是个什么概念。隔壁二狗那种炼气二层的，怕不是有小两千。我一个正儿八经的魂穿主角，开局战力，跟一只稍微壮点的蟑螂，一个段位。</em></p>
+      <p>他的目光又在“灵根”那一栏顿了顿。五行杂·伪灵根，资质 F——这个他认了，烂就烂。可后头那两个字他盯了很久：</p>
+      <p>可洗。</p>
+      <p><em>可洗？</em>林凡心跳漏了一拍。<em>废灵根……能改？</em></p>
+      <p>他强按下这点念头，先干正事。面板最上头，一个圆形的幽蓝图标正一闪一闪，底下四个字——</p>
+      <div class="sys">【今日签到】</div>
+      <p><em>来了。</em>林凡深吸一口气，在心里默念：签到，启动！</p>
+      <div class="sys">【叮——签到成功。】</div>
+      <div class="sys">【当前地点：外门弟子院（灵气系数 ×2）。获得道源：基础 10 × 2 = 20。】</div>
+      <div class="sys">【当前道源：100 → 120。】</div>
+      <p>一股温热的暖流，凭空从面板上淌进他的四肢百骸。不多，却真真切切。</p>
+      <p>林凡愣了半晌，忽然想笑。</p>
+      <p><em>我上班八年，老板画的饼从没兑现过一张。这系统，签个到，说给二十就给二十，一分不差。</em></p>
+      <p><em>这不比上班强？</em></p>
+      <p>他一鼓作气点开面板角落那个“商店”。幽蓝的货架哗啦一下铺开——</p>
+      <div class="sys">【系统商店 · 当前解锁：Lv1（签到第 1 天）】</div>
+      <div class="sys">【聚气丹 ×1 —— 30 道源（服后修为 +8%）】【《引气诀 · 全解》—— 50 道源】</div>
+      <div class="sys">【青锋剑 —— 200 道源（法器 · 黄中）】【直充 · 修为 +1% —— 20 道源 / %】</div>
+      <p>底下那排灰蒙蒙的、买不了的东西，林凡还是手贱扒拉开看了一眼。这一看，他呼吸都滞了半秒：</p>
+      <div class="sys">【《寒霜真解》—— 800 道源（功法 · 玄中 · 越阶战力）】</div>
+      <div class="sys">【洗髓丹 —— 5000 道源（灵根改造：伪灵根 → 单系提纯一档）】</div>
+      <p><em>洗髓丹。</em>林凡死死盯着那三个字。<em>五千道源。伪灵根提纯一档——这就是“可洗”两个字的出处。</em></p>
+      <p><em>我这身 F 级废灵根，能靠它翻身。</em></p>
+      <p>他咽了口唾沫。五千道源。他现在满打满算一百二。就算天天在外门院签到，一天二十，他得签到二百五十天——整整一年。</p>
+      <p><em>一年就一年。</em>林凡在心里咬牙。<em>别浪，先苟。一天二十，日拱一卒，总有薅够的那天。</em></p>
+      <p>眼下，他只有一百二，还得先活过三个月的大比。他把货架翻回 Lv1，目光落在那颗最便宜、最实在的东西上。</p>
+      <p><em>直充修为 20 道源 1%，太贵，前期氪不起。功法全解 50，回头再说。先——把根扎稳。</em></p>
+      <p>他一咬牙，点了下去。</p>
+      <div class="sys">【购买：聚气丹 ×1。消耗道源：30。当前道源：120 → 90。】</div>
+      <p>他摊开手掌，一枚拇指大、泛着淡青光泽的丹丸，凭空落在掌心，还带着点温。</p>
+      <p>林凡没犹豫，仰头吞了下去。</p>
+      <p>丹丸入腹即化，一股远比签到那点暖流磅礴百倍的灵气，轰然在丹田里炸开、游走。原身那条堵了半年的经脉，像被人从里往外一点点泡开、撑宽，又酸又胀又爽，爽得他头皮发麻。</p>
+      <div class="sys">【聚气丹已服用。修为：12% → 20%。库存：聚气丹 ×0。】</div>
+      <p>二十分钟后，那股躁动的灵气终于被他磕磕绊绊地炼化、沉淀下去。林凡睁开眼，长长呼出一口白气，只觉丹田充盈，气感前所未有地清晰——他甚至能“看”到空气里那些细小的灵气微粒，正被自己这具身体一丝丝往里吸。</p>
+      <p><em>这就是修仙？</em>他晃了晃有些发飘的脑袋，又扫了眼面板。</p>
+      <p>境界那栏，还是雷打不动的“炼气一层”。8% 而已，离突破二层差得远。</p>
+      <p>战力评定那栏——</p>
+      <div class="sys">【系统战力评定：蝼蚁级】</div>
+      <p>林凡：“……”</p>
+      <p><em>系统你礼貌吗。老子修为涨了整整 8%，评级栏还是蝼蚁级？</em></p>
+      <div class="sys">【蝼蚁级（壮硕）。】</div>
+      <p>面板不咸不淡地补了两个字。</p>
+      <p>林凡差点一口气没上来，随即又乐了。<em>行。壮硕的蝼蚁，也是进步。</em>他拍拍膝盖站起来，忽然，面板一闪，弹出一行新字——</p>
+      <div class="sys">【叮——检测到高灵气节点。已标记：藏经阁（灵气系数 ×5）。】</div>
+      <div class="sys">【提示：该地点可签到，道源产出为外门弟子院的 2.5 倍。】</div>
+      <p><em>×5？！</em>林凡眼睛一下亮了。<em>外门院才 ×2，藏经阁签一次顶两次半？一天五十道源？</em></p>
+      <p>薅羊毛的账，他前世算得比谁都精。他正美滋滋盘算着明天怎么摸进藏经阁——</p>
+      <p>面板毫无征兆地又是一闪，这次，那行字是刺眼的血红：</p>
+      <div class="sys">【警告：检测到未知神识扫描。方位：内门。强度：远超宿主。判定——未知观测者。】</div>
+      <p>林凡浑身一僵，后颈的汗毛根根竖起。</p>
+      <p>他猛地抬头，望向柴房那扇漏风破窗外、内门方向那片被暮色染红的飞檐。</p>
+      <p><em>内门？</em>他脑子里嗡的一声，<em>一个外门废物，有什么好看的……除非。</em></p>
+      <p>他想起二狗那句话——内门来人了。沈青霜。</p>
+      <p><em>不可能。</em>他强迫自己冷静，<em>我就是个签个到、吃颗丹的蝼蚁，谁会盯着我。</em></p>
+      <p>可那道扫过来的神识，冷得像冰，又收得极快，像蜻蜓点水，却又确确实实——</p>
+      <p>是冲着他来的。</p>
+      <div class="ro-next"><button class="btn btn-ghost" onclick="rTab(3)">下一章 →</button></div>
+    </div>
+    <div class="ro-page" data-rp="3">
+      <h3>第三章 扮猪吃老虎</h3><div class="rm">约 2,500 字 · 写手 Agent 产出 · 未发布</div>
+      <p>第二天一早，林凡就领到了他穿越后的第一份“班”。</p>
+      <p>外门执事丢给他一块木牌：藏经阁，搬书、抄录、洒扫，做满一日，记贡献一分，换月俸。别的弟子都嫌这差事清苦晦气，躲还来不及，林凡却差点没笑出声。</p>
+      <p><em>藏经阁。灵气 ×5 的签到福地。</em>他把木牌揣好，脚步都轻快了。<em>这不叫上班，这叫带薪薅羊毛。</em></p>
+      <p>藏经阁在外门最深处，是一座三层的老木楼，飞檐斑驳，门口一株老得看不出年头的槐树。楼里静得能听见尘埃落地，一排排顶到房梁的书架间，常年一股旧纸和陈墨混着的味道。</p>
+      <p>林凡刚踏进门，面板就“叮”地一亮：</p>
+      <div class="sys">【叮——首次抵达：藏经阁（灵气系数 ×5）。触发首访探索奖励：道源 +100。】</div>
+      <div class="sys">【提示：奖励需在此地完成一次签到解锁。检测到宿主今日签到额度已用尽（每日限一次）。】</div>
+      <div class="sys">【奖励暂挂起，明日可领。】</div>
+      <p><em>+100 躺着等我领？！</em>林凡心里一阵狂喜，又一阵肉疼——今天的签到，一大早就在外门院用掉了。<em>明天，明天必来薅。这一百道源，谁跟我抢我跟谁急。</em></p>
+      <p>他强压下咧到耳根的嘴角。这地方还有别人，他可不敢当众对着空气傻乐。</p>
+      <p>书架尽头，一个佝偻的老杂役正拄着扫帚，有一下没一下地扫着地。老头须发花白，一身洗得发灰的粗布短打，浑浊的眼睛半睁半闭，像随时能靠着书架睡过去。林凡认得他——韩拾遗，藏经阁的掌书老杂役，炼气都没炼利索的残废，在外门比林凡还底层，是连赵天雄都懒得踩一脚的存在。</p>
+      <p>“新来的？”老头咧开缺了牙的嘴，慢吞吞地打岔，“嘿，这楼啊……冷。你多穿点。书别摆歪咯，摆歪了……唉，我也记不清摆哪了。”</p>
+      <p><em>一个老糊涂。</em>林凡礼貌地应了声，自去搬他的书。</p>
+      <p>然而清净没享上一刻钟。</p>
+      <p>“哟，这不是林大废物吗？”</p>
+      <p>一个矮壮身影堵在书架口——孙彪，赵天雄的跟班之一，炼气五层，昨天踹林凡那一脚就是他。他手里攥着一卷摊开的功法抄本，脸憋得青紫，额角还挂着汗，一副修炼不顺、正憋着火没处撒的样子。</p>
+      <p>“过来！”孙彪把抄本往桌上一拍，居高临下，“研墨。爷抄经。”</p>
+      <p>林凡缩了缩脖子，老老实实过去研墨。<em>装怂。别惹事。</em>他一边磨墨，一边眼角余光扫过那卷抄本——是一门最基础的引气法门，讲的是灵气如何过经脉、通周天。</p>
+      <p>孙彪盯着那卷抄本，越看越烦躁，忽然一拳砸在桌上：“什么破功法！‘气行淤脉，逆则伤身’，逆你个头！爷顺着引了三天，那个坎就是过不去，一顶就走火，疼得跟针扎似的！这残缺功法，写它的祖师爷就是个废物！”</p>
+      <p>他骂骂咧咧，一口闷气堵在胸口，顺手就撒到林凡脸上：“你！废物！把这段口诀给爷念顺了，念不顺，今天这墨你就跪着研！”</p>
+      <p>林凡本能地想装死。可他垂着眼，又忍不住瞟了那口诀一眼——</p>
+      <p>然后他愣住了。</p>
+      <p><em>这不就是……那个坎吗。</em></p>
+      <p>原身在这门龟速功法上卡了整整半年，每一个淤堵、每一处经脉的窄口，林凡如今熟得闭着眼都能画出来。而孙彪卡的这个坎，原身当年也卡过——原身当年也是死命“硬顶”，顶得吐血。</p>
+      <p>可林凡不是原身。他是个在工位上跟各种死循环 bug 死磕了八年的社畜。他脑子里第一反应根本不是什么修仙口诀，而是：</p>
+      <p><em>硬怼一个堵点怼三天怼不动？那不叫功法残缺，那叫方法不对。此路不通，你倒是绕一下啊。</em></p>
+      <p>这念头太自然，自然到他没忍住，低声咕哝了出来：</p>
+      <p>“……那个坎，别硬顶。气从旁边的支脉绕一下，一点点泡开它，顶，是顶不过去的。”</p>
+      <p>孙彪一愣，随即勃然大怒：“废物懂个屁！支脉引气？你当爷没试过——”</p>
+      <p>话没说完，他自己噎住了。他试过硬顶，试过加量，试过换时辰，唯独没试过“绕”。一个炼气五层的火爆脾气，遇上坎只知道往死里怼，压根没想过还能迂回。</p>
+      <p>死马当活马医。孙彪一脸不服气地重新盘膝，依言把那缕灵气从主脉分出去、贴着旁边一条细支脉，小心翼翼地往那个淤堵点外围一点点浸、一点点泡——</p>
+      <p>那个卡了他三天、一碰就走火的坎，竟“咕”地一声，松了。</p>
+      <p>灵气顺畅地淌了过去。</p>
+      <p>孙彪猛地睁眼，脸上血色褪得干干净净，像见了鬼一样死死盯着林凡：一个 F 级废灵根、炼气一层的废物，一句话，点破了他卡了三天的关？</p>
+      <p>“我、我瞎说的！”林凡的怂劲儿瞬间回笼，连连摆手，腰弯得更低了，“蒙的！蒙对的！师兄天资高，自己悟出来的，跟我没关系，真的……”</p>
+      <p>他心里却在滴血：<em>失策了失策了。装了半天怂，一时嘴欠。低调，低调啊林凡！</em></p>
+      <p>孙彪脸上青一阵白一阵，又羞又恼，可“被废物点破”这种事说出去只会更丢人。他狠狠剜了林凡一眼，一把抄起那卷功法，撂下句“算你识相”，灰溜溜地走了。</p>
+      <p>林凡松了口气，直起腰——</p>
+      <p>“唰”的一声。</p>
+      <p>书架另一头，那个老杂役的扫帚，不知何时，停了。</p>
+      <p>林凡循声看去。韩拾遗拄着扫帚，浑浊的眼睛正落在他身上。就那么一瞬，老头眼里那层昏聩的雾散了，底下是一种林凡看不懂的、极深极静的东西。老头的鼻翼极轻微地动了动，像是嗅到了什么陈年旧味。</p>
+      <p>四目相对的刹那，林凡后背莫名一凉。</p>
+      <p>可下一瞬，那点异样就没了。韩拾遗又眯起眼，咧开缺牙的嘴，慢吞吞地、像是自言自语地咕哝：</p>
+      <p>“……绕过去啊。是喽，绕过去就是了。多少人一辈子，就死在那个‘顶’字上喽……”</p>
+      <p>老头摇头晃脑，重新扫起地来，浑浊的眼皮耷拉下去，又是那副随时能睡着的老糊涂样。</p>
+      <p><em>神经病。</em>林凡揉了揉发凉的后颈，没往心里去。<em>一个连炼气都没成的扫地老头，能看出什么。</em></p>
+      <p>他没看见，在他转身搬书之后，那把扫帚，又在原地，静静停了很久。</p>
+      <hr class="scene">
+      <p>日头偏西，林凡做满了一日的杂役，拖着酸胀的胳膊往回走。刚出藏经阁那株老槐树的荫子，面板毫无征兆地大放光明，一行行金字比之前任何一次都要庄重：</p>
+      <div class="sys">【叮——检测到宿主完成阶段性成长（卑微）。触发条件达成，发布首个主线任务——】</div>
+      <div class="sys">【主线任务：三月之约】</div>
+      <div class="sys">【目标：参加三月后外门大比，最终排名进入前十。】</div>
+      <div class="sys">【奖励：洗髓丹 ×1（灵根改造：五行杂 · 伪灵根 → 单系提纯一档）。】</div>
+      <div class="sys">【失败惩罚：按宗门规，外门大比垫底者，逐出宗门。】</div>
+      <div class="sys">【宿主当前战力评定：蝼蚁级。达成概率：0.7%。祝宿主好运。】</div>
+      <p>林凡站在槐树下，盯着那行金字，盯了很久很久。</p>
+      <p>洗髓丹。</p>
+      <p>商店里标价五千道源、他得薅整整一年羊毛才够得着的那颗洗髓丹——现在，系统把它，当成大比前十的任务奖励，白送。</p>
+      <p><em>进前十，就能白嫖一颗洗髓丹。</em>他的心脏狂跳起来，<em>洗掉这身 F 级废灵根，提纯一档。翻身。</em></p>
+      <p>代价是，他得在三个月后，从一个战力 108 的壮硕蝼蚁，挤进整个外门的前十——那里头，坐着炼气七层、开局就想烧死他的赵天雄。</p>
+      <p>达成概率，系统给的，0.7%。</p>
+      <p>搁前世，老板给他派这么个 KPI，他扭头就递辞职信。</p>
+      <p>可林凡看着那行冷冰冰的“0.7%”，忽然笑了。</p>
+      <p><em>别人看这是死路。</em>他握了握拳，那句被系统噎回去的话，重新在心里响起来。</p>
+      <p><em>我看这是——签到。</em></p>
+      <p>一天二十，藏经阁一天五十，明天还有一百躺着等他领。日拱一卒，苟着，攒着，一天天变强。三个月，足够他把一只壮硕的蝼蚁，喂成一头谁都没提防的老虎。</p>
+      <p>到那时，大比场上，他倒要看看——</p>
+      <p>赵天雄那张“废物也配”的脸，会是什么颜色。</p>
+      <p>林凡最后看了一眼那颗遥遥挂在任务栏里的洗髓丹，转身，朝着外门院的方向走去。暮色把他瘦小的影子拉得很长。</p>
+      <p>“稳住，别浪——”他冲着空无一人的小径，轻声念出那句口头禅，唇角却压不住地往上扬。</p>
+      <p>“先苟。”</p>
+      <p><em>签到，启动。</em></p>
+      <div class="ro-next"><button class="btn btn-primary" onclick="closeReader()">读完了 · 回到世界</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="tip" id="tip"></div>
+<div class="locpop" id="locpop"></div>
+
+<!-- 书架 = 存档位 -->
+<div class="shelf" id="shelf">
+  <div class="sh-t"><h1>书 架</h1><span>一本书，就是一局你造的世界 · 选存档进入</span></div>
+  <div class="saves">
+    <div class="save" onclick="enterBook()">
+      <span class="sv-glow"></span>
+      <div class="sv-genre">系统流修仙 × 魂穿</div>
+      <h3>我在青云宗<br>打卡修仙</h3>
+      <div class="sv-meta">卷一 · 外门篇<br>正文 0 字 · 世界已就位<br>停在：开篇前夜</div>
+      <div class="sv-cta">继续这局<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+    </div>
+    <div class="save dormant" onclick="toast('这本书的世界也活着——探针里先不进去')">
+      <div class="sv-genre">规则怪谈</div>
+      <h3>我在规则怪谈里<br>开民宿</h3>
+      <div class="sv-meta">卷二 · 山雾深处<br>第 47 章 · 雨夜来客（终）<br>停在：第十三把钥匙</div>
+      <div class="sv-cta" style="color:var(--color-text-tertiary)">休眠中</div>
+    </div>
+    <div class="save newbook" onclick="startGenesis()">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 5v14M5 12h14"/></svg>
+      <span>开新书 · 创世</span>
+    </div>
+  </div>
+</div>
+
+<!-- 创世流程 -->
+<div class="gen" id="gen">
+  <div class="gen-step" id="gen-sky">
+    <span class="gen-back"><button class="btn btn-ghost" onclick="genBack()">‹ 回书架</button></span>
+    <div class="gen-head"><h2>观 星</h2><span>每颗星，是市场上正在烧的一路题材 · 连亮两三颗，就是你这本书的星座</span></div>
+    <svg id="gen-lines"></svg>
+    <div id="gen-stars"></div>
+    <div class="gen-foot" id="gen-foot"></div>
+  </div>
+  <div class="gen-step" id="gen-forge">
+    <span class="gen-back"><button class="btn btn-ghost" onclick="genSky()">‹ 回星空</button></span>
+    <div class="chips" id="forge-picked"></div>
+    <div class="seed" id="seed"></div>
+    <div class="seedcard">
+      <div class="dlg-kicker" style="margin-bottom:6px;">书 种</div>
+      <h3 id="seedname">《我在青云宗打卡修仙》</h3>
+      <div class="sc-one">社畜魂穿青云宗最废外门弟子，绑定签到系统——人人内卷，他靠打卡躺平，扮猪吃虎。</div>
+      <div class="chips seedrow">
+        <span class="cc"><b>金手指</b>长生签到系统</span>
+        <span class="cc"><b>主角</b>林凡 · 苟但有底线</span>
+        <span class="cc"><b>开局</b>黄金三章已备</span>
+      </div>
+    </div>
+    <div class="seednote" id="seednote"></div>
+    <div class="forge-btns">
+      <button class="btn btn-ghost" onclick="cycleTitle()">换个书名</button>
+      <button class="btn btn-primary" onclick="plantSeed()">埋进虚空 · 让世界长出来</button>
+    </div>
+  </div>
+</div>
+
+<div class="genfin" id="genfin">
+  <div class="gf-k">世 界 已 成 形</div>
+  <h2>玄苍界</h2>
+  <p>四处地点亮起，众人入住各归其位<br>大纲铺到外门大比 · 黄金三章挂在外门金旗上</p>
+  <button class="btn btn-primary" onclick="genDone()">开局 · 去点金旗</button>
+</div>
+
+<script>
+  /* ================= 世界状态 ================= */
+  const LOC = { waimen: [30, 64], cangjing: [50, 46], yanwu: [40, 76], neimen: [68, 34], houshan: [80, 20], mijing: [86, 60] };
+  let G = 'start';           // start | playing | loot | after
+  let playTimers = [];
+
+  const trackData = [
+    { id: 't1', label: '开局 · 魂穿绑定', state: 'current' },
+    { id: 't2', label: '藏经阁的一百道源', state: 'todo' },
+    { id: 't3', label: '外门风波', state: 'todo' },
+    { id: 't4', label: '外门大比', state: 'todo', boss: true },
+    { id: 't5', label: '青冥秘境', state: 'todo' },
+  ];
+
+  function renderTrack() {
+    const host = document.getElementById('tkin');
+    host.querySelectorAll('.tk-node, .tk-link, .tk-fade').forEach(n => n.remove());
+    trackData.forEach((n, i) => {
+      if (i > 0) { const l = document.createElement('span'); l.className = 'tk-link' + (trackData[i-1].state === 'done' ? ' done' : ''); host.appendChild(l); }
+      const el = document.createElement('span');
+      el.className = 'tk-node ' + n.state + (n.boss ? ' boss' : '');
+      el.innerHTML = '<span class="nd"></span><span class="nl">' + n.label + '</span>';
+      el.onclick = () => trackClick(n);
+      host.appendChild(el);
+    });
+    const f = document.createElement('span'); f.className = 'tk-fade'; f.textContent = '卷二 · 内门篇 ▸'; host.appendChild(f);
+  }
+  function trackClick(n) {
+    if (n.id === 't1' && G === 'start') { openPlan(); return; }
+    if (n.state === 'done') { openReader(1); return; }
+    if (n.id === 't2' && G === 'after') { toast('下一副本 · <b>藏经阁的一百道源</b>——Agent 正在备计划（探针到此为止）'); return; }
+    if (n.boss) { toast('卷一 Boss · <b>外门大比</b>——走到这一格之前，主角的牌得够进前十；现在 0.7%，差的这段距离就是卷一的戏'); return; }
+    toast('大纲上的未来节点——还没写到，点当前发光的那个');
+  }
+
+  /* ================= 地点 / NPC：悬浮提示 + 详情卡 ================= */
+  const IMGF = { lin: 'x-linfan.png', shen: 'x-shen.png', zhao: 'x-zhao.png', han: 'x-han.png', wang: 'x-wang.png' };
+  const LOCS = {
+    waimen:  { n: '外门弟子院', s: '灵气 ×2 · 主角驻地', d: '三千外门弟子的院落群，林凡那间四处漏风的柴房在最角落。每天的签到从这里开始。', who: [['lin','凡'],['wang','狗']] },
+    cangjing:{ n: '藏经阁', s: '灵气 ×5 · 签到福地', d: '三层老木楼，旧纸和陈墨的味道。楼里有个连赵天雄都懒得踩的扫地老头——别小看他。', who: [['han','韩']] },
+    yanwu:   { n: '演武场', s: '三月后 · 外门大比', d: '卷一的大戏台：进前十直升内门，末位逐出宗门。赵天雄在这里等着。', who: [['zhao','雄']] },
+    neimen:  { n: '内门', s: '天才所居 · 外门止步', d: '那道冷得像冰的神识，就是从这片飞檐后扫出来的。', who: [['shen','霜']] },
+    houshan: { n: '后山禁地', s: '迷雾未开', d: '乱葬岗的传闻在弟子间流传。大纲走到那一格，雾才会散。', who: [] },
+    mijing:  { n: '青冥秘境', s: '封印中 · 卷一后段', d: '卷一后段才开启的副本。传闻里面灵石不管用，得守秘境自己的规矩。', who: [] },
+  };
+  function onLoc(id) {
+    if (G === 'playing' || G === 'genesis') return;
+    if (id === 'waimen' && G === 'start') { openPlan(); return; }
+    openLocPop(id);
+  }
+  function openLocPop(id) {
+    const L = LOCS[id]; if (!L) return;
+    const el = document.getElementById('loc-' + id); if (!el) return;
+    hideTip();
+    const p = document.getElementById('locpop');
+    let extra = '';
+    if (id === 'cangjing') {
+      extra = '<div class="lp-act"><button class="btn btn-primary" style="width:100%;padding:7px 12px;font-size:var(--font-size-xs);" onclick="enterScene(\'cangjing\')">走进藏经阁</button>'
+        + (G === 'after' ? '<button class="btn btn-ghost" style="width:100%;margin-top:6px;padding:7px 12px;font-size:var(--font-size-xs);" onclick="toast(\'下一副本 · <b>藏经阁的一百道源</b>——Agent 正在备计划（探针到此为止）\')">下一副本 · 看计划</button>' : '')
+        + '</div>';
+    }
+    if (id === 'mijing') {
+      extra = '<div class="fogbox"><div class="fx"></div><span>？？？</span></div>'
+        + '<p style="margin:0;">这是<b style="color:var(--color-text)">独立的一方天地</b>：进去有自己的地图、自己的规矩——灵石在里面不管用。大纲走到卷一后段，封印才开。</p>';
+    }
+    const sub = (id === 'cangjing' && G === 'after') ? '灵气 ×5 · +100 挂起' : L.s;
+    p.innerHTML = '<h5>' + L.n + '</h5><div class="lp-sub">' + sub + '</div><p>' + L.d + '</p>'
+      + (L.who.length ? '<div class="lp-who">' + L.who.map(w => '<span class="ava ' + w[0] + '">' + w[1] + '</span>').join('') + '<span class="wt">在此</span></div>' : '')
+      + extra;
+    const r = el.getBoundingClientRect();
+    p.style.left = (r.left + r.width / 2) + 'px';
+    p.style.top = (r.bottom + 2) + 'px';
+    p.classList.add('on');
+  }
+  function closeLocPop() { document.getElementById('locpop').classList.remove('on'); }
+  document.addEventListener('click', e => {
+    const p = document.getElementById('locpop');
+    if (p.classList.contains('on') && !p.contains(e.target) && !e.target.closest('.loc')) closeLocPop();
+  });
+
+  const TIPS = {
+    'sp-wang': () => '<span class="tt">王二狗 · 损友</span>炼气二层——消息比谁都灵通，怂但仗义',
+    'sp-zhao': () => '<span class="tt">赵天雄 · 反派</span>炼气七层——那簇火里，带着一丝说不清的腥气',
+    'sp-han':  () => G === 'after' ? '<span class="tt">韩拾遗 · 单向知情</span>他认出了系统的气息——暗中留意，不点破' : '<span class="tt">韩拾遗 · 老杂役</span>连赵天雄都懒得踩一脚的存在',
+    'sp-shen': () => '<span class="tt">沈青霜 · 女主</span>内门第一天才——与你有一桩替她挡剑的旧事',
+    'piece':   () => '<span class="tt">林凡 · 主角</span>点开看面板、背包、功法',
+  };
+  function spriteFB(img, cls, ch) {
+    const host = img.parentElement;
+    img.remove();
+    if (!ch) { const s = host.closest('.sprite'); if (s) s.remove(); return; }
+    const fb = document.createElement('span');
+    fb.className = 'sfb ' + cls;
+    fb.textContent = ch;
+    host.prepend(fb);
+  }
+  function bindHover() {
+    Object.keys(TIPS).forEach(id => {
+      const el = document.getElementById(id); if (!el) return;
+      el.addEventListener('mouseenter', () => showTip(el, TIPS[id]()));
+      el.addEventListener('mouseleave', hideTip);
+      if (id !== 'piece') el.addEventListener('click', () => { showTip(el, TIPS[id]()); setTimeout(hideTip, 2600); });
+    });
+    document.querySelectorAll('.loc').forEach(el => {
+      const id = (el.id || '').replace('loc-', ''); const L = LOCS[id]; if (!L) return;
+      el.addEventListener('mouseenter', () => showTip(el, '<span class="tt">' + L.n + '</span>' + L.s));
+      el.addEventListener('mouseleave', hideTip);
+    });
+    const sh = document.getElementById('scn-han');
+    if (sh) {
+      sh.addEventListener('mouseenter', () => showTip(sh, TIPS['sp-han']()));
+      sh.addEventListener('mouseleave', hideTip);
+    }
+  }
+  /* ================= 场景层 ================= */
+  function enterScene(id) {
+    if (id !== 'cangjing') { toast('这个地点的场景还没铺——先拿藏经阁感受'); return; }
+    closeAll(); renderScene();
+    document.getElementById('scene').classList.add('on');
+  }
+  function leaveScene() { document.getElementById('scene').classList.remove('on'); }
+  function renderScene() {
+    const after = (G === 'after' || G === 'loot');
+    document.getElementById('scn-chips').innerHTML =
+      '<span class="hud-chip">灵气 ×5 · 签到福地</span>'
+      + (after ? '<span class="hud-chip" style="border-color:rgba(217,162,74,.5);color:var(--color-primary)">+100 首访奖励 · 明日签到可领</span>' : '<span class="hud-chip">未探明 · 大纲走到才有戏</span>');
+    const ev = document.getElementById('scn-events');
+    if (!after) {
+      ev.innerHTML = '<h5>此地发生过</h5><div class="se">还没有剧情落在这里——开局三章写完，这里会热闹起来。</div>';
+    } else {
+      ev.innerHTML = '<h5>此地发生过</h5>'
+        + '<div class="se"><span class="sc-ch">第3章</span><span>林凡一句<b>“绕支脉泡开”</b>点破孙彪卡关——爽点落在这张书案上</span></div>'
+        + '<div class="se"><span class="sc-ch">第3章</span><span><b>韩拾遗的扫帚停了</b>——他认出了系统的气息，没点破</span></div>'
+        + '<div class="se"><span class="sc-ch">第3章</span><span>出门那株老槐树下，系统发布主线任务<b>「三月之约」</b></span></div>';
+    }
+    const th = document.getElementById('scn-threads');
+    th.style.display = after ? '' : 'none';
+    if (after) th.innerHTML = '<h5>挂在这里的线</h5>'
+      + '<div class="se"><span>韩拾遗暗线——他早晚要开口</span></div>'
+      + '<div class="se"><span>明日清晨在此签到，挂起的 <b>+100</b> 兑现，日产提到 50</span></div>';
+  }
+
+  function showTip(el, html) {
+    const t = document.getElementById('tip');
+    const r = el.getBoundingClientRect();
+    t.innerHTML = html;
+    t.style.left = (r.left + r.width / 2) + 'px';
+    t.style.top = (r.top - 8) + 'px';
+    t.classList.add('on');
+  }
+  function hideTip() { document.getElementById('tip').classList.remove('on'); }
+
+  /* ================= 面板开合 ================= */
+  function openPlan() { if (G !== 'start') return; show('dlg-plan'); }
+  function openChar() { if (G === 'playing' || G === 'genesis') return; renderChar('attr'); show('dlg-char'); }
+  function openDrawer(which) {
+    if (G === 'playing' || G === 'genesis') return;
+    if (which === 'quest') { renderQuest(); show('dw-quest'); }
+    else { cxTab('people'); show('dw-codex'); }
+  }
+  function show(id) { closeAll(true); document.getElementById('scrim').classList.add('on'); document.getElementById(id).classList.add('on'); }
+  function closeAll(keepScrim) {
+    ['dlg-plan','dlg-char','dlg-loot','dw-quest','dw-codex'].forEach(i => document.getElementById(i).classList.remove('on'));
+    if (!keepScrim) document.getElementById('scrim').classList.remove('on');
+    closeLocPop(); hideTip();
+  }
+  function toggleBeat(n) { document.getElementById('beat' + n).classList.toggle('open'); }
+  document.querySelectorAll('.bd-v.punch').forEach(el => el.addEventListener('blur', () => toast('看点已改——写手会照<b>改后的计划</b>写')));
+
+  /* ================= 任务抽屉 ================= */
+  function renderQuest() {
+    const b = document.getElementById('questbody');
+    const chk = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>';
+    const o = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning)" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg>';
+    const g = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2.5"/></svg>';
+    if (G !== 'after') {
+      b.innerHTML = '<div class="dw-sec">主角 · 系统任务</div>'
+        + '<div class="empty">系统还没觉醒——<br>这正是开局三章要干的事</div>'
+        + '<div class="dw-sec">你 · 欠读者的</div>'
+        + '<div class="q-item"><span class="qi-ic">' + o + '</span><div><b>金手指立起来</b>——三章内系统必须响</div></div>'
+        + '<div class="q-item"><span class="qi-ic">' + o + '</span><div><b>死线钉死</b>——大比垫底逐出，让读者替他着急</div></div>'
+        + '<div class="q-item"><span class="qi-ic">' + o + '</span><div><b>女主挂上钩</b>——她得注意到他，但不能捅破</div></div>'
+        + '<div class="q-item"><span class="qi-ic">' + o + '</span><div><b>反派立威</b>——压得够狠，打脸才够响</div></div>'
+        + '<div class="q-item"><span class="qi-ic">' + o + '</span><div><b>系统的来历</b><span class="tag dim">深埋 · 卷一不动</span></div></div>';
+    } else {
+      b.innerHTML = '<div class="dw-sec">主角 · 系统任务</div>'
+        + '<div class="q-item main"><span class="qi-ic">' + g + '</span><div><b>三月之约</b>——大比进前十，奖洗髓丹<br><small style="color:var(--color-text-tertiary)">达成概率 0.7% · 读者追更的理由</small></div></div>'
+        + '<div class="q-item"><span class="qi-ic">' + g + '</span><div><b>明日 · 藏经阁签到</b>——领挂起的 +100，日产提到 50</div></div>'
+        + '<div class="dw-sec">你 · 欠读者的</div>'
+        + '<div class="q-item paid"><span class="qi-ic">' + chk + '</span><div><b>金手指 · 死线 · 女主 · 反派</b>——开局四账全兑付</div></div>'
+        + '<div class="q-item"><span class="qi-ic">' + o + '</span><div><b>洗髓丹翻身</b>——废灵根这口气，大比是兑付日</div></div>'
+        + '<div class="q-item"><span class="qi-ic">' + o + '</span><div><b>韩拾遗暗线</b>——他认得系统，早晚要开口</div></div>'
+        + '<div class="q-item"><span class="qi-ic">' + o + '</span><div><b>沈青霜的观察 · 赵天雄的禁药雷</b>——都在倒计时</div></div>'
+        + '<div class="q-item"><span class="qi-ic">' + o + '</span><div><b>系统的来历</b><span class="tag dim">仍深埋</span></div></div>';
+    }
+  }
+
+  /* ================= 册子抽屉 ================= */
+  function cxTab(t) {
+    document.querySelectorAll('#dw-codex .dw-tab').forEach(x => x.classList.toggle('sel', x.dataset.cx === t));
+    const b = document.getElementById('codexbody');
+    if (t === 'people') {
+      const rows = [
+        ['lin','凡','林凡','主角 · 炼气一层 · 五行杂灵根(可洗)', G==='after' ? '修为 20% · 道源 90 · 白天杂役夜里盘账。<b>底牌</b>：穿越者 · 有系统 · 系统来历连他自己都不知' : '修为 12% · 全部家当 3 灵石半块干粮。<b>底牌</b>：穿越者 · 有系统（刚绑定）'],
+        ['shen','霜','沈青霜','女主 · 筑基前期 · 太冰灵根', G==='after' ? '已察觉那缕反常灵气，暗中观察。<b>底牌</b>：北冥剑冢传人 · 记着替她挡剑的旧情' : '内门第一天才。<b>底牌</b>：北冥剑冢传人 · 记着替她挡剑的旧情'],
+        ['zhao','雄','赵天雄','反派 · 炼气七层 · 外门第一人', G==='after' ? '已放话大比见。<b>隐患</b>：火越来越腥——偷服禁药「嗜血丹」，雷已上膛' : '拿林凡立威。<b>隐患</b>：偷服禁药「嗜血丹」速成'],
+        ['han','韩','韩拾遗','藏经阁老杂役 · 表面炼气残废', G==='after' ? '<b>已认出系统的气息</b>——单向知情，不点破。实为元婴期，深藏' : '实为元婴期落魄太上长老，深藏。认得系统的气息'],
+        ['wang','狗','王二狗','损友 · 炼气二层 · 信息源', G==='after' ? '替读者交代了大比规则和沈青霜旧事，信任 +40' : '唯一的朋友，消息灵通，怂但仗义'],
+      ];
+      b.innerHTML = rows.map((r, i) =>
+        '<div class="cx-row ' + r[0] + '" onclick="cxMore(' + i + ')"><span class="ava"><img src="/assets/img/' + IMGF[r[0]] + '" alt="" onerror="this.remove()"><i>' + r[1] + '</i></span><div class="cm"><b>' + r[2] + '</b><span>' + r[3] + '</span></div><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-disabled)" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></div><div class="cx-more" id="cxm' + i + '">' + r[4] + '</div>'
+      ).join('');
+    } else if (t === 'events') {
+      b.innerHTML = G !== 'after'
+        ? '<div class="empty">还没有大事——<br>世界停在开篇前夜，第一个字还没写</div>'
+        : '<div class="tl-item"><span class="td"></span><span class="tc">第1章</span><span><b>魂穿入身</b> · 赵天雄逼灵石 · 系统觉醒绑定（初始道源 100）</span></div>'
+        + '<div class="tl-item"><span class="td"></span><span class="tc">第2章</span><span><b>首次签到 +20</b> · 服聚气丹修为 12→20% · 点亮藏经阁福地</span></div>'
+        + '<div class="tl-item"><span class="td"></span><span class="tc">第3章</span><span><b>藏经阁露一手</b> · 韩拾遗起疑 · 主线任务「三月之约」发布</span></div>';
+    } else {
+      b.innerHTML =
+        '<div class="set-item"><b>境界阶梯</b>：炼气(1-9层) → 筑基 → 金丹 → 元婴 → 化神 → …飞升。外门天花板＝筑基</div>'
+        + '<div class="set-item"><b>灵根</b>：天灵根 > 变异 > 双灵根 > 三/四/五行杂(伪)。林凡＝五行杂，系统标注“可洗”</div>'
+        + '<div class="set-item"><b>金手指 · 长生签到系统</b>：每日限签一次，道源＝10×地点灵气系数；商店按签到天数解锁</div>'
+        + '<div class="set-item"><b>外门大比</b>：三月后开赛。进前十直升内门，末位逐出宗门</div>'
+        + '<div class="set-item"><b>地点灵气</b>：外门院 ×2 · 藏经阁 ×5 · 洞天福地 ×10 · 秘境 ×20</div>';
+    }
+  }
+  function cxMore(i) { document.getElementById('cxm' + i).classList.toggle('on'); }
+
+  /* ================= 角色面板 ================= */
+  function cpTab(t) {
+    document.querySelectorAll('#dlg-char .dw-tab').forEach(x => x.classList.toggle('sel', x.dataset.cp === t));
+    renderChar(t);
+  }
+  function renderChar(t) {
+    const b = document.getElementById('charbody');
+    const after = (G === 'after' || G === 'loot');
+    if (t === 'attr') {
+      b.innerHTML =
+        '<div class="attr"><span class="ak">境界</span><b>炼气一层</b><span style="color:var(--color-text-tertiary);font-size:11px;">(1/9)</span></div>'
+        + '<div class="attr"><span class="ak">修为</span><span class="bar"><i style="width:' + (after ? 20 : 12) + '%"></i></span><b>' + (after ? '20%' : '12%') + '</b>' + (after ? '<span class="up">+8</span>' : '') + '</div>'
+        + '<div class="attr"><span class="ak">灵根</span><b>五行杂 · 伪</b><span class="tag gold">可洗</span></div>'
+        + '<div class="attr"><span class="ak">道源</span><b>' + (after ? '90' : '100') + '</b>' + (after ? '<span style="font-size:11px;color:var(--color-text-tertiary)">+20 签到 · −30 购丹 · +100 挂起</span>' : '') + '</div>'
+        + '<div class="attr"><span class="ak">战力</span><b>蝼蚁级' + (after ? '（壮硕）' : '') + '</b><span style="font-size:11px;color:var(--color-text-tertiary)">· 108</span></div>'
+        + '<div class="attr"><span class="ak">神识</span><b>3 丈</b></div>'
+        + '<div class="attr"><span class="ak">签到</span><b>第 1 天</b></div>';
+    } else if (t === 'bag') {
+      const dan = after
+        ? '<div class="slot used"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="1.5"><circle cx="12" cy="12" r="8"/></svg>聚气丹</div>'
+        : '<div class="slot empty-slot">空</div>';
+      b.innerHTML = '<div class="inv">'
+        + '<div class="slot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-secondary)" stroke-width="1.5"><path d="M14 3 5 12l3 3 9-9-3-3z"/><path d="m5 12-2 7 7-2"/></svg>生锈铁剑<span class="cnt">×1</span></div>'
+        + '<div class="slot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-info)" stroke-width="1.5"><path d="M6 3h12l3 6-9 12L3 9l3-6z"/></svg>下品灵石<span class="cnt">×3</span></div>'
+        + '<div class="slot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-secondary)" stroke-width="1.5"><circle cx="12" cy="12" r="8"/><path d="M12 4v16"/></svg>半块干粮<span class="cnt">×1</span></div>'
+        + dan
+        + '</div>'
+        + (after ? '<div style="margin-top:12px;font-size:11px;color:var(--color-text-tertiary);">聚气丹已服用 · 修为 +8%——账本与正文对得上</div>' : '');
+    } else {
+      b.innerHTML =
+        '<div class="attr"><span class="ak">已修</span><b>《引气诀》</b><span class="tag dim">黄阶下品 · 原主自带 · 龟速</span></div>'
+        + '<div class="attr"><span class="ak">可购</span><b>《引气诀 · 全解》</b><span style="font-size:11px;color:var(--color-text-tertiary)">系统商店 50 道源</span></div>'
+        + '<div class="attr"><span class="ak">眼馋</span><b>《寒霜真解》</b><span style="font-size:11px;color:var(--color-text-tertiary)">玄中 · 800 道源 · 未解锁</span></div>';
+    }
+  }
+
+  /* ================= 出征 · 写作过场 ================= */
+  const PLAY = [
+    { t: 300,  ch: 1, loc: 'waimen',   txt: '第一章 · <b>魂穿与叮的一声</b> 写作中…' },
+    { t: 1400, evt: 'waimen',  html: '赵天雄堵门 · 真火压脸' },
+    { t: 3000, evt: 'waimen',  html: '<b>「叮」系统绑定</b> · 初始道源 100' },
+    { t: 4300, ch: 2, txt: '第二章 · <b>签到，启动</b> 写作中…' },
+    { t: 5000, evt: 'waimen',  html: '首次签到 <b>+20 道源</b>' },
+    { t: 6400, evt: 'waimen',  html: '服聚气丹 · 修为 <b>12% → 20%</b>', cult: 20, dao: 90 },
+    { t: 7700, ch: 3, txt: '第三章 · <b>扮猪吃老虎</b> 写作中…', move: 'cangjing' },
+    { t: 9000, evt: 'cangjing', html: '首访藏经阁 · <b>+100 挂起</b>（明日可领）' },
+    { t: 10400, evt: 'cangjing', html: '一句“绕支脉”点破孙彪 · <b>韩拾遗的扫帚停了</b>' },
+    { t: 11900, evt: 'cangjing', html: '<b>主线任务 · 三月之约</b> 发布（0.7%）' },
+    { t: 13200, end: true },
+  ];
+  function startPlay() {
+    closeAll(); G = 'playing';
+    document.getElementById('loc-waimen').classList.remove('next-target');
+    document.getElementById('cine').classList.add('on');
+    document.getElementById('routeNext').setAttribute('opacity', '.7');
+    PLAY.forEach(s => playTimers.push(setTimeout(() => step(s), s.t)));
+  }
+  function step(s) {
+    if (s.txt) document.getElementById('cinet').innerHTML = s.txt;
+    if (s.move) movePiece(s.move);
+    if (s.evt) spawnEvt(s.evt, s.html);
+    if (s.cult) { setCult(s.cult); setDao(s.dao); }
+    if (s.end) finishPlay();
+  }
+  let heroHome = 'waimen';
+  function movePiece(loc) {
+    const p = document.getElementById('piece');
+    const nx = LOC[loc][0], ny = LOC[loc][1];
+    p.classList.toggle('flip', nx < parseFloat(p.style.left));
+    p.classList.add('walking');
+    p.style.transition = 'left 1.8s var(--ease-in-out), top 1.8s var(--ease-in-out)';
+    p.style.left = nx + '%'; p.style.top = ny + '%';
+    heroHome = loc;
+    const hs = WANDER.find(w => w.id === 'piece'); if (hs) { hs.x = nx; hs.y = ny; }
+    clearTimeout(p._wt); p._wt = setTimeout(() => p.classList.remove('walking'), 1900);
+  }
+  function spawnEvt(loc, html) {
+    const e = document.createElement('div'); e.className = 'evt';
+    e.style.left = LOC[loc][0] + '%'; e.style.top = (LOC[loc][1] - 4) + '%';
+    e.innerHTML = html;
+    document.getElementById('world').appendChild(e);
+    setTimeout(() => e.remove(), 3500);
+  }
+  function setCult(p) { document.getElementById('hh-cult').style.width = p + '%'; document.getElementById('hh-pct').textContent = p + '%'; }
+  function setDao(d) { document.getElementById('hh-daoyuan').textContent = d; }
+  function skipPlay() { playTimers.forEach(clearTimeout); playTimers = []; movePiece('cangjing'); setCult(20); setDao(90); finishPlay(); }
+  function finishPlay() {
+    document.getElementById('cine').classList.remove('on');
+    G = 'loot'; show('dlg-loot');
+  }
+  function acceptLoot() {
+    G = 'after'; closeAll();
+    movePiece('waimen');
+    document.getElementById('loc-waimen').classList.remove('next-target');
+    trackData[0].state = 'done'; trackData[1].state = 'current'; renderTrack();
+    const cj = document.getElementById('loc-cangjing');
+    cj.classList.remove('dim'); cj.classList.add('visited', 'next-target');
+    cj.querySelector('.sub').textContent = '灵气 ×5 · +100 挂起';
+    const hn = document.getElementById('sp-han'); if (hn) hn.classList.add('informed');
+    document.getElementById('routeNext').setAttribute('opacity', '.7');
+    const q = document.getElementById('qbdg'); q.textContent = '6'; q.classList.add('pop');
+    toast('世界已定格 · 藏经阁亮了，<b>下一副本备中</b>——这就是一圈');
+  }
+
+  /* ================= 阅读器 ================= */
+  function openReader(n) { document.getElementById('reader').classList.add('on'); rTab(n || 1); }
+  function closeReader() { document.getElementById('reader').classList.remove('on'); }
+  function rTab(n) {
+    document.querySelectorAll('.rtab').forEach(t => t.classList.toggle('sel', +t.dataset.r === n));
+    document.querySelectorAll('.ro-page').forEach(p => p.classList.toggle('on', +p.dataset.rp === n));
+    document.querySelector('.ro-body').scrollTop = 0;
+  }
+
+  /* ================= toast ================= */
+  let tt;
+  function toast(html) { const t = document.getElementById('toast'); t.innerHTML = html; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), 3400); }
+
+  /* ================= 拖拽 / 缩放 ================= */
+  const V = { x: 0, y: 0, k: 1 };
+  const worldEl = document.getElementById('world');
+  const stageEl = document.getElementById('stage');
+  let dragging = false, wasDrag = false, suppressNext = false, sx = 0, sy = 0, ox = 0, oy = 0;
+  function applyView() {
+    const W = innerWidth, H = innerHeight;
+    V.x = Math.min(0, Math.max(W * (1 - V.k), V.x));
+    V.y = Math.min(0, Math.max(H * (1 - V.k), V.y));
+    worldEl.style.transform = 'translate(' + V.x + 'px,' + V.y + 'px) scale(' + V.k + ')';
+  }
+  stageEl.addEventListener('pointerdown', e => {
+    if (e.target.closest('.hud-hero,.hud-actions,.hud-book,.track,.cine,.probe-chip')) return;
+    dragging = true; wasDrag = false; sx = e.clientX; sy = e.clientY; ox = V.x; oy = V.y;
+  });
+  window.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (!wasDrag && Math.abs(dx) + Math.abs(dy) > 6) { wasDrag = true; stageEl.classList.add('grabbing'); hideTip(); closeLocPop(); }
+    if (wasDrag) { V.x = ox + dx; V.y = oy + dy; applyView(); }
+  });
+  window.addEventListener('pointerup', () => {
+    dragging = false; stageEl.classList.remove('grabbing');
+    if (wasDrag) { suppressNext = true; setTimeout(() => { suppressNext = false; }, 60); wasDrag = false; }
+  });
+  stageEl.addEventListener('click', e => { if (suppressNext) { e.stopPropagation(); e.preventDefault(); } }, true);
+  stageEl.addEventListener('wheel', e => {
+    if (e.target.closest('.track')) return;
+    e.preventDefault();
+    const k2 = Math.min(1.7, Math.max(1, V.k * (e.deltaY < 0 ? 1.09 : 0.92)));
+    if (k2 === V.k) return;
+    V.x = e.clientX - (e.clientX - V.x) * (k2 / V.k);
+    V.y = e.clientY - (e.clientY - V.y) * (k2 / V.k);
+    V.k = k2; applyView(); hideTip(); closeLocPop();
+  }, { passive: false });
+  stageEl.addEventListener('dblclick', e => { if (e.target.closest('.loc,.npc,.piece')) return; V.x = 0; V.y = 0; V.k = 1; applyView(); });
+
+  /* ================= 世界的呼吸：闲时小事件 ================= */
+  const AMB = {
+    start: [
+      ['waimen', '王二狗又在跟人打听八卦'],
+      ['yanwu', '赵天雄在立威，弟子们大气不敢出'],
+      ['cangjing', '扫帚声有一下没一下地响着'],
+      ['neimen', '内门今夜剑气清鸣'],
+      ['waimen', '外门院的灯火，只剩最角落一盏'],
+    ],
+    after: [
+      ['cangjing', '明日清晨 · <b>+100 道源</b>等着领'],
+      ['neimen', '又一道神识，若有似无扫过外门'],
+      ['yanwu', '大比名册开始造册，外门人心浮动'],
+      ['waimen', '柴房里，有人在盘今天的账'],
+      ['cangjing', '老槐树下，扫帚又停了一会儿'],
+    ],
+  };
+  let ambIdx = 0;
+  setInterval(() => {
+    if (G !== 'start' && G !== 'after') return;
+    if (document.querySelector('.scrim.on') || document.getElementById('reader').classList.contains('on') || document.getElementById('shelf').classList.contains('on') || document.getElementById('scene').classList.contains('on') || document.getElementById('genfin').classList.contains('on')) return;
+    const pool = AMB[G];
+    const a = pool[ambIdx++ % pool.length];
+    const e = document.createElement('div');
+    e.className = 'evt amb';
+    e.style.left = LOC[a[0]][0] + '%'; e.style.top = (LOC[a[0]][1] - 3) + '%';
+    e.innerHTML = a[1];
+    worldEl.appendChild(e);
+    setTimeout(() => e.remove(), 4800);
+  }, 8500);
+
+  /* ================= 小人游走引擎 ================= */
+  /* ox/oy：把游走圈心从地名牌上挪开，免得小人的名字压着地名 */
+  const WANDER = [
+    { id: 'piece',   hero: true, r: 2.8, speed: 30, ox: -5, oy: -3.5 },
+    { id: 'sp-wang', home: 'waimen', r: 5, speed: 22, ox: -3.5, oy: -2.5 },
+    { id: 'sp-zhao', home: 'yanwu', r: 5.5, speed: 26, ox: -3.5, oy: -2 },
+    { id: 'sp-han',  home: 'cangjing', r: 3, speed: 11, ox: 3.5, oy: -3 },
+    { id: 'sp-shen', home: 'neimen', r: 3.5, speed: 18, ox: 3, oy: -2.5 },
+    { id: 'sp-d1',   home: 'waimen', r: 7, speed: 17, ox: 3.5, oy: -3 },
+    { id: 'sp-d2',   home: 'yanwu', r: 7, speed: 15, ox: 4, oy: -2 },
+  ];
+  function startWander() {
+    WANDER.forEach(s => {
+      const el = document.getElementById(s.id); if (!el) return;
+      s.x = parseFloat(el.style.left); s.y = parseFloat(el.style.top);
+      scheduleWander(s);
+    });
+  }
+  function scheduleWander(s) {
+    clearTimeout(s.t);
+    s.t = setTimeout(() => wanderOnce(s), 1600 + Math.random() * 5200);
+  }
+  function wanderOnce(s) {
+    const el = document.getElementById(s.id);
+    if (!el || !document.body.contains(el)) return;
+    if (G === 'genesis') { scheduleWander(s); return; }
+    if (s.hero && G === 'playing') { scheduleWander(s); return; }
+    const c = s.hero ? LOC[heroHome] : LOC[s.home];
+    const cx = c[0] + (s.ox || 0), cy = c[1] + (s.oy || 0);
+    const nx = Math.max(3, Math.min(97, cx + (Math.random() * 2 - 1) * s.r));
+    const ny = Math.max(6, Math.min(90, cy + (Math.random() * 2 - 1) * s.r * 0.6));
+    const dx = nx - s.x, dy = ny - s.y;
+    const dist = Math.hypot(dx * 14.4, dy * 8.1);
+    if (dist < 8) { scheduleWander(s); return; }
+    const dur = Math.max(0.9, dist / s.speed);
+    el.classList.toggle('flip', dx < 0);
+    el.classList.add('walking');
+    el.style.transition = 'left ' + dur + 's linear, top ' + dur + 's linear';
+    el.style.left = nx + '%'; el.style.top = ny + '%';
+    el.style.zIndex = 10 + Math.round(ny / 4);
+    s.x = nx; s.y = ny;
+    clearTimeout(s.wt);
+    s.wt = setTimeout(() => { el.classList.remove('walking'); scheduleWander(s); }, dur * 1000 + 60);
+  }
+
+  /* ================= 名字避让：小人的名字压到地名就先隐去 ================= */
+  function tickNames() {
+    const hit = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+    const locs = [...document.querySelectorAll('.loc .lbl, .loc .sub')]
+      .map(e => e.getBoundingClientRect()).filter(r => r.width);
+    const names = [...document.querySelectorAll('.sprite .sname')];
+    const rects = names.map(e => e.getBoundingClientRect());
+    const hide = names.map((el, i) => rects[i].width > 0 && locs.some(l => hit(rects[i], l)));
+    for (let i = 0; i < names.length; i++) {
+      for (let j = i + 1; j < names.length; j++) {
+        if (hide[i] || hide[j] || !rects[i].width || !rects[j].width) continue;
+        if (!hit(rects[i], rects[j])) continue;
+        const z = k => parseFloat(names[k].closest('.sprite').style.zIndex) || 12;
+        hide[z(i) <= z(j) ? i : j] = true;   // 靠后的让位
+      }
+    }
+    names.forEach((el, i) => el.classList.toggle('namehide', hide[i]));
+  }
+  setInterval(tickNames, 300);
+
+  /* ================= 夜空剑光 ================= */
+  setInterval(() => {
+    if (document.getElementById('shelf').classList.contains('on')) return;
+    const sw = document.createElement('div');
+    sw.className = 'swordlight';
+    sw.style.left = (5 + Math.random() * 40) + '%';
+    sw.style.top = (8 + Math.random() * 22) + '%';
+    worldEl.appendChild(sw);
+    setTimeout(() => sw.remove(), 2700);
+  }, 21000);
+
+  /* ================= 书架 ================= */
+  function enterBook() { document.getElementById('shelf').classList.remove('on'); toast('进入 <b>玄苍界</b>——地图上的金旗，就是下一步'); }
+
+  /* ================= 创世 ================= */
+  const STARS = [
+    { id: 'qd', n: '修仙 · 签到流', h: 5, tip: '近 30 天在榜 400+ 本 · 老牌长红，新书还在进', x: 24, y: 32, demo: true },
+    { id: 'bz', n: '扮猪吃虎', h: 4, tip: '爽点万金油——跟哪路题材都能搭', x: 37, y: 55, demo: true },
+    { id: 'zm', n: '宗门日常', h: 3, tip: '养成感强 · 群像戏的土壤', x: 17, y: 64, demo: true },
+    { id: 'gz', n: '规则怪谈', h: 5, tip: '七猫近月最凶的一路 · 男女频通吃', x: 58, y: 24 },
+    { id: 'wx', n: '无限流', h: 4, tip: '天生的副本结构 · 换图不腻', x: 74, y: 42 },
+    { id: 'sh', n: '都市神豪', h: 3, tip: '量大管饱 · 同行也挤', x: 55, y: 66 },
+    { id: 'gw', n: '高武世界', h: 3, tip: '热血流稳定盘', x: 85, y: 63 },
+    { id: 'sb', n: '赛博修真', h: 2, tip: '新芽 · 蓝海，读者盘子还没验证', x: 68, y: 79 },
+  ];
+  const DEMO_SET = ['qd', 'bz', 'zm'];
+  let gpicked = [], genInited = false, grew = false;
+
+  function startGenesis() {
+    document.getElementById('shelf').classList.remove('on');
+    document.getElementById('gen').classList.add('on');
+    genSky();
+    if (!genInited) { genInited = true; genInit(); }
+  }
+  function genSky() { const g = document.getElementById('gen'); g.classList.add('sky'); g.classList.remove('forge'); }
+  function genBack() { document.getElementById('gen').classList.remove('on', 'sky', 'forge'); document.getElementById('shelf').classList.add('on'); }
+  function genInit() {
+    const sky = document.getElementById('gen-sky');
+    for (let i = 0; i < 110; i++) {
+      const d = document.createElement('span'); d.className = 'gdust';
+      const s = Math.random() < .85 ? 1.5 : 2.5;
+      d.style.cssText = 'left:' + (Math.random() * 100).toFixed(1) + '%;top:' + (Math.random() * 100).toFixed(1) + '%;width:' + s + 'px;height:' + s + 'px;--d:' + (2.5 + Math.random() * 5).toFixed(1) + 's;animation-delay:' + (-Math.random() * 6).toFixed(1) + 's';
+      sky.insertBefore(d, sky.firstChild);
+    }
+    const host = document.getElementById('gen-stars');
+    STARS.forEach(st => {
+      const b = document.createElement('button');
+      b.className = 'gstar'; b.id = 'gstar-' + st.id;
+      b.style.cssText = 'left:' + st.x + '%;top:' + st.y + '%;--sz:' + (9 + st.h * 3) + 'px;--dl:' + (Math.random() * -4).toFixed(1) + 's';
+      b.innerHTML = '<i></i><b>' + st.n + '</b>';
+      b.onclick = () => toggleStar(st.id);
+      b.addEventListener('mouseenter', () => showTip(b, '<span class="tt">' + st.n + ' · 热度 ' + '★'.repeat(st.h) + '</span>' + st.tip));
+      b.addEventListener('mouseleave', hideTip);
+      host.appendChild(b);
+    });
+    genFoot(); genLines();
+  }
+  function toggleStar(id) {
+    const i = gpicked.indexOf(id);
+    if (i >= 0) gpicked.splice(i, 1);
+    else {
+      if (gpicked.length >= 3) { toast('一颗种最多融三路——先摘一颗再点'); return; }
+      gpicked.push(id);
+    }
+    STARS.forEach(st => document.getElementById('gstar-' + st.id).classList.toggle('on', gpicked.includes(st.id)));
+    genFoot(); genLines();
+  }
+  function genLines() {
+    const P = id => STARS.find(s => s.id === id);
+    let h = '';
+    for (let i = 0; i < DEMO_SET.length; i++) {
+      const a = P(DEMO_SET[i]), b = P(DEMO_SET[(i + 1) % DEMO_SET.length]);
+      h += '<line x1="' + a.x + '%" y1="' + a.y + '%" x2="' + b.x + '%" y2="' + b.y + '%" stroke="rgba(200,212,240,.12)" stroke-width="1" stroke-dasharray="2 6"/>';
+    }
+    const seq = gpicked.length === 3 ? gpicked.concat(gpicked[0]) : gpicked;
+    for (let i = 0; i < seq.length - 1; i++) {
+      const a = P(seq[i]), b = P(seq[i + 1]);
+      h += '<line x1="' + a.x + '%" y1="' + a.y + '%" x2="' + b.x + '%" y2="' + b.y + '%" stroke="rgba(217,162,74,.75)" stroke-width="1.5"/>';
+    }
+    document.getElementById('gen-lines').innerHTML = h;
+  }
+  function genFoot() {
+    const chips = gpicked.map(id => '<span class="cc"><b>' + STARS.find(s => s.id === id).n + '</b></span>').join('');
+    const hint = gpicked.length < 2 ? '再连 ' + (2 - gpicked.length) + ' 颗成座' : '成座了 · 可以炼';
+    document.getElementById('gen-foot').innerHTML =
+      '<span class="chips">' + (chips || '<span style="font-size:var(--font-size-xs);color:var(--color-text-tertiary);">虚线连着的三颗，是备好的示例星座</span>') + '</span>'
+      + '<span class="gf-hint">' + hint + '</span>'
+      + '<button class="btn btn-primary"' + (gpicked.length < 2 ? ' style="opacity:.4"' : '') + ' onclick="forge()">炼种</button>'
+      + '<button class="btn btn-ghost" onclick="quickSeed()">直接用备好的书种 »</button>';
+  }
+  function quickSeed() {
+    gpicked = DEMO_SET.slice();
+    STARS.forEach(st => { const el = document.getElementById('gstar-' + st.id); if (el) el.classList.toggle('on', gpicked.includes(st.id)); });
+    genLines(); genFoot(); forge();
+  }
+  function forge() {
+    if (gpicked.length < 2) { toast('至少连两颗星，种才炼得起来'); return; }
+    const g = document.getElementById('gen'); g.classList.remove('sky'); g.classList.add('forge');
+    document.getElementById('forge-picked').innerHTML = gpicked.map(id => '<span class="cc" style="border-color:rgba(217,162,74,.4);"><b>' + STARS.find(s => s.id === id).n + '</b></span>').join('<span style="color:var(--color-text-disabled);align-self:center;">＋</span>');
+    const isDemo = gpicked.length === 3 && DEMO_SET.every(id => gpicked.includes(id));
+    document.getElementById('seednote').innerHTML = isDemo
+      ? '正式版每次炼种都是现场生成——书名、设定、主角都会不一样，不满意回炉重炼。'
+      : '你连的这座，正式版会现场炼出对应的种。探针里只备熟了<b>修仙 × 签到</b>这一颗——先拿它把创世流程走完。';
+  }
+  const SEED_TITLES = ['《我在青云宗打卡修仙》', '《签到三千日，我成了青云老祖》', '《别卷了！青云宗养老指南》'];
+  let seedTi = 0;
+  function cycleTitle() {
+    seedTi = (seedTi + 1) % SEED_TITLES.length;
+    document.getElementById('seedname').textContent = SEED_TITLES[seedTi];
+    toast('正式版书名也是这样现场起的——喜欢哪个用哪个');
+  }
+  function plantSeed() {
+    if (grew) { genDone(); return; }
+    grew = true;
+    genPrep();
+    document.getElementById('gen-forge').classList.add('planting');
+    const g = document.getElementById('gen');
+    setTimeout(() => g.classList.add('off'), 950);
+    setTimeout(() => { g.classList.remove('on', 'forge', 'off'); document.getElementById('gen-forge').classList.remove('planting'); }, 2100);
+    if (seedTi !== 0) setTimeout(() => toast('探针世界是按第一个书名铺好的——正式版换名会全局生效'), 2400);
+    runGrow(1500);
+  }
+  function genPrep() {
+    G = 'genesis';
+    document.getElementById('stage').classList.add('pregen');
+    const v = document.getElementById('veil'); v.classList.remove('fade'); v.style.display = 'block';
+    document.querySelectorAll('.loc').forEach(l => { l.classList.remove('born'); l.classList.add('unborn'); });
+    document.querySelectorAll('.sprite').forEach(s => { s.classList.remove('reveal', 'drop'); s.classList.add('unborn'); });
+    closeAll(); hideTip();
+  }
+  function ripple(delay) {
+    setTimeout(() => {
+      const r = document.createElement('div'); r.className = 'ripple';
+      document.getElementById('stage').appendChild(r);
+      setTimeout(() => r.remove(), 1700);
+    }, delay);
+  }
+  function born(id, evloc, html) {
+    const el = document.getElementById(id);
+    if (el) { el.classList.remove('unborn'); el.classList.add('born'); }
+    if (evloc) spawnEvt(evloc, html);
+  }
+  function runGrow(base) {
+    const T = (t, fn) => setTimeout(fn, base + t);
+    ripple(base + 100); ripple(base + 380); ripple(base + 660);
+    T(150,  () => spawnEvt('cangjing', '书种落进虚空 · <b>灵气涌入</b>'));
+    T(900,  () => born('loc-waimen', 'waimen', '<b>外门弟子院</b> · 落成（灵气 ×2）'));
+    T(1700, () => born('loc-cangjing', 'cangjing', '<b>藏经阁</b> · 落成（灵气 ×5）'));
+    T(2500, () => born('loc-yanwu', 'yanwu', '<b>演武场</b> · 三月后大比在此'));
+    T(3300, () => born('loc-neimen', 'neimen', '<b>内门</b> · 天才所居'));
+    T(4100, () => { born('loc-houshan'); born('loc-mijing', 'mijing', '远处的雾先不散 · <b>大纲走到才开</b>'); });
+    T(4900, () => document.getElementById('veil').classList.add('fade'));
+    T(5600, () => {
+      ['sp-wang', 'sp-d1', 'sp-zhao', 'sp-d2', 'sp-han', 'sp-shen'].forEach((id, i) => setTimeout(() => {
+        const el = document.getElementById(id); if (el) { el.classList.remove('unborn'); el.classList.add('reveal'); }
+      }, i * 200));
+      spawnEvt('waimen', '角色入住 · <b>各归其位</b>');
+    });
+    T(7100, () => { const p = document.getElementById('piece'); p.classList.remove('unborn'); p.classList.add('drop'); spawnEvt('waimen', '主角 <b>林凡</b> · 落在外门柴房'); });
+    T(8200, () => { document.getElementById('stage').classList.remove('pregen'); spawnEvt('waimen', '<b>第一面金旗</b> · 黄金三章挂上'); });
+    T(9300, () => { G = 'start'; document.getElementById('veil').style.display = 'none'; document.getElementById('genfin').classList.add('on'); });
+  }
+  function genDone() { document.getElementById('genfin').classList.remove('on'); toast('点<b>外门的金旗</b>出征——从这颗种起，这局是你的了'); }
+
+  /* ================= init ================= */
+  renderTrack(); bindHover(); applyView(); startWander();
+  const qp = new URLSearchParams(location.search).get('s');
+  if (qp === 'after') { skipPlay(); acceptLoot(); }
+  else if (qp === 'plan') { openPlan(); }
+  else if (qp === 'loot') { movePiece('cangjing'); setCult(20); setDao(90); G = 'loot'; show('dlg-loot'); }
+  else if (qp === 'genesis') { startGenesis(); }
+  else if (qp === 'map') { /* 直接进世界 */ }
+  else { document.getElementById('shelf').classList.add('on'); }
+</script>

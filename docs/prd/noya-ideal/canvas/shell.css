@@ -1,0 +1,77 @@
+/* shell.css — Noya 产品外壳：顶栏 + 通用小组件，所有页共用、只加载一次。
+ * 顶栏是跨页稳定区，命名 view-transition 让跳转时"壳定住"；内容区单独过渡。 */
+html { background: var(--color-bg); }
+body { margin: 0; background: var(--color-bg); color: var(--color-text); font-family: var(--font-family-base); font-size: var(--font-size-md); line-height: var(--line-md); }
+* { box-sizing: border-box; }
+
+.topbar { height: 52px; display: flex; align-items: center; gap: var(--space-4); padding: 0 var(--space-5); background: var(--color-surface); border-bottom: 1px solid var(--color-border); view-transition-name: app-shell-nav; position: sticky; top: 0; z-index: 50; }
+.brand { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--color-text); font-weight: var(--font-weight-semibold); font-size: var(--font-size-lg); letter-spacing: .5px; }
+.brand .mark { width: 26px; height: 26px; border-radius: 7px; background: linear-gradient(135deg, var(--color-primary), var(--color-primary-active)); display: flex; align-items: center; justify-content: center; color: var(--color-text-inverse); font-size: 13px; font-weight: 700; }
+.topbar .divider { width: 1px; height: 20px; background: var(--color-border-strong); }
+.topbar .grow { flex: 1; }
+.app-main { view-transition-name: app-main; }
+
+/* 通用小组件 */
+.badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: var(--radius-pill); font-size: var(--font-size-xs); line-height: var(--line-xs); }
+.badge.run  { background: var(--color-primary-soft); color: var(--color-primary); }
+.badge.pub  { background: var(--color-success-soft); color: var(--color-success); }
+.badge.warn { background: var(--color-warning-soft); color: var(--color-warning); }
+.badge.mute { background: var(--color-surface-2); color: var(--color-text-tertiary); }
+.dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.dot.run  { background: var(--color-primary); animation: pulse 1.6s var(--ease-in-out) infinite; }
+.dot.done { background: var(--color-success); }
+.dot.warn { background: var(--color-warning); }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 16px; border-radius: var(--radius-md); border: 1px solid transparent; font-size: var(--font-size-md); font-weight: var(--font-weight-medium); font-family: var(--font-family-base); cursor: pointer; text-decoration: none; transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.btn-primary { background: var(--color-primary); color: var(--color-text-inverse); }
+.btn-primary:hover { background: var(--color-primary-hover); }
+.btn-primary:disabled { background: var(--gray-600); color: var(--color-text-disabled); cursor: not-allowed; }
+.btn-ghost { border-color: var(--color-border-strong); color: var(--color-text-secondary); background: transparent; }
+.btn-ghost:hover { border-color: var(--color-primary); color: var(--color-primary); background: var(--color-primary-soft); }
+.btn[aria-disabled="true"], .btn[aria-disabled="true"]:hover { border-color: var(--color-border); color: var(--color-text-disabled); background: transparent; cursor: not-allowed; }
+
+.pending-note { margin: var(--space-8) var(--space-6) var(--space-6); padding: var(--space-4); border-top: 1px dashed var(--color-border); color: var(--color-text-tertiary); font-size: var(--font-size-sm); }
+.pending-note strong { color: var(--color-text-secondary); }
+.pending-note ul { margin: 6px 0 0; padding-left: 18px; }
+
+/* —— 书内布局：左侧游戏菜单 + 内容区 —— */
+.book-layout { display: flex; height: calc(100vh - 52px); }
+.book-nav { width: 176px; flex: none; background: var(--color-surface); border-right: 1px solid var(--color-border); padding: var(--space-3); display: flex; flex-direction: column; gap: 2px; overflow-y: auto; view-transition-name: app-booknav; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: var(--radius-md); color: var(--color-text-secondary); font-size: var(--font-size-md); text-decoration: none; transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.nav-item:hover { background: var(--color-bg-hover); color: var(--color-text); }
+.nav-item.is-active { background: var(--color-primary-soft); color: var(--color-primary); font-weight: var(--font-weight-medium); }
+.nav-item svg { flex: none; stroke: currentColor; }
+.nav-group { margin: var(--space-3) 12px 4px; font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+.book-content { flex: 1; min-width: 0; overflow-y: auto; position: relative; }
+.content-pad { padding: var(--space-6); max-width: 1180px; }
+.page-head { margin-bottom: var(--space-5); }
+.page-head h1 { margin: 0 0 4px; font-size: var(--font-size-xl); line-height: var(--line-xl); font-weight: var(--font-weight-semibold); }
+.page-head .ph-sub { color: var(--color-text-tertiary); font-size: var(--font-size-sm); }
+
+/* 通用卡片与主从布局 */
+.panel-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: var(--space-5); }
+.split { display: flex; gap: var(--space-5); align-items: flex-start; }
+.list-col { width: 300px; flex: none; }
+.detail-col { flex: 1; min-width: 0; }
+.list-row { display: block; padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-md); margin-bottom: var(--space-2); cursor: pointer; background: var(--color-surface); transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out); }
+.list-row:hover { border-color: var(--color-border-strong); background: var(--color-surface-2); }
+.list-row.is-active { border-color: var(--color-primary); background: var(--color-primary-soft); }
+
+/* 开新书流程的步骤条 */
+.step-rail { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-6); flex-wrap: wrap; }
+.step { display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: var(--radius-pill); border: 1px solid var(--color-border); color: var(--color-text-tertiary); font-size: var(--font-size-sm); }
+.step .s-no { width: 18px; height: 18px; border-radius: 50%; background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; font-size: 11px; }
+.step.is-current { border-color: var(--color-primary); color: var(--color-primary); background: var(--color-primary-soft); }
+.step.is-current .s-no { background: var(--color-primary); color: var(--color-text-inverse); }
+.step.is-done { color: var(--color-success); border-color: rgba(47,182,115,.4); }
+.step-arrow { color: var(--color-text-disabled); font-size: var(--font-size-xs); }
+.flow-bar { position: sticky; bottom: 0; margin-top: var(--space-6); padding: var(--space-4); background: rgba(18,19,23,.9); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--color-border); border-radius: var(--radius-lg); display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+
+/* 卷进度轨（总览、地图共用） */
+.rail-seg { display: flex; align-items: center; gap: 7px; font-size: var(--font-size-xs); color: var(--color-text-tertiary); white-space: nowrap; }
+.rail-seg .seg-bar { width: 72px; height: 4px; border-radius: 2px; background: var(--gray-700); overflow: hidden; }
+.rail-seg .seg-bar i { display: block; height: 100%; background: var(--color-primary); }
+.rail-seg.done { color: var(--color-success); }
+.rail-seg.doing { color: var(--color-text); }
+.rail-sep { width: 14px; height: 1px; background: var(--gray-600); }

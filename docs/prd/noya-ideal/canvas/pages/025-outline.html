@@ -1,0 +1,234 @@
+<!-- title: 书 · 大纲 -->
+<style>
+  .ol-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5); margin-bottom: var(--space-5); }
+  .ol-card h3 { margin: 0 0 var(--space-1); font-size: var(--font-size-md); font-weight: var(--font-weight-medium); display: flex; align-items: center; gap: 8px; }
+  .ol-card .c-src { font-size: var(--font-size-xs); color: var(--color-text-tertiary); margin-bottom: var(--space-3); }
+  .ol-card dl { margin: 0; display: grid; grid-template-columns: 74px 1fr; row-gap: 7px; font-size: var(--font-size-sm); }
+  .ol-card dt { color: var(--color-text-tertiary); }
+  .ol-card dd { margin: 0; color: var(--color-text-secondary); }
+  .ol-card ul { margin: 0; padding-left: 18px; font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+  .ol-card ul li { margin-bottom: 5px; }
+  .mod-btn { margin-left: auto; }
+  .hi-card { border-left: 3px solid var(--color-primary); }
+  .hi-card .concept { font-size: var(--font-size-lg); line-height: var(--line-lg); color: var(--color-text); margin: 0 0 var(--space-3); }
+
+  /* 对话修改面板 */
+  .mod-panel { margin-top: var(--space-4); padding: var(--space-4); background: var(--color-surface-2); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); }
+  .mod-panel .mp-label { font-size: var(--font-size-xs); color: var(--color-text-tertiary); margin-bottom: 8px; }
+  .mod-panel textarea { width: 100%; min-height: 44px; resize: vertical; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-sm); color: var(--color-text); font-family: var(--font-family-base); font-size: var(--font-size-sm); padding: 8px 10px; }
+  .mod-panel textarea:focus { outline: none; border-color: var(--color-primary); }
+  .mod-actions { display: flex; gap: var(--space-2); margin-top: var(--space-3); }
+  .ripple { margin-top: var(--space-3); padding: var(--space-3) var(--space-4); border-left: 3px solid var(--color-warning); background: var(--color-warning-soft); border-radius: var(--radius-sm); font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+  .ripple b { color: var(--color-warning); }
+  .ripple ul { margin: 6px 0 0; padding-left: 18px; }
+  .ripple ul li { margin-bottom: 3px; }
+  .mod-done { margin-top: var(--space-3); font-size: var(--font-size-sm); color: var(--color-success); }
+
+  /* 分卷结构树 */
+  .vol-block { border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-3); background: var(--color-surface); }
+  .vol-block.doing { border-color: var(--color-primary); }
+  .vol-block.plan { border-style: dashed; }
+  .vol-head { display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: 6px; }
+  .vol-head .v-name { font-size: var(--font-size-md); font-weight: var(--font-weight-medium); }
+  .vol-head .v-range { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+  .vol-goal { font-size: var(--font-size-sm); color: var(--color-text-secondary); margin: 0 0 10px; }
+  .unit-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .unit-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: var(--radius-pill); border: 1px solid var(--color-border); font-size: var(--font-size-xs); color: var(--color-text-secondary); text-decoration: none; }
+  .unit-chip.done { border-color: rgba(47,182,115,.4); color: var(--color-success); }
+  .unit-chip.next { border-color: var(--color-primary); color: var(--color-primary); }
+  .unit-chip.slot { border-style: dashed; color: var(--color-text-disabled); }
+  a.unit-chip:hover { border-color: var(--color-primary); color: var(--color-primary); }
+  .vol-note { margin-top: 10px; font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+
+  .end-panel { margin-top: var(--space-3); padding: var(--space-4); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-surface-2); font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+</style>
+
+<div class="topbar">
+  <a class="brand" href="/p/01-bookshelf"><span class="mark">N</span>Noya</a>
+  <div class="divider"></div>
+  <span style="font-size:var(--font-size-md);font-weight:var(--font-weight-medium);">我在规则怪谈里开民宿</span>
+  <div class="grow"></div>
+  <span class="badge warn" id="state-badge"><span class="dot warn"></span>决策点 · 等你拍板</span>
+</div>
+
+<div class="book-layout app-main">
+  <nav class="book-nav">
+    <a class="nav-item" href="/p/01-bookshelf" style="color:var(--color-text-tertiary);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M15 6l-6 6 6 6" /></svg>书架</a>
+    <a class="nav-item" href="/p/02-book-home"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>总览</a>
+    <div class="nav-group">世界观 · 影响内容</div>
+    <a class="nav-item is-active" href="/p/025-outline"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M6 3h12v18H6z" /><path d="M9 8h6M9 12h6M9 16h4" /></svg>大纲</a>
+    <a class="nav-item" href="/p/03-map"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="12" r="9" /><path d="M15.5 8.5 13 13l-4.5 2.5L11 11z" /></svg>地图</a>
+    <a class="nav-item" href="/p/04-relations"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="6" r="2.4" /><circle cx="5" cy="18" r="2.4" /><circle cx="19" cy="18" r="2.4" /><path d="M10.8 8 6.4 15.8M13.2 8l4.4 7.8M7.4 18h9.2" /></svg>关系网</a>
+    <a class="nav-item" href="/p/05-characters"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="8" r="3.6" /><path d="M5.5 20a6.5 6.5 0 0 1 13 0" /></svg>人物</a>
+    <a class="nav-item" href="/p/06-monsters"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M6 21V10a6 6 0 0 1 12 0v11l-3-2.4-3 2.4-3-2.4z" /><circle cx="10" cy="10" r=".8" fill="currentColor" /><circle cx="14" cy="10" r=".8" fill="currentColor" /></svg>怪物</a>
+    <div class="nav-group">产物 · 给读者的</div>
+    <a class="nav-item" href="/p/07-chapters"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M5 19V6a2 2 0 0 1 2-2h12v15H7a2 2 0 0 0-2 2zm0 0a2 2 0 0 0 2 2h12" /><path d="M9 8h6" /></svg>章节</a>
+    <a class="nav-item" href="/p/08-tasks"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 20l4-1L20 7l-3-3L5 16zM14 6l3 3" /></svg>写作任务</a>
+  </nav>
+
+  <div class="book-content">
+    <div class="content-pad">
+      <div class="page-head">
+        <h1>大纲</h1>
+        <div class="ph-sub">主线骨架与设定总纲 · 建世界时生成，随卷间校准逐卷长细 · 改动会联动波及</div>
+      </div>
+
+      <div class="panel-card hi-card" style="margin-bottom:var(--space-5);">
+        <h3>高概念<span class="badge mute">来自选题卡</span></h3>
+        <p class="concept">"我在规则怪谈里开民宿——怪谈要命，但房租更要命。"</p>
+        <dl style="display:grid;grid-template-columns:74px 1fr;row-gap:7px;font-size:var(--font-size-sm);margin:0;">
+          <dt style="color:var(--color-text-tertiary);">核心爽点</dt><dd style="margin:0;color:var(--color-text-secondary);">用规则漏洞反杀怪谈 + 经营升级的日常正反馈</dd>
+          <dt style="color:var(--color-text-tertiary);">目标读者</dt><dd style="margin:0;color:var(--color-text-secondary);">番茄免费男频 · 喜欢规则怪谈但嫌纯恐怖太累的休闲读者</dd>
+          <dt style="color:var(--color-text-tertiary);">对标</dt><dd style="margin:0;color:var(--color-text-secondary);">《规则怪谈：我能看见提示》×《开局一座荒山民宿》</dd>
+        </dl>
+      </div>
+
+      <div class="ol-grid">
+        <div class="panel-card ol-card">
+          <h3>世界观卡<button class="btn btn-ghost mod-btn" data-mod="world" style="padding:4px 12px;font-size:var(--font-size-xs);">对话修改</button></h3>
+          <div class="c-src">建世界定稿 · 第 43 章曾联动更新</div>
+          <ul>
+            <li>怪谈依"规则"存在，破解规则即可反制</li>
+            <li>规则位阶：民宿契约 &gt; 镇规 &gt; 山规——低位阶不能违逆高位阶</li>
+            <li>凡人知晓规则太多，会被"注视"</li>
+          </ul>
+          <dl style="margin-top:var(--space-3);">
+            <dt>力量体系</dt><dd>契约灵位阶：宅灵（灶王）→ 镇灵 → 山主</dd>
+            <dt>金手指</dt><dd>主角能"读出"每条规则的隐藏例外</dd>
+          </dl>
+          <div class="mod-panel" id="mod-world" hidden>
+            <div class="mp-label">下修改指令（示例已填入）：</div>
+            <textarea id="mod-world-input">把力量体系从"契约位阶"改成"香火愿力"——灵体强弱看香火</textarea>
+            <div class="mod-actions">
+              <button class="btn btn-primary" id="mod-world-go">提交</button>
+              <button class="btn btn-ghost" data-mod-cancel="world">取消</button>
+            </div>
+            <div class="ripple" id="mod-world-ripple" hidden>
+              <b>波及提示</b>——此改动将联动更新：
+              <ul>
+                <li>角色 · 灶王爷：契约度 40 → 香火值体系</li>
+                <li>地图 · 迷雾民宿：灶间设定重写</li>
+                <li>大纲 · 卷二高潮：「契约升级」改为「香火觉醒」</li>
+              </ul>
+              <b>已写章节矛盾</b>：第 9 / 19 / 43 章引用旧体系——默认<b>接受既成事实</b>（后文找补），也可打回个别单元重写。
+              <div class="mod-actions">
+                <button class="btn btn-primary" id="mod-world-confirm">接受并更新（模拟）</button>
+                <button class="btn btn-ghost" data-mod-cancel="world">取消</button>
+              </div>
+            </div>
+            <div class="mod-done" id="mod-world-done" hidden>✓ 已更新（模拟）· 3 处联动修改，从第 48 章起按新设定写，矛盾章已列入待办</div>
+          </div>
+        </div>
+
+        <div class="panel-card ol-card">
+          <h3>写作风格卡<button class="btn btn-ghost mod-btn" data-mod="style" style="padding:4px 12px;font-size:var(--font-size-xs);">对话修改</button></h3>
+          <div class="c-src">建世界定稿 · 黄金三章校准过一次（节奏加快）</div>
+          <dl>
+            <dt>视角</dt><dd>第三人称 · 单主角视角</dd>
+            <dt>节奏</dt><dd>2-3 章一个小钩子，章末必留悬念</dd>
+            <dt>单章字数</dt><dd>2,000-3,000 字 [假设]</dd>
+            <dt>基调</dt><dd>轻恐怖 + 市井烟火气，怪谈吓人但日常治愈</dd>
+            <dt>文风参照</dt><dd>快节奏爽文骨架 × 民俗怪谈质感 [假设]</dd>
+          </dl>
+          <div class="mod-panel" id="mod-style" hidden>
+            <div class="mp-label">下修改指令：</div>
+            <textarea id="mod-style-input" placeholder="例如：章末钩子改成每章必有，字数压到 2000 上下"></textarea>
+            <div class="mod-actions">
+              <button class="btn btn-primary" id="mod-style-go">提交</button>
+              <button class="btn btn-ghost" data-mod-cancel="style">取消</button>
+            </div>
+            <div class="mod-done" id="mod-style-done" hidden>✓ 已更新（模拟）· 风格卡只影响后续章节，不回改历史章</div>
+          </div>
+        </div>
+      </div>
+
+      <p class="sect-label" style="margin:0 0 var(--space-3);font-size:var(--font-size-xs);color:var(--color-text-tertiary);letter-spacing:1px;">分卷结构 · 粗骨架逐卷长细</p>
+
+      <div class="vol-block">
+        <div class="vol-head"><span class="v-name">卷一 · 开业怪谈</span><span class="v-range">第 1-32 章 · 已完结</span><span class="badge pub">卷复盘已确认</span></div>
+        <p class="vol-goal">目标：接手民宿、立住金手指、破解首个大怪谈 → 高潮：敲门客之夜</p>
+        <div class="unit-chips">
+          <span class="unit-chip done">✓ 十二把钥匙（1-7）</span>
+          <span class="unit-chip done">✓ 敲门声（8-19）</span>
+          <span class="unit-chip done">✓ 白雾初现（20-25）</span>
+          <span class="unit-chip done">✓ 开业大吉（26-32）</span>
+        </div>
+      </div>
+
+      <div class="vol-block doing">
+        <div class="vol-head"><span class="v-name">卷二 · 山雾深处</span><span class="v-range">第 33 章至今（47）· 规划至约 68 章</span><span class="badge run">进行中</span></div>
+        <p class="vol-goal">目标：揭开上一任老板失踪案、引入反派线 → 高潮：后山山主现身（规划）</p>
+        <div class="unit-chips">
+          <span class="unit-chip done">✓ 名册的空行（33-38）</span>
+          <span class="unit-chip done">✓ 雨夜来客（39-47）</span>
+          <a class="unit-chip next" href="/p/03-map">! 后山的邀请（48- · 待拍板）→ 地图</a>
+          <span class="unit-chip slot">＋ 卷末副本 · 未规划</span>
+        </div>
+        <div class="vol-note">写到卷末时触发<b>卷间校准</b>：Agent 出卷复盘（完成了什么、埋了什么、下卷怎么走），你确认后微调卷三骨架再继续。</div>
+      </div>
+
+      <div class="vol-block plan">
+        <div class="vol-head"><span class="v-name">卷三 · 雾外有人</span><span class="v-range">规划中 · 终局卷</span><span class="badge mute">待卷二校准后细化</span></div>
+        <p class="vol-goal">目标：走出云隐镇、揭开"雾外世界"真相 → 高潮：与"注视者"的终局交易（粗案）</p>
+      </div>
+
+      <div style="display:flex;gap:var(--space-3);margin-top:var(--space-5);">
+        <button class="btn btn-ghost" id="early-end">提前完结…</button>
+      </div>
+      <div class="end-panel" id="end-panel" hidden>
+        数据不行想砍书时用：Agent 会把剩余主线目标压缩成约 8-12 章的收尾方案（含伏笔速收清单）给你确认，写完照常跑完结检查再导出。
+        <div class="mod-actions" style="margin-top:var(--space-3);">
+          <button class="btn btn-primary" id="early-end-go">生成收尾方案（模拟）</button>
+          <button class="btn btn-ghost" id="early-end-cancel">取消</button>
+        </div>
+        <div class="mod-done" id="early-end-done" hidden>✓ 收尾方案生成中…（模拟演示到此为止）</div>
+      </div>
+
+      <div class="pending-note" style="margin:var(--space-8) 0 0;">
+        <strong>⚑ 待确认（参数层）</strong>
+        <ul>
+          <li>卷间校准触发时机 [假设] 卷末最后一个副本完结时自动出卷复盘</li>
+          <li>提前完结收尾长度 [假设] 8-12 章</li>
+          <li>大纲修改是否需要二次确认 [假设] 波及 ≥2 张卡时必须确认</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    let mode = 'decide', writing = '第 48 章《上山》';
+    try { mode = sessionStorage.getItem('noya-mode') || 'decide'; writing = sessionStorage.getItem('noya-writing') || writing; } catch (e) {}
+    const M = { decide: ['badge warn', 'dot warn', '决策点 · 等你拍板'], cruise: ['badge run', 'dot run', '巡航中 · 按卷二骨架推进'], write: ['badge run', 'dot run', '写作中 · ' + writing.split('《')[0].trim()] };
+    const b = document.getElementById('state-badge'), m = M[mode] || M.decide;
+    b.className = m[0]; b.innerHTML = '<span class="' + m[1] + '"></span>' + m[2];
+  })();
+
+  // 对话修改：展开面板 → 提交 → 波及提示 → 确认
+  document.querySelectorAll('[data-mod]').forEach(btn => btn.addEventListener('click', () => {
+    const p = document.getElementById('mod-' + btn.dataset.mod);
+    p.hidden = !p.hidden;
+  }));
+  document.querySelectorAll('[data-mod-cancel]').forEach(btn => btn.addEventListener('click', () => {
+    const k = btn.dataset.modCancel;
+    document.getElementById('mod-' + k).hidden = true;
+    const r = document.getElementById('mod-' + k + '-ripple'); if (r) r.hidden = true;
+    document.getElementById('mod-' + k + '-done').hidden = true;
+  }));
+  document.getElementById('mod-world-go').addEventListener('click', () => {
+    document.getElementById('mod-world-ripple').hidden = false;
+  });
+  document.getElementById('mod-world-confirm').addEventListener('click', () => {
+    document.getElementById('mod-world-ripple').hidden = true;
+    document.getElementById('mod-world-done').hidden = false;
+  });
+  document.getElementById('mod-style-go').addEventListener('click', () => {
+    document.getElementById('mod-style-done').hidden = false;
+  });
+
+  // 提前完结
+  document.getElementById('early-end').addEventListener('click', () => { document.getElementById('end-panel').hidden = false; });
+  document.getElementById('early-end-cancel').addEventListener('click', () => { document.getElementById('end-panel').hidden = true; document.getElementById('early-end-done').hidden = true; });
+  document.getElementById('early-end-go').addEventListener('click', () => { document.getElementById('early-end-done').hidden = false; });
+</script>

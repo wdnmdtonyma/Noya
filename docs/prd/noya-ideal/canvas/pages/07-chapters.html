@@ -1,0 +1,213 @@
+<!-- title: 书 · 章节 -->
+<style>
+  .ch-list .list-row { display: flex; align-items: baseline; gap: var(--space-2); }
+  .ch-list .lr-no { width: 34px; flex: none; font-family: var(--font-family-mono); font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+  .ch-list .lr-t { flex: 1; font-size: var(--font-size-sm); color: var(--color-text); }
+  .ch-list-foot { padding: var(--space-3) 4px 0; font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+
+  .reader { max-width: 720px; }
+  .reader .r-title { font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); margin: 0 0 6px; }
+  .reader .r-meta { display: flex; align-items: center; gap: var(--space-3); font-size: var(--font-size-xs); color: var(--color-text-tertiary); margin-bottom: var(--space-5); }
+  .reader .r-body p { font-size: 15px; line-height: 1.9; color: var(--color-text); margin: 0 0 1em; }
+  .reader .r-body p.stub { color: var(--color-text-tertiary); }
+  .writeback { margin-top: var(--space-5); padding: var(--space-4); background: var(--color-surface-2); border-left: 3px solid var(--color-primary); border-radius: var(--radius-sm); }
+  .writeback .wb-title { font-size: var(--font-size-xs); color: var(--color-text-tertiary); letter-spacing: 1px; margin-bottom: 8px; }
+  .writeback .wb-item { display: flex; gap: 8px; align-items: baseline; font-size: var(--font-size-sm); color: var(--color-text-secondary); padding: 3px 0; }
+  .writeback .wb-item a { color: var(--color-primary); text-decoration: none; }
+
+  .ph-row { display: flex; align-items: flex-start; gap: var(--space-4); }
+  .ph-row .page-head { flex: 1; margin-bottom: var(--space-5); }
+  .rd-actions { display: flex; gap: var(--space-2); margin-top: var(--space-4); align-items: center; flex-wrap: wrap; }
+  .rd-guard { font-size: var(--font-size-xs); color: var(--color-warning); }
+  .act-panel { margin-top: var(--space-3); padding: var(--space-4); background: var(--color-surface-2); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); }
+  .act-panel textarea { width: 100%; min-height: 72px; resize: vertical; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-sm); color: var(--color-text); font-family: var(--font-family-base); font-size: var(--font-size-sm); line-height: 1.8; padding: 10px 12px; }
+  .act-panel textarea:focus { outline: none; border-color: var(--color-primary); }
+  .act-panel .ap-note { font-size: var(--font-size-xs); color: var(--color-text-tertiary); margin: 0 0 var(--space-2); }
+  .act-panel .ap-warn { font-size: var(--font-size-sm); color: var(--color-text-secondary); margin: 0 0 var(--space-3); }
+  .act-panel .ap-warn b { color: var(--color-danger); }
+  .act-actions { display: flex; gap: var(--space-2); margin-top: var(--space-3); }
+  .act-done { margin-top: var(--space-3); font-size: var(--font-size-sm); color: var(--color-success); }
+</style>
+
+<div class="topbar">
+  <a class="brand" href="/p/01-bookshelf"><span class="mark">N</span>Noya</a>
+  <div class="divider"></div>
+  <span style="font-size:var(--font-size-md);font-weight:var(--font-weight-medium);">我在规则怪谈里开民宿</span>
+  <div class="grow"></div>
+  <span class="badge warn" id="state-badge"><span class="dot warn"></span>决策点 · 等你拍板</span>
+</div>
+
+<div class="book-layout app-main">
+  <nav class="book-nav">
+    <a class="nav-item" href="/p/01-bookshelf" style="color:var(--color-text-tertiary);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M15 6l-6 6 6 6" /></svg>书架</a>
+    <a class="nav-item" href="/p/02-book-home"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>总览</a>
+    <div class="nav-group">世界观 · 影响内容</div>
+    <a class="nav-item" href="/p/025-outline"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M6 3h12v18H6z" /><path d="M9 8h6M9 12h6M9 16h4" /></svg>大纲</a>
+    <a class="nav-item" href="/p/03-map"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="12" r="9" /><path d="M15.5 8.5 13 13l-4.5 2.5L11 11z" /></svg>地图</a>
+    <a class="nav-item" href="/p/04-relations"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="6" r="2.4" /><circle cx="5" cy="18" r="2.4" /><circle cx="19" cy="18" r="2.4" /><path d="M10.8 8 6.4 15.8M13.2 8l4.4 7.8M7.4 18h9.2" /></svg>关系网</a>
+    <a class="nav-item" href="/p/05-characters"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="8" r="3.6" /><path d="M5.5 20a6.5 6.5 0 0 1 13 0" /></svg>人物</a>
+    <a class="nav-item" href="/p/06-monsters"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M6 21V10a6 6 0 0 1 12 0v11l-3-2.4-3 2.4-3-2.4z" /><circle cx="10" cy="10" r=".8" fill="currentColor" /><circle cx="14" cy="10" r=".8" fill="currentColor" /></svg>怪物</a>
+    <div class="nav-group">产物 · 给读者的</div>
+    <a class="nav-item is-active" href="/p/07-chapters"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M5 19V6a2 2 0 0 1 2-2h12v15H7a2 2 0 0 0-2 2zm0 0a2 2 0 0 0 2 2h12" /><path d="M9 8h6" /></svg>章节</a>
+    <a class="nav-item" href="/p/08-tasks"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 20l4-1L20 7l-3-3L5 16zM14 6l3 3" /></svg>写作任务</a>
+  </nav>
+
+  <div class="book-content">
+    <div class="content-pad">
+      <div class="ph-row">
+        <div class="page-head">
+          <h1>章节</h1>
+          <div class="ph-sub">给读者的最终产物 · 每章定稿自动回写世界状态 · 已发布章节受水位线保护</div>
+        </div>
+        <button class="btn btn-ghost" id="export-btn">导出已完成章节</button>
+      </div>
+
+      <div class="split">
+        <div class="list-col ch-list" id="ch-list">
+          <div class="list-row" data-ch="47"><span class="lr-no">47</span><span class="lr-t">雨夜来客（终）</span><span class="badge mute">定稿</span></div>
+          <div class="list-row" data-ch="46"><span class="lr-no">46</span><span class="lr-t">十三个环</span><span class="badge mute">定稿</span></div>
+          <div class="list-row" data-ch="45"><span class="lr-no">45</span><span class="lr-t">代客泊车</span><span class="badge warn">1 小冲突</span></div>
+          <div class="list-row" data-ch="44"><span class="lr-no">44</span><span class="lr-t">地契</span><span class="badge mute">定稿</span></div>
+          <div class="list-row" data-ch="43"><span class="lr-no">43</span><span class="lr-t">回执</span><span class="badge mute">定稿</span></div>
+          <div class="list-row" data-ch="42"><span class="lr-no">42</span><span class="lr-t">雾散的早晨</span><span class="badge pub">已发布</span></div>
+          <div class="ch-list-foot">共 47 章 · 已发布至第 42 章（水位线）· 更早章节略</div>
+        </div>
+
+        <div class="detail-col">
+          <div class="panel-card reader">
+            <h2 class="r-title" id="r-title"></h2>
+            <div class="r-meta" id="r-meta"></div>
+            <div class="r-body" id="r-body"></div>
+            <div class="writeback">
+              <div class="wb-title">本章定稿回写 → 世界状态</div>
+              <div id="r-writeback"></div>
+            </div>
+            <div class="rd-actions">
+              <button class="btn btn-ghost" id="polish-btn">润色（直接改）</button>
+              <button class="btn btn-ghost" id="redo-btn">打回重写</button>
+              <span class="rd-guard" id="pub-guard" hidden>已发布 · 受水位线保护，不可改动，只能从后续章节找补</span>
+            </div>
+            <div class="act-panel" id="polish-panel" hidden>
+              <p class="ap-note">直接改文字，保存时做轻量事实比对——命中已入库的剧情事实会提示你转打回重写：</p>
+              <textarea id="polish-text">钥匙上刻着一个字：山。</textarea>
+              <div class="act-actions">
+                <button class="btn btn-primary" id="polish-save">保存</button>
+                <button class="btn btn-ghost" id="polish-cancel">取消</button>
+              </div>
+              <div class="act-done" id="polish-done" hidden>✓ 已保存（模拟）· 事实比对：未命中已入库事实。若把"山"改成别的字，就会命中伏笔「第 13 把钥匙」并提示转打回。</div>
+            </div>
+            <div class="act-panel" id="redo-panel" hidden>
+              <p class="ap-warn"><b>打回重写</b>将作废本章、把世界状态回滚到上一章末，重写任务入队；本章之后已写的章节一并作废重排。已发布章节（≤42）不受此操作影响也不可被打回。</p>
+              <textarea id="redo-reason" placeholder="给 Agent 的重写指令：例如「陈默不该这么快摊牌，钥匙的事再压两章」"></textarea>
+              <div class="act-actions">
+                <button class="btn btn-primary" id="redo-confirm">确认打回（模拟）</button>
+                <button class="btn btn-ghost" id="redo-cancel">取消</button>
+              </div>
+              <div class="act-done" id="redo-done" hidden>✓ 已打回（模拟）· 重写任务已入队，世界状态回滚至第 46 章末 → 可在"写作任务"查看</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pending-note" style="margin:var(--space-8) 0 0;">
+        <strong>⚑ 待确认（参数层）</strong>
+        <ul>
+          <li>单章目标字数 [假设] 2,000-3,000 字（番茄节奏）</li>
+          <li>导出格式 [假设] 逐章 txt + 全书合集，人工粘贴发布</li>
+          <li>润色时事实比对的提示文案与灵敏度 [假设] 只比对已入库的世界状态事实字段</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    let mode = 'decide', writing = '第 48 章《上山》';
+    try { mode = sessionStorage.getItem('noya-mode') || 'decide'; writing = sessionStorage.getItem('noya-writing') || writing; } catch (e) {}
+    const M = { decide: ['badge warn', 'dot warn', '决策点 · 等你拍板'], cruise: ['badge run', 'dot run', '巡航中 · 按卷二骨架推进'], write: ['badge run', 'dot run', '写作中 · ' + writing.split('《')[0].trim()] };
+    const b = document.getElementById('state-badge'), m = M[mode] || M.decide;
+    b.className = m[0]; b.innerHTML = '<span class="' + m[1] + '"></span>' + m[2];
+  })();
+
+  const CHAPTERS = {
+    47: {
+      title: '第 47 章 · 雨夜来客（终）', meta: ['2,714 字', '定稿 · 未发布', '副本「雨夜来客」6/6'],
+      body: [
+        '雨在后半夜停了。顾栖迟把最后一位客人的伞插回伞桶，听见阁楼方向传来一声极轻的响——像钥匙齿碰上锁芯，又像有人在楼板上收回了脚。',
+        '"顾老板。"陈默不知什么时候站在楼梯口，手里夹着一枚铜钥匙，"你数过民宿的钥匙吗？"',
+        '"十二把。"',
+        '"可你的钥匙圈上，"他把铜钥匙搁在柜台上，缓缓推过来，"挂着十三个环。"',
+        '钥匙上刻着一个字：山。'
+      ],
+      wb: [['人物', '陈默 · 信任 +3（62）', '/p/05-characters'], ['伏笔', '「第 13 把钥匙」被再次提及', '/p/03-map'], ['道具', '铜钥匙（刻"山"）入册', '/p/03-map']]
+    },
+    46: {
+      title: '第 46 章 · 十三个环', meta: ['2,588 字', '定稿 · 未发布'],
+      body: ['铜钥匙在柜台上躺了一夜。顾栖迟数了三遍钥匙圈——十二把钥匙，十三个环。多出来的那个环，比其他的都新，像是昨天才被谁掰开又合上。', '（本章后续内容略——原型只完整填充第 47 章）'],
+      wb: [['道具', '钥匙圈异常确认', '/p/03-map']],
+      stub: true
+    },
+    45: {
+      title: '第 45 章 · 代客泊车', meta: ['2,660 字', '定稿 · 1 条小冲突已记账'],
+      body: ['那辆没有牌照的黑色轿车在民宿门口停了三天。第三天夜里，它自己发动了。', '（本章后续内容略——原型只完整填充第 47 章）'],
+      wb: [['人物', '白裙女客 · 第二次现身', '/p/05-characters'], ['冲突账', '小冲突：黑车车型前后描写不一（第 39 章为 SUV）→ 卷末过账裁决', '/p/08-tasks']],
+      stub: true
+    },
+    44: {
+      title: '第 44 章 · 地契', meta: ['2,701 字', '定稿 · 未发布'],
+      body: ['装修工人在阁楼夹层里敲出一只铁盒。地契的边角有焚烧的痕迹，背面按着一枚发黑的指印——像血。', '（本章后续内容略——原型只完整填充第 47 章）'],
+      wb: [['伏笔', '「地契背面的血指印」新埋 · 计划卷三回收', '/p/03-map']],
+      stub: true
+    },
+    43: {
+      title: '第 43 章 · 回执', meta: ['2,512 字', '定稿 · 未发布'],
+      body: ['县里寄来的挂号信没有寄件人。回执栏里签着一个名字——上一任老板的名字，墨迹很新。', '（本章后续内容略——原型只完整填充第 47 章）'],
+      wb: [['人物', '灶王爷 · 警告"后山的东西辈分比我大"', '/p/05-characters']],
+      stub: true
+    },
+    42: {
+      title: '第 42 章 · 雾散的早晨', meta: ['2,433 字', '已发布 · 水位线'],
+      body: ['连着七天的雾，在这个早晨忽然散了。镇上的人反而都关上了门——雾散，从来不是好事。', '（本章后续内容略——原型只完整填充第 47 章）'],
+      wb: [['地图', '云隐镇 · 环境状态变更（雾散）', '/p/03-map'], ['发布', '本章已发布，回滚保护生效', '/p/08-tasks']],
+      stub: true,
+      pub: true
+    }
+  };
+  function hidePanels() {
+    ['polish-panel', 'redo-panel', 'polish-done', 'redo-done'].forEach(id => { document.getElementById(id).hidden = true; });
+  }
+  function renderCh(no) {
+    const c = CHAPTERS[no];
+    document.getElementById('r-title').textContent = c.title;
+    document.getElementById('r-meta').innerHTML = c.meta.map(x => '<span>' + x + '</span>').join('<span style="color:var(--color-border-strong)">|</span>');
+    document.getElementById('r-body').innerHTML = c.body.map((p, i) =>
+      '<p class="' + (c.stub && i === c.body.length - 1 ? 'stub' : '') + '">' + p + '</p>').join('');
+    document.getElementById('r-writeback').innerHTML = c.wb.map(w =>
+      '<div class="wb-item"><span class="badge mute">' + w[0] + '</span><span>' + w[1] + '</span><a href="' + w[2] + '">查看 →</a></div>').join('');
+    document.querySelectorAll('#ch-list .list-row').forEach(r => r.classList.toggle('is-active', r.dataset.ch === String(no)));
+    // 已发布章节：水位线保护，改稿动作不可用
+    const guarded = !!c.pub;
+    ['polish-btn', 'redo-btn'].forEach(id => {
+      const btn = document.getElementById(id);
+      btn.setAttribute('aria-disabled', guarded ? 'true' : 'false');
+      btn.style.pointerEvents = guarded ? 'none' : '';
+    });
+    document.getElementById('pub-guard').hidden = !guarded;
+    hidePanels();
+  }
+  document.querySelectorAll('#ch-list .list-row').forEach(r => r.addEventListener('click', () => renderCh(r.dataset.ch)));
+  renderCh(47);
+
+  // 导出（模拟）
+  document.getElementById('export-btn').addEventListener('click', function () {
+    this.textContent = '✓ 已导出第 43-47 章 · txt（模拟）';
+  });
+  // 润色 / 打回
+  document.getElementById('polish-btn').addEventListener('click', () => { hidePanels(); document.getElementById('polish-panel').hidden = false; });
+  document.getElementById('polish-cancel').addEventListener('click', hidePanels);
+  document.getElementById('polish-save').addEventListener('click', () => { document.getElementById('polish-done').hidden = false; });
+  document.getElementById('redo-btn').addEventListener('click', () => { hidePanels(); document.getElementById('redo-panel').hidden = false; });
+  document.getElementById('redo-cancel').addEventListener('click', hidePanels);
+  document.getElementById('redo-confirm').addEventListener('click', () => { document.getElementById('redo-done').hidden = false; });
+</script>

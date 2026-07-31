@@ -1,0 +1,593 @@
+<!-- sandbox -->
+<!-- title: 形态甲 · 鬼谷卷轴（宣纸水墨） -->
+<!-- manifest
+state: cardOpen, chosen, panel(none|char|quest)
+components: ink-map, scroll-hud, portrait-rail, event-card [complex], round-dock, bamboo-outline, seal-fx
+-->
+<style>
+  html, body { height: 100%; overflow: hidden; }
+  .sk { --pa: #ece0c8; --pa2: #e3d5b6; --pa3: #d5c199; --ink: #2b2620; --ink2: #58503f;
+        --ink3: #8b8069; --cin: #a8352b; --wood: #6b4f2e; --wood2: #8d6a3c; --gold: #a4823f;
+        position: fixed; inset: 0; background: var(--pa); color: var(--ink);
+        font-family: "Kaiti SC", "STKaiti", "Songti SC", "STSong", serif; user-select: none; overflow: hidden; }
+  .sk button { font-family: inherit; }
+
+  /* ---------- 地图 ---------- */
+  .map { position: absolute; inset: 0; }
+  .map svg.ink, .map img.inkimg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .map img.inkimg { object-fit: cover; }
+  .paper-grain { position: absolute; inset: 0; pointer-events: none; opacity: .5;
+      background-image: radial-gradient(rgba(120,100,70,.16) .6px, transparent .6px); background-size: 4px 4px; }
+  .vig { position: absolute; inset: 0; pointer-events: none;
+      box-shadow: inset 0 0 180px 40px rgba(120,100,66,.28); }
+  /* 未探明：格子雾 */
+  .fog { position: absolute; pointer-events: none; opacity: .62;
+      background:
+        repeating-linear-gradient(0deg, rgba(236,224,200,.85) 0 34px, rgba(214,196,160,.5) 34px 35px),
+        repeating-linear-gradient(90deg, rgba(236,224,200,.85) 0 34px, rgba(214,196,160,.5) 34px 35px);
+      -webkit-mask-image: radial-gradient(60% 70% at 50% 50%, #000 55%, transparent 100%);
+      mask-image: radial-gradient(60% 70% at 50% 50%, #000 55%, transparent 100%); }
+  .fog.f1 { right: -4%; top: -6%; width: 34%; height: 46%; }
+  .fog.f2 { right: -6%; top: 40%; width: 30%; height: 46%; }
+
+  /* ---------- 地点 ---------- */
+  .loc { position: absolute; transform: translate(-50%, -50%); z-index: 20; cursor: pointer;
+         display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .loc .mk { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 50%;
+      background: radial-gradient(120% 120% at 34% 28%, #fbf3e0, #e3d3ae 72%); border: 1.5px solid rgba(107,79,46,.65);
+      box-shadow: 0 3px 9px rgba(90,70,40,.35), inset 0 0 0 3px rgba(255,255,255,.4); transition: transform .16s ease, border-color .16s ease; }
+  .loc .mk svg { stroke: var(--ink2); fill: none; }
+  .loc:hover .mk { transform: translateY(-3px); border-color: var(--cin); }
+  .loc.cur .mk { border-color: var(--cin); box-shadow: 0 0 0 3px rgba(168,53,43,.18), 0 4px 12px rgba(90,70,40,.4); }
+  .loc .nm { font-size: 15px; letter-spacing: 2px; color: var(--ink); white-space: nowrap;
+      text-shadow: 0 0 6px var(--pa), 0 0 12px var(--pa); font-weight: 600; }
+  .loc .sb { font-size: 11px; color: var(--ink3); letter-spacing: 1px; margin-top: -2px;
+      text-shadow: 0 0 6px var(--pa); }
+  .loc:hover .nm { color: var(--cin); }
+  .loc.cur .mk svg { stroke: var(--cin); }
+  .loc.cur .nm { color: var(--cin); }
+  .loc.locked { opacity: .45; }
+  .loc.locked .nm { color: var(--ink3); }
+  /* 朱砂印：当前要写的地方 */
+  .seal-mark { position: absolute; bottom: calc(100% + 34px); left: 50%; transform: translateX(-50%);
+      border: 2px solid var(--cin); color: var(--cin); font-size: 11px; letter-spacing: 3px; padding: 3px 7px 3px 10px;
+      border-radius: 2px; white-space: nowrap; background: rgba(236,224,200,.7); animation: sealbob 3s ease-in-out infinite; }
+  @keyframes sealbob { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(-4px); } }
+
+  /* ---------- 小人 ---------- */
+  .sp { position: absolute; transform: translate(-50%, -88%); z-index: 22; cursor: pointer; }
+  .sp .bd { display: flex; flex-direction: column; align-items: center; gap: 0; }
+  .sp img { height: var(--h, 54px); width: auto; filter: drop-shadow(0 4px 5px rgba(90,74,44,.4)); }
+  .sp.flip img { transform: scaleX(-1); }
+  .sp .nm { font-size: 11px; color: var(--ink2); letter-spacing: 1px; white-space: nowrap;
+      text-shadow: 0 0 5px var(--pa), 0 0 10px var(--pa); transition: opacity .3s; }
+  .sp .nm.hide { opacity: 0; }
+  .sp.walk .bd { animation: wd .42s ease-in-out infinite; }
+  @keyframes wd { 0%,100% { transform: translateY(0) rotate(-1.5deg); } 50% { transform: translateY(-3px) rotate(1.5deg); } }
+  .sp.hero::before { content: ''; position: absolute; left: 50%; bottom: -2px; transform: translateX(-50%);
+      width: 34px; height: 12px; border-radius: 50%; border: 1.5px solid rgba(168,53,43,.6); }
+
+  /* ---------- 卷轴通用 ---------- */
+  .scroll { position: relative; background: linear-gradient(180deg, #f2e8d3, var(--pa2));
+      border-left: 1px solid rgba(107,79,46,.35); border-right: 1px solid rgba(107,79,46,.35);
+      box-shadow: 0 6px 22px rgba(90,70,40,.25); }
+  .scroll::before, .scroll::after { content: ''; position: absolute; left: -6px; right: -6px; height: 15px;
+      background: linear-gradient(180deg, #9a7845, var(--wood) 55%, #4f3a20);
+      border-radius: 4px; box-shadow: 0 2px 6px rgba(60,44,22,.45); }
+  .scroll::before { top: -8px; }
+  .scroll::after { bottom: -8px; }
+  .scroll .inner { padding: 14px 18px; }
+  .rule { height: 1px; background: rgba(107,79,46,.28); margin: 9px 0; }
+  .rule.dbl { height: 3px; background: none; border-top: 1px solid rgba(107,79,46,.3); border-bottom: 1px solid rgba(107,79,46,.3); }
+
+  /* ---------- 顶栏 ---------- */
+  .topL { position: absolute; left: 22px; top: 22px; z-index: 40; width: 208px; }
+  .clock { font-size: 13px; letter-spacing: 2px; color: var(--ink2); }
+  .clock b { color: var(--ink); font-size: 16px; font-weight: 600; }
+  .clock .cd { display: block; margin-top: 4px; font-size: 12px; color: var(--cin); letter-spacing: 1px; }
+  .bookline { margin-top: 7px; font-size: 12px; color: var(--ink3); letter-spacing: 1px; }
+
+  .rail { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); z-index: 40;
+      display: flex; gap: 12px; }
+  .pf { width: 58px; text-align: center; cursor: pointer; }
+  .pf .ring { display: block; width: 54px; height: 54px; margin: 0 auto; border-radius: 50%; overflow: hidden; position: relative;
+      border: 3px solid var(--wood2); box-shadow: 0 0 0 1px rgba(107,79,46,.5), 0 4px 10px rgba(90,70,40,.4), inset 0 0 0 1px rgba(255,255,255,.35);
+      background: radial-gradient(120% 120% at 35% 25%, #fbf3e0, #d5c199); }
+  .pf .ring img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 14%;
+      filter: sepia(.35) contrast(1.06) brightness(1.12); }
+  .pf .ring i { font-style: normal; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: var(--ink2); }
+  .pf b { display: block; font-size: 11px; font-weight: 500; color: var(--ink2); margin-top: 3px; letter-spacing: 1px; }
+  .pf:hover .ring { border-color: var(--cin); }
+  .pf.you .ring { border-color: var(--cin); box-shadow: 0 0 0 1px rgba(168,53,43,.4), 0 3px 10px rgba(120,50,40,.3); }
+
+  .skinsw { position: absolute; right: 20px; top: 20px; z-index: 45; display: flex; align-items: center; gap: 6px;
+      font-size: 11px; color: var(--ink3); }
+  .skinsw a { display: inline-block; padding: 4px 10px; border: 1px solid rgba(107,79,46,.4); border-radius: 2px;
+      color: var(--ink2); text-decoration: none; letter-spacing: 1px; background: rgba(242,232,211,.8); }
+  .skinsw a.on { background: var(--cin); border-color: var(--cin); color: #f6ecd8; }
+  .skinsw a:hover { border-color: var(--cin); color: var(--cin); }
+  .skinsw a.on:hover { color: #f6ecd8; }
+
+  /* ---------- 左侧人物卷 ---------- */
+  .heroS { position: absolute; left: 22px; top: 132px; z-index: 40; width: 208px; }
+  .hs-h { display: flex; align-items: center; gap: 10px; }
+  .hs-h .ring { width: 44px; height: 44px; border-radius: 50%; overflow: hidden; position: relative; flex: none;
+      border: 2px solid var(--cin); background: var(--pa3); }
+  .hs-h .ring img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 12%; }
+  .hs-h b { font-size: 16px; letter-spacing: 1px; }
+  .hs-h span { display: block; font-size: 11px; color: var(--ink3); }
+  .kv { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink2); padding: 3px 0; }
+  .kv .k { width: 34px; flex: none; color: var(--ink3); }
+  .kv b { color: var(--ink); font-weight: 600; }
+  .kv .bar { flex: 1; height: 6px; background: rgba(107,79,46,.18); border: 1px solid rgba(107,79,46,.25); }
+  .kv .bar i { display: block; height: 100%; background: linear-gradient(90deg, #b98b3f, #d9b268); transition: width .8s ease; }
+  .kv .cin { color: var(--cin); }
+
+  /* ---------- 大纲：竹简 ---------- */
+  .bamboo { position: absolute; left: 22px; bottom: 26px; z-index: 40;
+      display: flex; align-items: flex-end; gap: 3px; padding: 8px 10px;
+      background: linear-gradient(180deg, rgba(242,232,211,.9), rgba(226,211,182,.9));
+      border-top: 1px solid rgba(107,79,46,.3); border-bottom: 1px solid rgba(107,79,46,.3); }
+  .slip { width: 27px; height: 116px; background: linear-gradient(180deg, #dfcda6, #cdb68c);
+      border: 1px solid rgba(107,79,46,.45); border-radius: 2px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;
+      writing-mode: vertical-rl; font-size: 12px; letter-spacing: 1.5px; color: var(--ink2); padding: 8px 0; }
+  .slip:hover { background: linear-gradient(180deg, #e8d8b6, #d8c39c); }
+  .slip.done { color: var(--ink); border-color: rgba(107,79,46,.7); }
+  .slip.done::after { content: '·'; position: absolute; top: 2px; left: 50%; transform: translateX(-50%); color: var(--cin); font-size: 20px; line-height: 1; }
+  .slip.cur { background: linear-gradient(180deg, #f0dfba, #e0c99f); border-color: var(--cin); color: var(--cin); box-shadow: 0 0 0 1px rgba(168,53,43,.35); }
+  .slip.boss { border-width: 2px; }
+  .slip.far { opacity: .55; }
+  .bamboo .vol { writing-mode: vertical-rl; font-size: 11px; color: var(--ink3); letter-spacing: 2px; padding: 0 6px; }
+
+  /* ---------- 底部圆钮 ---------- */
+  .dock { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 42;
+      display: flex; align-items: center; gap: 14px; }
+  .rb { width: 58px; height: 58px; border-radius: 50%; border: 2px solid var(--wood2); cursor: pointer;
+      background: radial-gradient(120% 120% at 35% 28%, #f0e3c6, #d8c39c 70%, #c3ab7d);
+      box-shadow: 0 4px 12px rgba(90,70,40,.3), inset 0 0 0 1px rgba(255,255,255,.35);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+      color: var(--ink); font-size: 13px; letter-spacing: 1px; position: relative; transition: transform .15s ease; }
+  .rb:hover { transform: translateY(-3px); border-color: var(--cin); }
+  .rb .hk { font-size: 9px; color: var(--ink3); letter-spacing: 0; }
+  .rb .dot { position: absolute; top: -2px; right: -2px; min-width: 16px; height: 16px; border-radius: 8px;
+      background: var(--cin); color: #f6ecd8; font-size: 10px; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
+
+  /* ---------- 遮罩 / 事件卡 ---------- */
+  .scrim { position: absolute; inset: 0; z-index: 50; background: rgba(60,46,26,.35); opacity: 0; pointer-events: none; transition: opacity .3s; }
+  .scrim.on { opacity: 1; pointer-events: auto; }
+  .ecard { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -47%) scale(.97); z-index: 55;
+      width: min(560px, 92vw); max-height: 84vh; opacity: 0; pointer-events: none;
+      transition: opacity .35s ease, transform .35s cubic-bezier(.2,.9,.3,1.2); }
+  .ecard.on { opacity: 1; transform: translate(-50%, -50%) scale(1); pointer-events: auto; }
+  .ecard .inner { padding: 20px 26px 22px; max-height: 78vh; overflow-y: auto; }
+  .ec-k { font-size: 11px; letter-spacing: 6px; color: var(--cin); text-align: center; }
+  .ec-t { font-size: 25px; letter-spacing: 3px; text-align: center; margin: 6px 0 2px; font-weight: 600; }
+  .ec-s { font-size: 12px; color: var(--ink3); text-align: center; letter-spacing: 1px; }
+  .ec-n { font-size: 15.5px; line-height: 2.05; color: var(--ink2); text-indent: 2em; margin: 4px 0 2px; }
+  .ec-q { text-align: center; font-size: 15px; color: var(--cin); letter-spacing: 2px; margin: 12px 0 10px; }
+  .opt { border: 1px solid rgba(107,79,46,.35); background: rgba(255,250,238,.55); padding: 11px 14px 12px;
+      margin-bottom: 10px; cursor: pointer; position: relative; transition: background .15s, border-color .15s, transform .15s; }
+  .opt:hover { background: rgba(255,252,244,.95); border-color: var(--cin); transform: translateX(3px); }
+  .opt .oh { display: flex; align-items: baseline; gap: 8px; }
+  .opt .no { width: 22px; height: 22px; flex: none; border: 1px solid var(--cin); color: var(--cin); font-size: 13px;
+      display: flex; align-items: center; justify-content: center; align-self: center; }
+  .opt .ot { font-size: 15.5px; color: var(--ink); letter-spacing: 1px; font-weight: 600; }
+  .opt .od { font-size: 13px; color: var(--ink2); margin-left: 30px; margin-top: 3px; line-height: 1.75; }
+  .opt .om { margin-left: 30px; margin-top: 7px; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 11.5px; color: var(--ink3); }
+  .opt .om b { color: var(--ink2); font-weight: 500; }
+  .opt .om .risk-l { color: #4f7a45; } .opt .om .risk-m { color: #9a7420; } .opt .om .risk-h { color: var(--cin); }
+  .opt .rec { position: absolute; top: -1px; right: -1px; background: var(--cin); color: #f6ecd8; font-size: 10px;
+      letter-spacing: 2px; padding: 2px 7px 2px 9px; }
+  .ec-foot { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+  .ec-foot .own { font-size: 11.5px; color: var(--ink3); flex: 1; }
+  .btn-ink { border: 1px solid rgba(107,79,46,.5); background: rgba(255,250,238,.6); color: var(--ink2);
+      font-size: 13px; padding: 7px 15px; cursor: pointer; letter-spacing: 1px; }
+  .btn-ink:hover { border-color: var(--cin); color: var(--cin); }
+
+  /* 印章落下 */
+  .stamp { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) scale(2.4) rotate(-14deg);
+      z-index: 60; width: 116px; height: 116px; border: 5px solid var(--cin); color: var(--cin);
+      display: flex; align-items: center; justify-content: center; font-size: 30px; letter-spacing: 4px;
+      opacity: 0; pointer-events: none; border-radius: 4px; padding-left: 4px; }
+  .stamp.go { animation: stampin 1.5s ease forwards; }
+  @keyframes stampin {
+    0% { opacity: 0; transform: translate(-50%,-50%) scale(2.4) rotate(-14deg); }
+    22% { opacity: .95; transform: translate(-50%,-50%) scale(1) rotate(-14deg); }
+    70% { opacity: .95; }
+    100% { opacity: 0; transform: translate(-50%,-50%) scale(1.05) rotate(-14deg); }
+  }
+
+  /* 飘字 */
+  .fl { position: absolute; z-index: 58; font-size: 15px; color: var(--cin); letter-spacing: 1px; pointer-events: none;
+      text-shadow: 0 0 8px var(--pa), 0 0 14px var(--pa); animation: flup 2.2s ease-out forwards; white-space: nowrap; }
+  .fl.g { color: #6d5a1f; }
+  @keyframes flup { 0% { opacity: 0; transform: translateY(6px); } 15% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; transform: translateY(-46px); } }
+
+  /* 侧面板（人物 / 任务） */
+  .side { position: absolute; right: 22px; top: 78px; bottom: 96px; width: 316px; z-index: 48;
+      opacity: 0; pointer-events: none; transform: translateX(14px); transition: all .3s ease; }
+  .side.on { opacity: 1; pointer-events: auto; transform: none; }
+  .side .inner { height: 100%; overflow-y: auto; padding: 16px 18px 18px; }
+  .side h4 { margin: 0 0 3px; font-size: 17px; letter-spacing: 3px; font-weight: 600; }
+  .side .sub { font-size: 11px; color: var(--ink3); letter-spacing: 1px; }
+  .side .x { position: absolute; right: 10px; top: 10px; border: none; background: none; color: var(--ink3); cursor: pointer; font-size: 15px; }
+  .side .x:hover { color: var(--cin); }
+  .grp { font-size: 11px; letter-spacing: 3px; color: var(--ink3); margin: 14px 0 6px; }
+  .qi { font-size: 13px; color: var(--ink2); line-height: 1.8; padding: 7px 0; border-bottom: 1px dashed rgba(107,79,46,.25); }
+  .qi b { color: var(--ink); font-weight: 600; }
+  .qi .tag { font-size: 10.5px; color: var(--cin); border: 1px solid rgba(168,53,43,.5); padding: 1px 5px; margin-left: 5px; }
+  .qi.done { color: var(--ink3); } .qi.done b { color: var(--ink3); text-decoration: line-through; }
+  .bagrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+  .bagrid .s { aspect-ratio: 1; border: 1px solid rgba(107,79,46,.4); background: rgba(255,250,238,.5);
+      display: flex; align-items: center; justify-content: center; font-size: 11.5px; color: var(--ink2); text-align: center; padding: 3px; }
+  .bagrid .s.e { border-style: dashed; color: var(--ink3); }
+
+  /* 提示 */
+  .tip { position: fixed; z-index: 70; transform: translate(-50%, -100%); background: rgba(250,243,228,.97);
+      border: 1px solid rgba(107,79,46,.5); padding: 6px 11px; font-size: 12.5px; color: var(--ink2);
+      box-shadow: 0 4px 12px rgba(90,70,40,.25); pointer-events: none; opacity: 0; transition: opacity .15s; max-width: 250px; line-height: 1.65; }
+  .tip.on { opacity: 1; }
+  .tip b { color: var(--cin); display: block; font-weight: 600; }
+  .toast { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%) translateY(10px); z-index: 62;
+      background: rgba(250,243,228,.98); border: 1px solid rgba(107,79,46,.5); padding: 9px 18px; font-size: 13.5px;
+      color: var(--ink2); box-shadow: 0 6px 18px rgba(90,70,40,.3); opacity: 0; pointer-events: none; transition: all .3s; letter-spacing: 1px; }
+  .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast b { color: var(--cin); }
+</style>
+
+<div class="sk" id="sk">
+  <div class="map" id="map">
+    <svg class="ink" viewBox="0 0 1440 810" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <defs>
+        <linearGradient id="pg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f0e6ce"/><stop offset="1" stop-color="#e5d7b6"/></linearGradient>
+        <filter id="wash"><feGaussianBlur stdDeviation="6"/></filter>
+        <filter id="wash2"><feGaussianBlur stdDeviation="2.5"/></filter>
+      </defs>
+      <rect width="1440" height="810" fill="url(#pg)"/>
+      <g filter="url(#wash)" opacity=".22" fill="#5d5747">
+        <path d="M0 350 C 120 270 210 320 300 260 C 390 200 460 290 560 245 C 660 200 730 285 840 240 C 950 195 1030 275 1140 235 C 1250 195 1340 250 1440 215 L 1440 400 L 0 400 Z"/>
+      </g>
+      <g filter="url(#wash2)" opacity=".3" fill="#4c4638">
+        <path d="M0 470 C 130 400 250 450 360 395 C 470 340 560 425 680 380 C 800 335 880 415 1000 375 C 1120 335 1230 400 1340 365 C 1390 350 1420 370 1440 360 L 1440 560 L 0 560 Z"/>
+      </g>
+      <g opacity=".34" fill="#3f3a2d" filter="url(#wash2)">
+        <path d="M0 640 C 150 570 280 620 420 575 C 560 530 680 600 820 560 C 950 523 1070 590 1200 550 C 1310 516 1390 560 1440 540 L 1440 810 L 0 810 Z"/>
+      </g>
+      <!-- 留白云雾 -->
+      <g fill="#f4ecd8" opacity=".85" filter="url(#wash)">
+        <ellipse cx="360" cy="430" rx="240" ry="42"/>
+        <ellipse cx="900" cy="470" rx="280" ry="38"/>
+        <ellipse cx="1180" cy="360" rx="200" ry="34"/>
+        <ellipse cx="220" cy="600" rx="200" ry="30"/>
+      </g>
+      <!-- 溪流 -->
+      <path d="M120 700 C 320 660 420 690 560 650 C 700 610 860 640 1000 600" stroke="#7d8f96" stroke-width="2.5" fill="none" opacity=".45"/>
+      <!-- 山径 -->
+      <g stroke="#8a7a5c" stroke-width="1.6" fill="none" stroke-dasharray="4 8" opacity=".75">
+        <path d="M432 518 C 520 480 620 430 720 373"/>
+        <path d="M432 518 C 480 560 520 596 576 616"/>
+        <path d="M720 373 C 810 340 900 305 979 275"/>
+        <path d="M979 275 C 1040 240 1100 200 1152 162"/>
+        <path d="M979 275 C 1070 340 1160 430 1238 486"/>
+      </g>
+    </svg>
+    <img class="inkimg" src="/assets/img/x-map-ink.png" alt="" onerror="this.remove()">
+    <div class="paper-grain"></div>
+    <div class="fog f1"></div>
+    <div class="fog f2"></div>
+
+    <div class="loc cur" style="left:32%;top:65%" data-loc="waimen" onclick="openCard()">
+      <span class="seal-mark">开 局 三 章</span>
+      <span class="mk"><svg width="24" height="24" viewBox="0 0 24 24" stroke-width="1.4"><path d="M3 20h18M5 20v-8l7-5 7 5v8M9 20v-5h6v5"/></svg></span>
+      <span class="nm">外门弟子院</span><span class="sb">灵气 ×2 · 主角在此</span>
+    </div>
+    <div class="loc" style="left:47%;top:47%" data-loc="cangjing" onclick="tipLoc('cangjing')">
+      <span class="mk"><svg width="24" height="24" viewBox="0 0 24 24" stroke-width="1.4"><path d="M4 21h16M6 21V9l6-4 6 4v12M9 21v-6h6v6M4 9h16"/></svg></span>
+      <span class="nm">藏经阁</span><span class="sb">灵气 ×5 · 未探明</span>
+    </div>
+    <div class="loc" style="left:50%;top:80%" data-loc="yanwu" onclick="tipLoc('yanwu')">
+      <span class="mk"><svg width="24" height="24" viewBox="0 0 24 24" stroke-width="1.4"><path d="M4 18h16M7 18l3-11M17 18l-3-11M9 7h6"/></svg></span>
+      <span class="nm">演武场</span><span class="sb">三月后 · 外门大比</span>
+    </div>
+    <div class="loc" style="left:65%;top:34%" data-loc="neimen" onclick="tipLoc('neimen')">
+      <span class="mk"><svg width="24" height="24" viewBox="0 0 24 24" stroke-width="1.4"><path d="M3 20h18M5 20V10l7-6 7 6v10M10 20v-6h4v6"/></svg></span>
+      <span class="nm">内门</span><span class="sb">天才所居</span>
+    </div>
+    <div class="loc locked" style="left:83%;top:17%" data-loc="houshan" onclick="tipLoc('houshan')">
+      <span class="mk"><svg width="24" height="24" viewBox="0 0 24 24" stroke-width="1.4"><path d="M3 19h18L14 6l-4 7-2-2z"/></svg></span>
+      <span class="nm">后山禁地</span><span class="sb">迷雾未开</span>
+    </div>
+    <div class="loc locked" style="left:86%;top:60%" data-loc="mijing" onclick="tipLoc('mijing')">
+      <span class="mk"><svg width="24" height="24" viewBox="0 0 24 24" stroke-width="1.4"><path d="M5 21c0-6 3-11 7-11s7 5 7 11z"/></svg></span>
+      <span class="nm">青冥秘境</span><span class="sb">封印中</span>
+    </div>
+
+    <div class="sp" id="sp-wang" style="left:26.5%;top:67%;--h:50px"><div class="bd"><img src="/assets/img/s-wang.png" alt="" onerror="this.closest('.sp').remove()"><span class="nm">王二狗</span></div></div>
+    <div class="sp" id="sp-zhao" style="left:37%;top:74%;--h:56px"><div class="bd"><img src="/assets/img/s-zhao.png" alt="" onerror="this.closest('.sp').remove()"><span class="nm">赵天雄</span></div></div>
+    <div class="sp" id="sp-han" style="left:53%;top:43%;--h:48px"><div class="bd"><img src="/assets/img/s-han.png" alt="" onerror="this.closest('.sp').remove()"><span class="nm">韩拾遗</span></div></div>
+    <div class="sp" id="sp-shen" style="left:70.5%;top:31.5%;--h:54px"><div class="bd"><img src="/assets/img/s-shen.png" alt="" onerror="this.closest('.sp').remove()"><span class="nm">沈青霜</span></div></div>
+    <div class="sp" id="sp-d1" style="left:32.5%;top:61%;--h:44px"><div class="bd"><img src="/assets/img/s-npc1.png" alt="" onerror="this.closest('.sp').remove()"></div></div>
+    <div class="sp hero" id="sp-lin" style="left:26%;top:61%;--h:60px" onclick="openSide('char')"><div class="bd"><img src="/assets/img/s-linfan.png" alt="" onerror="this.closest('.sp').remove()"><span class="nm">林凡</span></div></div>
+    <div class="vig"></div>
+  </div>
+
+  <!-- 顶左：世界时钟 -->
+  <div class="topL">
+    <div class="scroll"><div class="inner">
+      <div class="clock"><b>玄苍历 · 三月初七</b><span class="cd">外门大比 · 尚余八十七日</span></div>
+      <div class="rule dbl"></div>
+      <div class="bookline">《我在青云宗打卡修仙》<br>卷一 · 外门篇 · 未落笔</div>
+    </div></div>
+  </div>
+
+  <!-- 顶中：人物头像排 -->
+  <div class="rail">
+    <div class="pf you" onclick="openSide('char')"><span class="ring"><img src="/assets/img/x-linfan.png" alt="" onerror="this.remove()"><i>凡</i></span><b>林凡</b></div>
+    <div class="pf" onmouseenter="tipEl(this,'王二狗 · 损友','炼气二层——消息比谁都灵通，怂但仗义')" onmouseleave="hideTip()"><span class="ring"><img src="/assets/img/x-wang.png" alt="" onerror="this.remove()"><i>狗</i></span><b>王二狗</b></div>
+    <div class="pf" onmouseenter="tipEl(this,'赵天雄 · 反派','炼气七层——那簇火里带着一丝说不清的腥气')" onmouseleave="hideTip()"><span class="ring"><img src="/assets/img/x-zhao.png" alt="" onerror="this.remove()"><i>雄</i></span><b>赵天雄</b></div>
+    <div class="pf" onmouseenter="tipEl(this,'沈青霜 · 女主','内门第一天才——与你有一桩替她挡剑的旧事')" onmouseleave="hideTip()"><span class="ring"><img src="/assets/img/x-shen.png" alt="" onerror="this.remove()"><i>霜</i></span><b>沈青霜</b></div>
+    <div class="pf" onmouseenter="tipEl(this,'韩拾遗 · 老杂役','连赵天雄都懒得踩一脚的存在——真身元婴')" onmouseleave="hideTip()"><span class="ring"><img src="/assets/img/x-han.png" alt="" onerror="this.remove()"><i>韩</i></span><b>韩拾遗</b></div>
+  </div>
+
+  <div class="skinsw">
+    <span>形态</span>
+    <a class="on" href="/p/_sandbox-skin-a">甲 · 卷轴</a>
+    <a href="/p/_sandbox-skin-b">乙 · 手游</a>
+    <a href="/p/_sandbox-skin-c">丙 · 夜金</a>
+  </div>
+
+  <!-- 左侧：主角卷 -->
+  <div class="heroS">
+    <div class="scroll"><div class="inner">
+      <div class="hs-h">
+        <span class="ring"><img src="/assets/img/x-linfan.png" alt="" onerror="this.remove()"></span>
+        <span><b>林凡</b><span>穿越者 · 青云宗外门</span></span>
+      </div>
+      <div class="rule"></div>
+      <div class="kv"><span class="k">境界</span><b>炼气一层</b><span style="color:var(--ink3);font-size:11px;">(1/9)</span></div>
+      <div class="kv"><span class="k">修为</span><span class="bar"><i id="a-cult" style="width:12%"></i></span><b id="a-cultn">12%</b></div>
+      <div class="kv"><span class="k">灵根</span><b>五行杂 · 伪</b><span class="cin">可洗</span></div>
+      <div class="kv"><span class="k">道源</span><b id="a-dao">100</b><span style="color:var(--ink3);font-size:11px;">灵石 3</span></div>
+      <div class="kv"><span class="k">战力</span><b>蝼蚁级</b><span style="color:var(--ink3);font-size:11px;">108</span></div>
+      <div class="rule dbl"></div>
+      <div class="kv"><span class="k">正文</span><b id="a-words">0</b><span style="color:var(--ink3);font-size:11px;">字 · 第 <span id="a-ch">0</span>/3 章</span></div>
+    </div></div>
+  </div>
+
+  <!-- 大纲竹简 -->
+  <div class="bamboo" id="bamboo">
+    <span class="vol">卷一 外门篇</span>
+    <span class="slip cur" onclick="openCard()">开局·魂穿绑定</span>
+    <span class="slip" onclick="toast('未到 · <b>藏经阁的一百道源</b>')">藏经阁百道源</span>
+    <span class="slip" onclick="toast('未到 · <b>外门风波</b>')">外门风波</span>
+    <span class="slip boss" onclick="toast('卷一收束 · <b>外门大比</b>——达成概率 0.7%，差的这段就是卷一的戏')">外门大比◆</span>
+    <span class="slip far" onclick="toast('未到 · <b>青冥秘境</b>')">青冥秘境</span>
+    <span class="vol" style="opacity:.5">卷二 内门篇</span>
+  </div>
+
+  <!-- 底部圆钮 -->
+  <div class="dock">
+    <button class="rb" onclick="openSide('char')">人物<span class="hk">C</span></button>
+    <button class="rb" onclick="openSide('bag')">行囊<span class="hk">B</span></button>
+    <button class="rb" onclick="openSide('quest')">簿册<span class="hk">J</span><span class="dot" id="a-qn">4</span></button>
+    <button class="rb" onclick="toast('世界设定 · 探针这一面没铺')">设定<span class="hk">Y</span></button>
+    <button class="rb" onclick="toast('关系图谱 · 探针这一面没铺')">关系<span class="hk">R</span></button>
+    <button class="rb" onclick="openCard()">落笔<span class="hk">Space</span></button>
+  </div>
+
+  <!-- 侧面板 -->
+  <div class="side" id="side"><div class="scroll" style="height:100%"><div class="inner" id="sidebody"></div></div>
+    <button class="x" onclick="closeSide()">✕</button>
+  </div>
+
+  <div class="scrim" id="scrim" onclick="closeCard()"></div>
+
+  <!-- 事件卡 -->
+  <div class="ecard scroll" id="ecard"><div class="inner">
+    <div class="ec-k">卷 一 · 第 一 章</div>
+    <div class="ec-t">魂穿与叮的一声</div>
+    <div class="ec-s">外门弟子院 · 在场：林凡 / 赵天雄 / 王二狗 · 系统尚未觉醒</div>
+    <div class="rule dbl"></div>
+    <div class="ec-n">赵天雄一脚碾住他的手背，掌心那簇真火离脸只剩半尺。围观的弟子静了一瞬，有人低声劝"别真闹出人命"。他脑子里飞快盘算着穿越三件套——前世记忆有了，废物身份有了，金手指呢？</div>
+    <div class="ec-n">系统还没响。</div>
+    <div class="ec-q">这 一 拍 ， 让 他 怎 么 演 ？</div>
+
+    <div class="opt" onclick="choose('甲')">
+      <span class="rec">合 人 设</span>
+      <div class="oh"><span class="no">甲</span><span class="ot">装怂，把三块灵石推过去</span></div>
+      <div class="od">命先保住，账冷冷记下——"赵天雄，这笔慢慢算"。</div>
+      <div class="om"><span>代价 <b>金手指再压一拍才响</b></span><span>换来 <b>反派立威更狠，后面打脸更响</b></span><span class="risk-l">风险 低</span></div>
+    </div>
+    <div class="opt" onclick="choose('乙')">
+      <div class="oh"><span class="no">乙</span><span class="ot">硬顶回去，当众放句狠话</span></div>
+      <div class="od">骨头先亮出来，读者当场解气。</div>
+      <div class="om"><span>代价 <b>主角定成刚烈型，"扮猪吃虎"全线作废</b></span><span class="risk-h">风险 高</span></div>
+    </div>
+    <div class="opt" onclick="choose('丙')">
+      <div class="oh"><span class="no">丙</span><span class="ot">让系统提前响，这一拍就叮</span></div>
+      <div class="od">爽点前置，第一章就把金手指亮给读者。</div>
+      <div class="om"><span>代价 <b>"绝望到底才觉醒"的力度打折</b></span><span class="risk-m">风险 中</span></div>
+    </div>
+
+    <div class="ec-foot">
+      <span class="own">欠读者的账：金手指立起 · 死线钉死 · 女主挂钩 · 反派立威</span>
+      <button class="btn-ink" onclick="toast('自己写一句：正式版这里可直接落笔，写手照你的句子往下接')">自己写一句</button>
+      <button class="btn-ink" onclick="closeCard()">再想想</button>
+    </div>
+  </div></div>
+
+  <div class="stamp" id="stamp">落 笔</div>
+  <div class="toast" id="toast"></div>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+  const A = { chosen: false };
+  const LOCP = { waimen: [32, 65], cangjing: [47, 47], yanwu: [50, 80], neimen: [65, 34] };
+  const LOCT = {
+    cangjing: ['藏经阁 · 灵气 ×5', '三层老木楼，旧纸与陈墨的味道。楼里有个连赵天雄都懒得踩的扫地老头——别小看他。'],
+    yanwu: ['演武场 · 卷一大戏台', '三月后外门大比：进前十直升内门，末位逐出宗门。赵天雄在这里等着。'],
+    neimen: ['内门 · 天才所居', '那道冷得像冰的神识，就是从这片飞檐后扫出来的。'],
+    houshan: ['后山禁地 · 迷雾未开', '乱葬岗的传闻在弟子间流传。大纲走到那一格，雾才会散。'],
+    mijing: ['青冥秘境 · 封印中', '独立的一方天地：进去有自己的地图、自己的规矩。卷一后段才开。'],
+  };
+  function tipLoc(id) { const t = LOCT[id]; if (t) toast('<b>' + t[0] + '</b> ' + t[1]); }
+  function tipEl(el, title, body) {
+    const t = document.getElementById('tip'), r = el.getBoundingClientRect();
+    t.innerHTML = '<b>' + title + '</b>' + body;
+    t.style.left = (r.left + r.width / 2) + 'px'; t.style.top = (r.top - 8) + 'px';
+    t.classList.add('on');
+  }
+  function hideTip() { document.getElementById('tip').classList.remove('on'); }
+  let tt; function toast(html) {
+    const t = document.getElementById('toast'); t.innerHTML = html; t.classList.add('on');
+    clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 3600);
+  }
+
+  /* 事件卡 */
+  function openCard() {
+    if (A.chosen) { toast('第一章已落笔——探针到此为止，第二张卡不铺'); return; }
+    document.getElementById('scrim').classList.add('on');
+    document.getElementById('ecard').classList.add('on');
+  }
+  function closeCard() {
+    document.getElementById('scrim').classList.remove('on');
+    document.getElementById('ecard').classList.remove('on');
+  }
+  function choose(k) {
+    if (A.chosen) return;
+    A.chosen = true;
+    closeCard();
+    const st = document.getElementById('stamp'); st.classList.remove('go'); void st.offsetWidth; st.classList.add('go');
+    setTimeout(() => {
+      float(30, 60, '正文 +2,600 字', true);
+      float(26, 66, '道源 100 已入账');
+      setNum('a-words', '2,600'); document.getElementById('a-ch').textContent = '1';
+      document.getElementById('a-qn').textContent = '3';
+    }, 1000);
+    setTimeout(() => {
+      const cur = document.querySelector('.slip.cur');
+      cur.classList.remove('cur'); cur.classList.add('done');
+      const nx = cur.nextElementSibling; if (nx && nx.classList.contains('slip')) nx.classList.add('cur');
+      document.querySelector('.loc.cur .seal-mark').remove();
+      document.querySelector('.loc.cur').classList.remove('cur');
+      const msg = {
+        '甲': '选了<b>甲</b>——写手照"先苟"往下写：金手指压到章末才响，赵天雄这笔账记进了世界',
+        '乙': '选了<b>乙</b>——主角性子改判为刚烈型，后面"扮猪吃虎"的设计已全线作废（世界已回写）',
+        '丙': '选了<b>丙</b>——系统提前一章觉醒，绝望的力度打了折，爽点前置到第一章',
+      }[k];
+      toast(msg);
+    }, 1700);
+  }
+  function setNum(id, v) { document.getElementById(id).textContent = v; }
+  function float(xp, yp, txt, gold) {
+    const f = document.createElement('div');
+    f.className = 'fl' + (gold ? ' g' : '');
+    f.style.left = xp + '%'; f.style.top = yp + '%'; f.textContent = txt;
+    document.getElementById('map').appendChild(f);
+    setTimeout(() => f.remove(), 2300);
+  }
+
+  /* 侧面板 */
+  function openSide(which) {
+    const b = document.getElementById('sidebody');
+    if (which === 'char') {
+      b.innerHTML = '<h4>林 凡</h4><div class="sub">主角 · 穿越者 · 外门弟子三千之末</div><div class="rule dbl"></div>'
+        + '<div class="kv"><span class="k">境界</span><b>炼气一层</b></div>'
+        + '<div class="kv"><span class="k">修为</span><span class="bar"><i style="width:' + (A.chosen ? 12 : 12) + '%"></i></span><b>12%</b></div>'
+        + '<div class="kv"><span class="k">灵根</span><b>五行杂 · 伪灵根</b><span class="cin">可洗</span></div>'
+        + '<div class="kv"><span class="k">资质</span><b>F</b><span style="color:var(--ink3);font-size:11px;">修炼比人慢十倍</span></div>'
+        + '<div class="kv"><span class="k">道源</span><b>' + (A.chosen ? '100' : '100') + '</b></div>'
+        + '<div class="kv"><span class="k">战力</span><b>蝼蚁级 · 108</b></div>'
+        + '<div class="kv"><span class="k">神识</span><b>三丈</b></div>'
+        + '<div class="grp">底 牌</div>'
+        + '<div class="qi">穿越者 · 前世社畜八年<span class="tag">无人知</span></div>'
+        + '<div class="qi">长生签到系统 · 每日一签，道源＝10×地点灵气<span class="tag">无人知</span></div>'
+        + '<div class="grp">行 囊</div>'
+        + '<div class="bagrid"><span class="s">生锈铁剑<br>×1</span><span class="s">下品灵石<br>×3</span><span class="s">半块干粮<br>×1</span><span class="s e">空</span></div>';
+    } else if (which === 'bag') {
+      b.innerHTML = '<h4>行 囊</h4><div class="sub">全部家当 · 与正文对得上</div><div class="rule dbl"></div>'
+        + '<div class="bagrid"><span class="s">生锈铁剑<br>×1</span><span class="s">下品灵石<br>×3</span><span class="s">半块干粮<br>×1</span><span class="s e">空</span>'
+        + '<span class="s e">空</span><span class="s e">空</span><span class="s e">空</span><span class="s e">空</span></div>'
+        + '<div class="grp">系 统 商 店 · 眼 馋</div>'
+        + '<div class="qi"><b>聚气丹</b> 30 道源 · 修为 +8%</div>'
+        + '<div class="qi"><b>《寒霜真解》</b> 800 道源 · 未解锁</div>'
+        + '<div class="qi"><b>洗髓丹</b> 5000 道源 · 伪灵根提纯一档<span class="tag">翻身价码</span></div>';
+    } else {
+      b.innerHTML = '<h4>簿 册</h4><div class="sub">一本账两面 · 主角的任务 / 你欠读者的</div><div class="rule dbl"></div>'
+        + '<div class="grp">主 角 · 系统任务</div>'
+        + (A.chosen
+          ? '<div class="qi"><b>三月之约</b>——大比进前十，奖洗髓丹<span class="tag">0.7%</span></div>'
+          : '<div class="qi" style="color:var(--ink3)">系统还没觉醒——这正是第一章要办的事</div>')
+        + '<div class="grp">你 · 欠 读 者 的</div>'
+        + (A.chosen
+          ? '<div class="qi done"><b>金手指立起来</b>——章末已响</div>'
+          : '<div class="qi"><b>金手指立起来</b>——三章内系统必须响</div>')
+        + '<div class="qi"><b>死线钉死</b>——大比垫底逐出，让读者替他着急</div>'
+        + '<div class="qi"><b>女主挂上钩</b>——她得注意到他，但不能捅破</div>'
+        + '<div class="qi"><b>反派立威</b>——压得够狠，打脸才够响</div>'
+        + '<div class="qi" style="color:var(--ink3)"><b>系统的来历</b><span class="tag">深埋 · 卷一不动</span></div>';
+    }
+    document.getElementById('side').classList.add('on');
+  }
+  function closeSide() { document.getElementById('side').classList.remove('on'); }
+
+  /* 小人游走 */
+  const W = [
+    { id: 'sp-lin', home: 'waimen', r: 3, sp: 26, ox: -4, oy: -3.5 },
+    { id: 'sp-wang', home: 'waimen', r: 4.5, sp: 20, ox: -4, oy: -2 },
+    { id: 'sp-zhao', home: 'yanwu', r: 5, sp: 24, ox: -3, oy: -2 },
+    { id: 'sp-han', home: 'cangjing', r: 3, sp: 10, ox: 3.5, oy: -3 },
+    { id: 'sp-shen', home: 'neimen', r: 3.5, sp: 16, ox: 3, oy: -2.5 },
+    { id: 'sp-d1', home: 'waimen', r: 6, sp: 16, ox: 4, oy: -3 },
+  ];
+  function startW() {
+    W.forEach(s => {
+      const el = document.getElementById(s.id); if (!el) return;
+      s.x = parseFloat(el.style.left); s.y = parseFloat(el.style.top); sch(s);
+    });
+  }
+  function sch(s) { clearTimeout(s.t); s.t = setTimeout(() => step(s), 1500 + Math.random() * 5000); }
+  function step(s) {
+    const el = document.getElementById(s.id); if (!el) return;
+    const c = LOCP[s.home];
+    const nx = c[0] + s.ox + (Math.random() * 2 - 1) * s.r;
+    const ny = c[1] + s.oy + (Math.random() * 2 - 1) * s.r * .6;
+    const d = Math.hypot((nx - s.x) * 14.4, (ny - s.y) * 8.1);
+    if (d < 8) { sch(s); return; }
+    const dur = Math.max(.9, d / s.sp);
+    el.classList.toggle('flip', nx < s.x); el.classList.add('walk');
+    el.style.transition = 'left ' + dur + 's linear, top ' + dur + 's linear';
+    el.style.left = nx + '%'; el.style.top = ny + '%'; el.style.zIndex = 20 + Math.round(ny / 4);
+    s.x = nx; s.y = ny;
+    clearTimeout(s.w); s.w = setTimeout(() => { el.classList.remove('walk'); sch(s); }, dur * 1000 + 50);
+  }
+  /* 名字避让 */
+  setInterval(() => {
+    const hit = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+    const L = [...document.querySelectorAll('.loc .nm, .loc .sb')].map(e => e.getBoundingClientRect());
+    document.querySelectorAll('.sp .nm').forEach(e => {
+      const r = e.getBoundingClientRect();
+      e.classList.toggle('hide', r.width > 0 && L.some(l => l.width && hit(r, l)));
+    });
+  }, 300);
+
+  document.querySelectorAll('.sp').forEach(el => {
+    const nm = el.querySelector('.nm'); if (!nm) return;
+    el.addEventListener('mouseenter', () => tipEl(el, nm.textContent, ({
+      '林凡': '主角 · 点开看人物卷', '王二狗': '损友 · 炼气二层，消息灵通',
+      '赵天雄': '反派 · 炼气七层，偷服禁药「嗜血丹」', '韩拾遗': '老杂役 · 真身元婴，认得系统的气息',
+      '沈青霜': '女主 · 内门第一天才，记着替她挡剑的旧情',
+    })[nm.textContent] || ''));
+    el.addEventListener('mouseleave', hideTip);
+  });
+  document.addEventListener('keydown', e => {
+    const k = e.key.toLowerCase();
+    if (k === 'c') openSide('char'); else if (k === 'b') openSide('bag');
+    else if (k === 'j') openSide('quest'); else if (k === ' ') { e.preventDefault(); openCard(); }
+    else if (k === 'escape') { closeCard(); closeSide(); }
+  });
+  startW();
+</script>
