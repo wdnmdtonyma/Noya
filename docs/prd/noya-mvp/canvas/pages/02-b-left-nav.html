@@ -1,0 +1,222 @@
+<!-- title: 骨架乙 · 左边一条导航，七个页平级 -->
+<!-- sandbox -->
+<style>
+  .b-shell { display: flex; height: 100vh; }
+  .b-nav {
+    flex: 0 0 178px;
+    display: flex; flex-direction: column;
+    padding: var(--space-4) var(--space-3);
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+  }
+  .b-nav__book { padding: 0 var(--space-2) var(--space-4); }
+  .b-nav__book b { display: block; font-size: var(--font-size-lg); font-weight: 650; }
+  .b-nav__book small { display: block; color: var(--color-text-muted); font-size: var(--font-size-sm); margin-top: 3px; }
+  .b-nav nav { display: flex; flex-direction: column; gap: 1px; }
+  .b-nav .toolbtn { width: 100%; }
+  .b-nav__sep { height: 1px; background: var(--color-border); margin: var(--space-3) var(--space-2); }
+  .b-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .b-main .wd-top { padding-left: var(--space-5); }
+  .b-panel { flex: 1; overflow-y: auto; padding: var(--space-6); }
+  .b-panel .panel { max-width: 620px; }
+</style>
+
+<div class="b-shell">
+  <aside class="b-nav">
+    <div class="b-nav__book">
+      <b>我在青云宗打卡修仙</b>
+      <small>3.6 万字 · 13 章</small>
+    </div>
+    <nav id="nav">
+      <button class="toolbtn is-on" data-k="desk">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12.5l1-3.2L10 2.8l2.2 2.2-6.5 6.5z"/><path d="M2.5 12.5h10"/></svg>
+        写作台
+      </button>
+      <div class="b-nav__sep"></div>
+    </nav>
+  </aside>
+
+  <div class="b-main">
+    <header class="wd-top">
+      <div class="wd-top__where">
+        <span class="seg">卷一 · 青云宗外门</span>
+        <span class="seg-sep">/</span>
+        <span class="seg seg--now">外门风波</span>
+        <span class="prog"><i class="dot is-done"></i><i class="dot is-done"></i><i class="dot"></i></span>
+        <span class="seg-note">还差 1 件</span>
+      </div>
+    </header>
+
+    <main class="desk" id="stage">
+      <div class="desk__inner" id="deskInner"></div>
+    </main>
+
+    <div class="chat">
+      <div class="chat__inner">
+        <div class="chat__quick" id="quick">
+          <button data-act="beat4">第 4 步别让他抬头</button>
+          <button data-act="who">看看韩拾遗是谁</button>
+          <button data-act="outline">这一段还差几件</button>
+        </div>
+        <div class="chat__row">
+          <input id="say" placeholder="跟 agent 说…（它知道你现在在看哪一页）" />
+          <button class="btn btn--primary" id="go">就这么写</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="skin-switch">
+  <span class="skin-switch__label">骨架</span>
+  <a href="/p/01-a-writing-desk" class="skin-switch__btn">甲 滑出</a>
+  <a href="/p/02-b-left-nav" class="skin-switch__btn is-on">乙 左导航</a>
+  <a href="/p/03-c-two-column" class="skin-switch__btn">丙 两栏</a>
+  <a href="/p/04-d-three-column" class="skin-switch__btn">丁 三栏</a>
+</div>
+
+<template id="planTpl">
+  <div class="desk__lead">
+    <h1>第 13 章 · 藏经阁的老头</h1>
+    <span class="tag-pending">等你过目</span>
+  </div>
+  <p class="desk__sub">
+    agent 已经把这一章排好了。
+    <button class="linkish" id="ctxToggle">这次带了什么料进去 ▾</button>
+  </p>
+  <div class="ctxbox" id="ctxBox" hidden>
+    <ul>
+      <li>第 10–12 章全文（7,890 字）；更早的 9 章每章一段摘要</li>
+      <li>世界志地点链：玄苍界 › 天南大陆 › 东境 › 青云宗 › 外门 › 杂役院 / 藏经阁</li>
+      <li>世界志运行规则：道源 + 境界；铜钱与藏经阁价格；签到触发、限制和当前进度</li>
+      <li>外门风波这一段：3 件事，已勾 2</li>
+      <li>全档：林凡、孙彪、韩拾遗；其余 6 人只带名字和一句话</li>
+      <li>活着的线索 5 条，其中欠着的 3 条；文风 4 条</li>
+    </ul>
+    <div class="tail">觉得它漏了要紧的，在下面说一句补进去，再让它写。</div>
+  </div>
+  <ol class="beats">
+    <li class="beat"><span class="beat__n">1</span><p class="beat__t">清晨，杂役院。孙彪带三个人堵住林凡，当众踢翻他的水桶。<span class="beat__flag">已改</span></p><button class="beat__edit">改</button></li>
+    <li class="beat"><span class="beat__n">2</span><p class="beat__t">林凡没还手。他蹲下去，一点一点把洒出去的水收拾干净，围着看的人渐渐散了。<span class="beat__flag">已改</span></p><button class="beat__edit">改</button></li>
+    <li class="beat"><span class="beat__n">3</span><p class="beat__t">转场藏经阁门口。他把身上最后一个铜板交了阅读费。<span class="beat__flag">已改</span></p><button class="beat__edit">改</button></li>
+    <li class="beat" id="beat4"><span class="beat__n">4</span><p class="beat__t">阁内，韩拾遗从书堆后抬头看了他一眼，没说话。<span class="beat__flag">已改</span></p><button class="beat__edit">改</button></li>
+    <li class="beat"><span class="beat__n">5</span><p class="beat__t">收尾。林凡翻开第一本，眼前亮了一下——<span class="sys">藏经阁 · 首次到访</span><span class="beat__flag">已改</span></p><button class="beat__edit">改</button></li>
+  </ol>
+  <div class="slate">
+    <div class="slate__row">
+      <div class="slate__k">登场</div>
+      <div class="slate__v">
+        <button class="who" data-char="sunbiao">孙彪<em>一次性 · 之前出现过</em></button>
+        <button class="who is-new" data-char="hanshiyi">韩拾遗<em>长期 · 第一次露面</em></button>
+      </div>
+    </div>
+    <div class="slate__row">
+      <div class="slate__k">谁知道</div>
+      <div class="slate__note">韩拾遗知道林凡在签到，林凡不知道他知道。孙彪什么都不知道。</div>
+    </div>
+    <div class="slate__row">
+      <div class="slate__k">这章勾掉</div>
+      <div class="slate__v"><span class="chip chip--done">韩拾遗注意到他</span><span class="slate__note">勾了这件，外门风波这一段就齐了。</span></div>
+    </div>
+    <div class="slate__row">
+      <div class="slate__k">新埋</div>
+      <div class="slate__v"><span class="chip chip--dark">韩拾遗为什么看他</span><span class="chip chip--plain">支线 · 暗线</span></div>
+    </div>
+  </div>
+</template>
+
+<script src="/assets/panels.js"></script>
+<script>
+(function () {
+  var nav = document.getElementById('nav');
+  var stage = document.getElementById('stage');
+  var tpl = document.getElementById('planTpl');
+  var cur = 'desk';
+
+  nav.insertAdjacentHTML('beforeend', NOYA.tools.map(function (t) {
+    return '<button class="toolbtn" data-k="' + t[0] + '">' + NOYA.icon(t[0]) + t[1] + '</button>';
+  }).join(''));
+
+  function mark(k) {
+    nav.querySelectorAll('.toolbtn').forEach(function (b) { b.classList.toggle('is-on', b.dataset.k === k); });
+  }
+
+  function showDesk() {
+    cur = 'desk';
+    stage.className = 'desk';
+    stage.innerHTML = '<div class="desk__inner" id="deskInner"></div>';
+    var inner = document.getElementById('deskInner');
+    inner.appendChild(tpl.content.cloneNode(true));
+    NOYA.wireBeats(inner);
+    wireChars(inner);
+    NOYA.wireRefs(inner, goRef);
+    document.getElementById('ctxToggle').addEventListener('click', function () {
+      var box = document.getElementById('ctxBox');
+      box.hidden = !box.hidden;
+      this.textContent = box.hidden ? '这次带了什么料进去 ▾' : '收起 ▴';
+    });
+    mark('desk');
+  }
+
+  function showPanel(k, arg) {
+    cur = k;
+    stage.className = 'b-panel';
+    stage.innerHTML = NOYA.panel(k, arg).html;
+    stage.scrollTop = 0;
+    NOYA.wireFilters(stage);
+    NOYA.wirePanel(stage, {
+      world: function (node) { showPanel('world', node); },
+      ref: goRef
+    });
+    wireChars(stage);
+    NOYA.wireRefs(stage, goRef);
+    mark(k);
+  }
+
+  function goRef(id) {
+    var target = NOYA.refTarget(id);
+    if (!target) return;
+    var q = target.split(':');
+    if (q[0] === 'set') showPanel(q[1], q[2] || null);
+  }
+
+  function wireChars(scope) {
+    scope.querySelectorAll('[data-char]').forEach(function (w) {
+      w.addEventListener('click', function () { showPanel('people', w.dataset.char); });
+    });
+  }
+
+  nav.addEventListener('click', function (e) {
+    var b = e.target.closest('.toolbtn');
+    if (!b) return;
+    if (b.dataset.k === 'desk') showDesk(); else showPanel(b.dataset.k);
+  });
+
+  document.getElementById('quick').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    var say = document.getElementById('say');
+    if (b.dataset.act === 'who') { showPanel('people', 'hanshiyi'); return; }
+    if (b.dataset.act === 'outline') { showPanel('outline'); return; }
+    if (cur !== 'desk') showDesk();
+    var beat = document.getElementById('beat4');
+    beat.querySelector('.beat__t').innerHTML =
+      '阁内，韩拾遗始终没有抬头。翻书的手停了一下，又继续翻。<span class="beat__flag">已改</span>';
+    beat.classList.add('is-changed');
+    beat.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    say.value = '';
+  });
+
+  document.getElementById('go').addEventListener('click', function () {
+    if (cur !== 'desk') showDesk();
+    var inner = document.getElementById('deskInner');
+    inner.innerHTML = NOYA.writtenHtml();
+    NOYA.wireWritten(inner);
+    NOYA.wireRefs(inner, goRef);
+    stage.scrollTop = 0;
+    this.textContent = '写下一章';
+  });
+
+  showDesk();
+})();
+</script>

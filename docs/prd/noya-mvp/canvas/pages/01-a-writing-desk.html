@@ -1,0 +1,241 @@
+<!-- title: 骨架甲 · 写作台占满，管理页滑出 -->
+<!-- sandbox -->
+<style>
+  .a-shell { display: flex; flex-direction: column; height: 100vh; }
+</style>
+
+<div class="a-shell">
+  <header class="wd-top">
+    <div class="wd-top__book">
+      <span class="wd-top__title">我在青云宗打卡修仙</span>
+      <span class="wd-top__meta">3.6 万字 · 13 章</span>
+    </div>
+    <div class="wd-top__where">
+      <span class="seg">卷一 · 青云宗外门</span>
+      <span class="seg-sep">/</span>
+      <span class="seg seg--now">外门风波</span>
+      <span class="prog"><i class="dot is-done"></i><i class="dot is-done"></i><i class="dot"></i></span>
+      <span class="seg-note">还差 1 件</span>
+    </div>
+    <nav class="wd-top__tools" id="tools"></nav>
+  </header>
+
+  <main class="desk">
+    <div class="desk__inner" id="deskInner">
+      <div class="desk__lead">
+        <h1>第 13 章 · 藏经阁的老头</h1>
+        <span class="tag-pending">等你过目</span>
+      </div>
+      <p class="desk__sub">
+        agent 已经把这一章排好了。
+        <button class="linkish" id="ctxToggle">这次带了什么料进去 ▾</button>
+      </p>
+
+      <div class="ctxbox" id="ctxBox" hidden>
+        <ul>
+          <li>第 10–12 章全文（7,890 字）；更早的 9 章每章一段摘要</li>
+          <li>世界志地点链：玄苍界 › 天南大陆 › 东境 › 青云宗 › 外门 › 杂役院 / 藏经阁</li>
+          <li>世界志运行规则：道源 + 境界；铜钱与藏经阁价格；签到触发、限制和当前进度</li>
+          <li>外门风波这一段：3 件事，已勾 2</li>
+          <li>全档：林凡、孙彪、韩拾遗；其余 6 人只带名字和一句话</li>
+          <li>活着的线索 5 条，其中欠着的 3 条；文风 4 条</li>
+        </ul>
+        <div class="tail">觉得它漏了要紧的，在下面说一句补进去，再让它写。</div>
+      </div>
+
+      <ol class="beats">
+        <li class="beat">
+          <span class="beat__n">1</span>
+          <p class="beat__t">清晨，杂役院。孙彪带三个人堵住林凡，当众踢翻他的水桶。<span class="beat__flag">已改</span></p>
+          <button class="beat__edit">改</button>
+        </li>
+        <li class="beat">
+          <span class="beat__n">2</span>
+          <p class="beat__t">林凡没还手。他蹲下去，一点一点把洒出去的水收拾干净，围着看的人渐渐散了。<span class="beat__flag">已改</span></p>
+          <button class="beat__edit">改</button>
+        </li>
+        <li class="beat">
+          <span class="beat__n">3</span>
+          <p class="beat__t">转场藏经阁门口。他把身上最后一个铜板交了阅读费。<span class="beat__flag">已改</span></p>
+          <button class="beat__edit">改</button>
+        </li>
+        <li class="beat" id="beat4">
+          <span class="beat__n">4</span>
+          <p class="beat__t">阁内，韩拾遗从书堆后抬头看了他一眼，没说话。<span class="beat__flag">已改</span></p>
+          <button class="beat__edit">改</button>
+        </li>
+        <li class="beat">
+          <span class="beat__n">5</span>
+          <p class="beat__t">收尾。林凡翻开第一本，眼前亮了一下——<span class="sys">藏经阁 · 首次到访</span><span class="beat__flag">已改</span></p>
+          <button class="beat__edit">改</button>
+        </li>
+      </ol>
+
+      <div class="slate">
+        <div class="slate__row">
+          <div class="slate__k">登场</div>
+          <div class="slate__v">
+            <button class="who" data-char="sunbiao">孙彪<em>一次性 · 之前出现过</em></button>
+            <button class="who is-new" data-char="hanshiyi">韩拾遗<em>长期 · 第一次露面</em></button>
+          </div>
+        </div>
+        <div class="slate__row">
+          <div class="slate__k">谁知道</div>
+          <div class="slate__note">韩拾遗知道林凡在签到，林凡不知道他知道。孙彪什么都不知道。</div>
+        </div>
+        <div class="slate__row">
+          <div class="slate__k">这章勾掉</div>
+          <div class="slate__v">
+            <span class="chip chip--done">韩拾遗注意到他</span>
+            <span class="slate__note">勾了这件，外门风波这一段就齐了。</span>
+          </div>
+        </div>
+        <div class="slate__row">
+          <div class="slate__k">新埋</div>
+          <div class="slate__v">
+            <span class="chip chip--dark">韩拾遗为什么看他</span>
+            <span class="chip chip--plain">支线 · 暗线</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="chat">
+    <div class="chat__inner">
+      <div class="chat__quick" id="quick">
+        <button data-act="beat4">第 4 步别让他抬头</button>
+        <button data-act="who">看看韩拾遗是谁</button>
+        <button data-act="outline">这一段还差几件</button>
+      </div>
+      <div class="chat__row">
+        <input id="say" placeholder="跟 agent 说…（你在写作台，它知道你说的是第 13 章）" />
+        <button class="btn btn--primary" id="go">就这么写</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="drawer-veil" id="veil"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="drawer__bar">
+    <div class="drawer__tabs" id="tabs"></div>
+    <button class="drawer__close" id="dClose" title="关掉">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 3l8 8M11 3l-8 8"/></svg>
+    </button>
+  </div>
+  <div class="drawer__body" id="dBody"></div>
+</aside>
+
+<div class="skin-switch">
+  <span class="skin-switch__label">骨架</span>
+  <a href="/p/01-a-writing-desk" class="skin-switch__btn is-on">甲 滑出</a>
+  <a href="/p/02-b-left-nav" class="skin-switch__btn">乙 左导航</a>
+  <a href="/p/03-c-two-column" class="skin-switch__btn">丙 两栏</a>
+  <a href="/p/04-d-three-column" class="skin-switch__btn">丁 三栏</a>
+</div>
+
+<script src="/assets/panels.js"></script>
+<script>
+(function () {
+  var drawer = document.getElementById('drawer');
+  var veil = document.getElementById('veil');
+  var body = document.getElementById('dBody');
+  var tabs = document.getElementById('tabs');
+  var tools = document.getElementById('tools');
+  var deskInner = document.getElementById('deskInner');
+  var cur = null;
+
+  tools.innerHTML = NOYA.tools.map(function (t) {
+    return '<button class="toolbtn" data-k="' + t[0] + '">' + NOYA.icon(t[0]) + t[1] + '</button>';
+  }).join('');
+  tabs.innerHTML = NOYA.tools.map(function (t) {
+    return '<button class="toolbtn" data-k="' + t[0] + '">' + t[1] + '</button>';
+  }).join('');
+
+  function open(key, arg) {
+    cur = key;
+    var p = NOYA.panel(key, arg);
+    body.innerHTML = p.html;
+    body.scrollTop = 0;
+    drawer.classList.add('is-open');
+    drawer.setAttribute('aria-hidden', 'false');
+    veil.classList.add('is-open');
+    [tools, tabs].forEach(function (bar) {
+      bar.querySelectorAll('.toolbtn').forEach(function (b) {
+        b.classList.toggle('is-on', b.dataset.k === key);
+      });
+    });
+    NOYA.wireFilters(body);
+    NOYA.wirePanel(body, {
+      world: function (node) { open('world', node); },
+      ref: goRef
+    });
+    wireChars(body);
+    NOYA.wireRefs(body, goRef);
+  }
+  function goRef(id) {
+    var target = NOYA.refTarget(id);
+    if (!target) return;
+    var q = target.split(':');
+    if (q[0] === 'set') open(q[1], q[2] || null);
+  }
+  function close() {
+    drawer.classList.remove('is-open');
+    drawer.setAttribute('aria-hidden', 'true');
+    veil.classList.remove('is-open');
+    tools.querySelectorAll('.toolbtn').forEach(function (b) { b.classList.remove('is-on'); });
+    cur = null;
+  }
+
+  [tools, tabs].forEach(function (bar) {
+    bar.addEventListener('click', function (e) {
+      var b = e.target.closest('.toolbtn');
+      if (!b) return;
+      if (bar === tools && cur === b.dataset.k) { close(); return; }
+      open(b.dataset.k);
+    });
+  });
+  document.getElementById('dClose').addEventListener('click', close);
+  veil.addEventListener('click', close);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+
+  function wireChars(scope) {
+    scope.querySelectorAll('[data-char]').forEach(function (w) {
+      w.addEventListener('click', function () { open('people', w.dataset.char); });
+    });
+  }
+  wireChars(deskInner);
+  NOYA.wireBeats(deskInner);
+  NOYA.wireRefs(deskInner, goRef);
+
+  document.getElementById('ctxToggle').addEventListener('click', function () {
+    var box = document.getElementById('ctxBox');
+    box.hidden = !box.hidden;
+    this.textContent = box.hidden ? '这次带了什么料进去 ▾' : '收起 ▴';
+  });
+
+  document.getElementById('quick').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    var say = document.getElementById('say');
+    say.value = b.textContent;
+    if (b.dataset.act === 'who') { open('people', 'hanshiyi'); say.value = ''; return; }
+    if (b.dataset.act === 'outline') { open('outline'); say.value = ''; return; }
+    var beat = document.getElementById('beat4');
+    beat.querySelector('.beat__t').innerHTML =
+      '阁内，韩拾遗始终没有抬头。翻书的手停了一下，又继续翻。<span class="beat__flag">已改</span>';
+    beat.classList.add('is-changed');
+    beat.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    say.value = '';
+  });
+
+  document.getElementById('go').addEventListener('click', function () {
+    deskInner.innerHTML = NOYA.writtenHtml();
+    NOYA.wireWritten(deskInner);
+    NOYA.wireRefs(deskInner, goRef);
+    document.querySelector('.desk').scrollTop = 0;
+    this.textContent = '写下一章';
+  });
+})();
+</script>

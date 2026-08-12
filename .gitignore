@@ -1,2 +1,3 @@
 docs/prd/*/canvas/state/
 docs/prd/*/canvas/dist/
+.playwright-cli/

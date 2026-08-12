@@ -1,0 +1,1541 @@
+<!-- title: 开始一本新书 -->
+<!-- entry -->
+<!-- manifest
+state: appView, phase, audience, platform, trialVersion, composerText, activeBook, activeSection, returnTarget
+components: new-book-action, return-to-book, book-switcher, book-navigation, product-header, story-intake, conversation, audience-choice, trial-draft, reference-paste, review-summary, confirmation, composer, writing-desk
+-->
+<style>
+  .ob-shell {
+    height: 100vh;
+    display: grid;
+    grid-template-columns: 236px minmax(0, 1fr);
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 50% -20%, var(--color-surface-raised) 0, transparent 42%),
+      var(--color-bg);
+  }
+  .ob-shell.is-new { grid-template-columns: minmax(0, 1fr); }
+  .ob-shell.is-new .ob-side { display: none; }
+
+  .ob-side {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-right: 1px solid var(--color-border);
+    background: var(--color-surface);
+  }
+  .ob-book-head {
+    display: block;
+  }
+  .ob-book-head .noya-book-switcher { min-width: 0; }
+  .ob-stage { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+  .ob-library-nav { min-height: 0; display: flex; flex: 1; flex-direction: column; }
+  .ob-library-nav[hidden] { display: none; }
+  .ob-current-scroll {
+    flex: 1; min-height: 0; overflow: hidden;
+    display: flex; flex-direction: column;
+    padding: 2px 9px 12px;
+  }
+  .ob-current-fixed { flex: 0 0 auto; }
+  .ob-chapter-zone { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .ob-chapter-list { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 8px; }
+  .ob-book-nav__label {
+    margin: 13px 9px 5px;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    letter-spacing: .08em;
+  }
+  .ob-book-nav__item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    min-height: 34px;
+    padding: 0 9px;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    text-align: left;
+    cursor: pointer;
+  }
+  .ob-book-nav__item:hover { color: var(--color-text); background: var(--color-surface-sunken); }
+  .ob-book-nav__item.is-on { color: var(--color-primary); background: var(--color-primary-soft); font-weight: 650; }
+  .ob-new-chapter {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    min-height: 34px;
+    margin: 6px 0 2px;
+    padding: 0 9px;
+    border: 1px dashed var(--color-border-strong);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-text-muted);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    text-align: left;
+    cursor: pointer;
+  }
+  .ob-new-chapter:hover { border-color: var(--color-primary); color: var(--color-primary); }
+  .ob-new-chapter.is-on { border-style: solid; border-color: var(--color-primary); color: var(--color-primary); background: var(--color-primary-soft); }
+
+  .ob-top {
+    z-index: 20;
+    height: 54px;
+    flex: 0 0 54px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 22px;
+    border-bottom: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+    backdrop-filter: blur(12px);
+    view-transition-name: noya-open-top;
+  }
+  .ob-book-state {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-md);
+    font-weight: 600;
+  }
+  .ob-back-flow {
+    margin-left: -8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 30px;
+    padding: 0 8px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+    background: transparent;
+    font: inherit;
+    font-size: var(--font-size-sm);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast);
+  }
+  .ob-back-flow:hover {
+    color: var(--color-text);
+    border-color: var(--color-border);
+    background: var(--color-surface-raised);
+  }
+  .ob-top__divider {
+    width: 1px;
+    height: 15px;
+    background: var(--color-border-strong);
+  }
+
+  .ob-main {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* 首屏 */
+  .ob-intro {
+    flex: 1;
+    display: grid;
+    place-items: center;
+    padding: 44px 24px 56px;
+  }
+  .ob-intro[hidden] { display: none; }
+  .ob-intro__inner { width: min(760px, 100%); }
+  .ob-eyebrow {
+    margin-bottom: 13px;
+    color: var(--color-primary);
+    font-size: var(--font-size-sm);
+    font-weight: 650;
+    letter-spacing: .12em;
+  }
+  .ob-intro h1 {
+    max-width: 690px;
+    margin: 0;
+    font-family: var(--font-prose);
+    font-size: clamp(30px, 4vw, 46px);
+    line-height: 1.34;
+    font-weight: 560;
+    letter-spacing: .01em;
+  }
+  .ob-intro__lead {
+    max-width: 610px;
+    margin: 17px 0 26px;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-lg);
+    line-height: 1.9;
+  }
+  .ob-resume {
+    display: flex; align-items: center; gap: 12px;
+    margin: 0 0 15px; padding: 12px 13px;
+    border: 1px solid var(--color-border); border-radius: var(--radius-lg);
+    background: var(--color-surface-raised); box-shadow: var(--shadow-sm);
+  }
+  .ob-resume[hidden] { display: none; }
+  .ob-resume__copy { min-width: 0; margin-right: auto; }
+  .ob-resume__copy b, .ob-resume__copy span { display: block; }
+  .ob-resume__copy b { font-size: var(--font-size-sm); }
+  .ob-resume__copy span { margin-top: 3px; color: var(--color-text-muted); font-size: var(--font-size-xs); }
+  .ob-resume button {
+    flex: 0 0 auto; min-height: 31px; padding: 0 10px;
+    border: 1px solid var(--color-border); border-radius: var(--radius-md);
+    background: var(--color-surface); color: var(--color-text-secondary);
+    font: inherit; font-size: var(--font-size-xs); cursor: pointer;
+  }
+  .ob-resume button:hover { border-color: var(--color-primary); color: var(--color-primary); }
+  .ob-resume .ob-resume__primary { border-color: var(--color-primary); color: var(--color-surface-raised); background: var(--color-primary); }
+  .ob-quick {
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: var(--color-surface);
+    color: var(--color-text-secondary);
+    padding: 7px 12px;
+    font: inherit;
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: border-color var(--dur-fast), color var(--dur-fast), background var(--dur-fast), transform var(--dur-fast);
+  }
+  .ob-quick:hover {
+    color: var(--color-primary);
+    border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
+    background: var(--color-primary-soft);
+    transform: translateY(-1px);
+  }
+  .ob-quick:active { transform: translateY(0); }
+
+  .ob-intake,
+  .ob-compose-box {
+    overflow: hidden;
+    border: 1px solid var(--color-border-strong);
+    border-radius: 14px;
+    background: var(--color-surface-raised);
+    box-shadow: var(--shadow-md);
+    transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+  }
+  .ob-intake:focus-within,
+  .ob-compose-box:focus-within {
+    border-color: color-mix(in srgb, var(--color-primary) 62%, var(--color-border));
+    box-shadow: 0 0 0 3px var(--color-primary-soft), var(--shadow-md);
+  }
+  .ob-intake.is-paused { opacity: .48; }
+  .ob-intake textarea {
+    display: block;
+    width: 100%;
+    min-height: 142px;
+    resize: vertical;
+    border: 0;
+    outline: 0;
+    padding: 17px 18px 10px;
+    background: transparent;
+    color: var(--color-text);
+    font-family: var(--font-prose);
+    font-size: 16px;
+    line-height: 1.85;
+  }
+  .ob-intake__foot,
+  .ob-compose__foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 10px 10px 13px;
+    border-top: 1px solid var(--color-border);
+  }
+  .ob-voice {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+  }
+  .ob-voice:hover { background: var(--color-surface-sunken); color: var(--color-text); }
+  .ob-voice.is-listening { color: var(--color-primary); background: var(--color-primary-soft); }
+  .ob-send {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 96px;
+    height: 34px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: var(--color-primary);
+    color: var(--color-surface-raised);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: 650;
+    cursor: pointer;
+    transition: background var(--dur-fast), transform var(--dur-fast), opacity var(--dur-fast);
+  }
+  .ob-send:hover { background: var(--color-primary-hover); }
+  .ob-send:active { transform: translateY(1px); }
+  .ob-send:disabled { cursor: not-allowed; opacity: .42; }
+
+  /* 对话校准 */
+  .ob-session {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .ob-session[hidden] { display: none; }
+  .ob-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 38px 24px 22px;
+    scroll-behavior: smooth;
+  }
+  .ob-thread {
+    width: min(780px, 100%);
+    margin: 0 auto;
+  }
+  .ob-msg {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    animation: ob-rise var(--dur-base) var(--ease-out) both;
+  }
+  @keyframes ob-rise {
+    from { opacity: 0; transform: translateY(7px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .ob-msg--user { justify-content: flex-end; }
+  .ob-avatar {
+    flex: 0 0 27px;
+    width: 27px;
+    height: 27px;
+    display: grid;
+    place-items: center;
+    margin-top: 3px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: 50%;
+    background: var(--color-surface-raised);
+    color: var(--color-primary);
+  }
+  .ob-msg__body {
+    max-width: 680px;
+    color: var(--color-text);
+    font-size: var(--font-size-lg);
+    line-height: 1.9;
+  }
+  .ob-msg__body p { margin: 0 0 10px; }
+  .ob-msg__body p:last-child { margin-bottom: 0; }
+  .ob-msg--user .ob-msg__body {
+    max-width: 590px;
+    padding: 11px 14px;
+    border-radius: 12px 12px 3px 12px;
+    background: var(--color-primary-soft);
+    font-family: var(--font-prose);
+    font-size: 15px;
+    line-height: 1.75;
+  }
+  .ob-question {
+    margin-top: 13px;
+    padding-left: 13px;
+    border-left: 2px solid var(--color-primary);
+    font-family: var(--font-prose);
+    font-size: 17px;
+    line-height: 1.8;
+  }
+  .ob-choice {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 15px;
+  }
+  .ob-choice button,
+  .ob-action {
+    min-height: 36px;
+    padding: 0 13px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-raised);
+    color: var(--color-text);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: border-color var(--dur-fast), color var(--dur-fast), background var(--dur-fast), transform var(--dur-fast);
+  }
+  .ob-choice button:hover,
+  .ob-action:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    background: var(--color-primary-soft);
+  }
+  .ob-choice button:active,
+  .ob-action:active { transform: translateY(1px); }
+  .ob-choice button:disabled,
+  .ob-action:disabled {
+    cursor: default;
+    opacity: .55;
+    transform: none;
+  }
+  .ob-action--primary {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    color: var(--color-surface-raised);
+  }
+  .ob-action--primary:hover { background: var(--color-primary-hover); color: var(--color-surface-raised); }
+
+  .ob-trial {
+    margin-top: 4px;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: var(--color-surface-raised);
+    box-shadow: var(--shadow-sm);
+  }
+  .ob-trial__head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+  }
+  .ob-trial__head b { color: var(--color-text); }
+  .ob-trial__head span { margin-left: auto; color: var(--color-text-muted); }
+  .ob-trial__text {
+    padding: 20px 24px 23px;
+    font-family: var(--font-prose);
+    font-size: 16px;
+    line-height: 2;
+  }
+  .ob-trial__text p { margin: 0 0 14px; }
+  .ob-trial__text p:last-child { margin-bottom: 0; }
+  .ob-review-note {
+    margin-top: 14px;
+    padding: 13px 15px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-accent-soft);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    line-height: 1.75;
+  }
+  .ob-review-note b { color: var(--color-accent); }
+  .ob-final-note {
+    margin-top: 14px;
+    padding: 16px 18px;
+    border: 1px solid color-mix(in srgb, var(--color-done) 32%, var(--color-border));
+    border-radius: var(--radius-lg);
+    background: var(--color-done-soft);
+    line-height: 1.85;
+  }
+  .ob-final-note p { margin: 0 0 7px; }
+  .ob-final-note p:last-child { margin-bottom: 0; }
+
+  .ob-loading {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+  }
+  .ob-loading i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    animation: ob-pulse 1s ease-in-out infinite;
+  }
+  .ob-loading i:nth-child(2) { animation-delay: .15s; }
+  .ob-loading i:nth-child(3) { animation-delay: .3s; }
+  @keyframes ob-pulse { 0%, 80%, 100% { opacity: .22; } 40% { opacity: 1; } }
+
+  .ob-composer {
+    flex: 0 0 auto;
+    padding: 8px 24px 16px;
+    background: linear-gradient(to top, var(--color-bg) 72%, transparent);
+  }
+  .ob-composer__inner { width: min(780px, 100%); margin: 0 auto; }
+  .ob-quick-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    min-height: 0;
+    margin-bottom: 8px;
+  }
+  .ob-compose-box { box-shadow: var(--shadow-sm); }
+  .ob-compose-box textarea {
+    display: block;
+    width: 100%;
+    min-height: 54px;
+    max-height: 150px;
+    resize: vertical;
+    border: 0;
+    outline: 0;
+    padding: 13px 15px 8px;
+    background: transparent;
+    color: var(--color-text);
+    font-family: var(--font-prose);
+    font-size: 15px;
+    line-height: 1.7;
+  }
+  .ob-compose__hint { color: var(--color-text-muted); font-size: var(--font-size-xs); }
+  .ob-reference {
+    border: 0;
+    background: transparent;
+    color: var(--color-text-secondary);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+  }
+  .ob-reference:hover { color: var(--color-primary); }
+
+  /* 参考文字 */
+  .ob-modal-mask {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(34, 31, 27, .36);
+  }
+  .ob-modal-mask[hidden] { display: none; }
+  .ob-modal {
+    width: min(560px, 100%);
+    padding: 21px;
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+    background: var(--color-surface-raised);
+    box-shadow: var(--shadow-lg);
+  }
+  .ob-modal h2 { margin: 0; font-size: var(--font-size-xl); }
+  .ob-modal p { margin: 8px 0 14px; color: var(--color-text-secondary); line-height: 1.7; }
+  .ob-modal textarea {
+    width: 100%;
+    min-height: 180px;
+    padding: 12px 13px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    outline: 0;
+    resize: vertical;
+    font-family: var(--font-prose);
+    font-size: 15px;
+    line-height: 1.75;
+  }
+  .ob-modal textarea:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-soft); }
+  .ob-modal__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 13px; }
+
+  /* 正式开写后：产品侧栏继续承担书内导航 */
+  .ob-desk {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    background: var(--color-bg);
+  }
+  .ob-desk[hidden] { display: none; }
+  .ob-desk__agent { background: var(--color-surface); }
+  .ob-desk__paper { min-width: 0; overflow-y: auto; padding: 44px 46px 80px; }
+  .ob-desk__paper article { max-width: 700px; margin: 0 auto; }
+  .ob-desk__paper h1 { margin: 0 0 6px; font-family: var(--font-prose); font-size: 26px; font-weight: 580; }
+  .ob-desk__paper .meta { color: var(--color-text-muted); font-size: var(--font-size-sm); margin-bottom: 28px; }
+  .ob-desk__paper .prose { font-family: var(--font-prose); font-size: 17px; line-height: 2.1; }
+  .ob-desk__paper .prose p { margin: 0 0 17px; }
+  .ob-desk__agent { display: flex; flex-direction: column; border-left: 1px solid var(--color-border); }
+  .ob-desk__agent h2 { height: 46px; margin: 0; padding: 0 15px; display: flex; align-items: center; border-bottom: 1px solid var(--color-border); font-size: var(--font-size-md); }
+  .ob-desk__agent-log { flex: 1; padding: 18px 15px; color: var(--color-text-secondary); line-height: 1.8; }
+  .ob-desk__agent-log .bubble { padding: 12px 13px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface-raised); }
+  .ob-desk__agent-in { display: flex; gap: 7px; padding: 10px 12px 13px; border-top: 1px solid var(--color-border); }
+  .ob-desk__agent-in input { flex: 1; min-width: 0; height: 36px; padding: 0 10px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-surface-raised); font: inherit; }
+  .ob-desk__agent-in button { flex: 0 0 38px; height: 36px; border: 0; border-radius: var(--radius-md); background: var(--color-primary); color: var(--color-surface-raised); cursor: pointer; }
+  .ob-desk__agent-in button:hover { background: var(--color-primary-hover); }
+
+  @media (max-width: 1020px) {
+    .ob-shell { grid-template-columns: 210px minmax(0, 1fr); }
+    .ob-shell.is-new { grid-template-columns: minmax(0, 1fr); }
+    .ob-desk { grid-template-columns: minmax(0, 1fr); }
+    .ob-desk__agent { display: none; }
+  }
+  @media (max-width: 720px) {
+    .ob-shell { grid-template-columns: 190px minmax(0, 1fr); }
+    .ob-shell.is-new { grid-template-columns: minmax(0, 1fr); }
+    .ob-book-state { display: none; }
+    .ob-top__divider { display: none; }
+    .ob-intro { padding: 30px 16px; }
+    .ob-intro h1 { font-size: 30px; }
+    .ob-scroll { padding: 26px 16px 18px; }
+    .ob-composer { padding-inline: 12px; }
+    .ob-desk { display: block; overflow-y: auto; }
+    .ob-desk__paper { padding: 30px 20px 70px; }
+  }
+</style>
+
+<div class="ob-shell">
+  <aside class="ob-side noya-product-sidebar" id="bookSidebar" data-component="book-navigation" hidden>
+    <section class="noya-current-book" id="currentBookNav">
+      <div class="ob-book-head">
+      <div class="noya-book-switcher" data-component="book-switcher">
+        <button class="noya-book-switcher__trigger" id="bookSwitcherTrigger" aria-expanded="false" aria-controls="bookSwitcherMenu">
+          <span class="noya-book-switcher__mark">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.2h7.2A1.8 1.8 0 0 1 12 4v8.3H4.1A1.6 1.6 0 0 1 2.5 10.7V3.2A1 1 0 0 1 3.5 2.2Z"/><path d="M4.1 9.2H12M5 5.1h4.4"/></svg>
+          </span>
+          <span class="noya-book-switcher__copy">
+            <span class="noya-book-switcher__title" id="sideBookTitle">未命名 · 钟馗弟子</span>
+            <span class="noya-book-switcher__meta" id="sideBookMeta">第 1 章 · 初稿</span>
+          </span>
+          <svg class="noya-book-switcher__chevron" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"><path d="m4 5.5 3 3 3-3"/></svg>
+        </button>
+        <div class="noya-book-switcher__menu" id="bookSwitcherMenu" hidden>
+          <a class="noya-book-switcher__item" href="/p/00-open-book?new=1" data-component="new-book-action">
+            <span class="noya-book-switcher__item-copy">开始一本新书</span>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"><path d="M7 2.5v9M2.5 7h9"/></svg>
+          </a>
+          <div class="noya-book-switcher__divider"></div>
+          <a class="noya-book-switcher__item" data-switch-book="qingyun" href="/p/04-d-three-column?book=qingyun"><span class="noya-book-switcher__item-copy">我在青云宗打卡修仙</span><span class="noya-book-switcher__item-note" data-current-note="qingyun"></span></a>
+          <a class="noya-book-switcher__item" data-switch-book="zhongkui" href="/p/04-d-three-column?book=zhongkui&amp;section=chapter"><span class="noya-book-switcher__item-copy">未命名 · 钟馗弟子</span><span class="noya-book-switcher__item-note" data-current-note="zhongkui"></span></a>
+          <a class="noya-book-switcher__item" data-switch-book="fogharbor" href="/p/04-d-three-column?book=fogharbor&amp;section=chapter"><span class="noya-book-switcher__item-copy">雾港没有月亮</span><span class="noya-book-switcher__item-note" data-current-note="fogharbor"></span></a>
+        </div>
+      </div>
+      </div>
+      <div class="noya-side-rule"></div>
+      <div class="ob-current-scroll">
+        <div class="ob-current-fixed">
+          <button class="ob-new-chapter" id="localNewChapter" data-new-chapter>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M6 2.5v7M2.5 6h7"/></svg>
+            新建章节
+          </button>
+          <div class="ob-book-nav__label">资料</div>
+          <button class="ob-book-nav__item" data-book-section="outline">大纲</button>
+          <button class="ob-book-nav__item" data-book-section="world">世界志</button>
+          <button class="ob-book-nav__item" data-book-section="threads">伏线</button>
+          <button class="ob-book-nav__item" data-book-section="people">人物志</button>
+          <button class="ob-book-nav__item" data-book-section="library">资料库</button>
+          <button class="ob-book-nav__item" data-book-section="style">笔法</button>
+        </div>
+        <div class="ob-chapter-zone">
+          <div class="ob-book-nav__label">正文</div>
+          <div class="ob-chapter-list">
+            <button class="ob-book-nav__item is-on" data-book-section="chapter"><span id="sideChapterTitle">第一章 · 纸船入城</span></button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </aside>
+
+  <div class="ob-stage">
+    <header class="ob-top" data-component="product-header">
+      <button class="ob-back-flow" id="backFlow" data-component="return-to-book" hidden>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M9.5 6h-7M5.3 3.2 2.5 6l2.8 2.8"/></svg>
+        <span id="backFlowLabel">返回刚才的作品</span>
+      </button>
+      <span class="ob-top__divider" id="returnDivider" hidden></span>
+      <span class="ob-book-state" id="bookState">开始一本新书</span>
+    </header>
+
+    <main class="ob-main">
+    <section class="ob-intro" id="intro" data-component="story-intake">
+      <div class="ob-intro__inner">
+        <div class="ob-eyebrow">开始一本新书</div>
+        <h1>你心里有没有一个，一直想写却还没真正写下来的故事？</h1>
+        <p class="ob-intro__lead">不需要先想完整。一个忘不掉的画面、一个人、一种读者快感，或者已经想好的结局，都可以从那里开始。</p>
+        <div class="ob-resume" id="resumeDraft" hidden>
+          <div class="ob-resume__copy"><b>上次的故事还在</b><span id="resumeDraftMeta">可以从停下的位置继续</span></div>
+          <button id="restartDraft">重新开始</button>
+          <button class="ob-resume__primary" id="continueDraft">继续</button>
+        </div>
+        <div class="ob-intake">
+          <textarea id="ideaInput" aria-label="讲讲你想写的故事" placeholder="一个忘不掉的画面、一个人，或者已经想好的结局……"></textarea>
+          <div class="ob-intake__foot">
+            <button class="ob-voice" id="voiceBtn">
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><rect x="4.6" y="1.5" width="4.8" height="7.4" rx="2.4"/><path d="M2.8 6.8a4.2 4.2 0 0 0 8.4 0M7 11v1.6M5 12.6h4"/></svg>
+              <span>说给它听</span>
+            </button>
+            <button class="ob-send" id="beginBtn">
+              让它先听
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2.5 6h7M6.7 3.2 9.5 6 6.7 8.8"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="ob-session" id="session" data-component="conversation" hidden>
+      <div class="ob-scroll" id="scroll">
+        <div class="ob-thread" id="thread"></div>
+      </div>
+      <div class="ob-composer" data-component="composer">
+        <div class="ob-composer__inner">
+          <div class="ob-quick-row" id="quickRow"></div>
+          <div class="ob-compose-box">
+            <textarea id="composer" aria-label="继续说" placeholder="想到什么就直接说……"></textarea>
+            <div class="ob-compose__foot">
+              <button class="ob-reference" id="referenceBtn" hidden>贴一段喜欢的文字</button>
+              <span class="ob-compose__hint" id="composeHint">⌘ + Enter 发送</span>
+              <button class="ob-send" id="composerSend" disabled>发送</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="ob-desk" id="desk" data-component="writing-desk" hidden>
+      <section class="ob-desk__paper">
+        <article id="deskPaper">
+          <h1 id="deskTitle">第一章 · 纸船入城</h1>
+          <div class="meta">初稿 · 从确认过的试写继续</div>
+          <div class="prose">
+            <p>纸船冲进巷口的那一刻，青年先一刀砍断了自己的影子。</p>
+            <p>刀锋落地，没有血。青石板上的黑影却猛地一缩，恰好避开船头扫来的白幡。幡上密密麻麻写满人名，最下面那个墨迹还湿，正是客栈掌柜。</p>
+            <p>满街灯火同时暗了一瞬。</p>
+            <p>青年没有回头。他两指并起，在眉心一点，右眼深处亮起一线暗红。</p>
+          </div>
+        </article>
+      </section>
+      <aside class="ob-desk__agent">
+        <h2 id="deskAgentTitle">第一章</h2>
+        <div class="ob-desk__agent-log" id="deskAgentLog"><div class="bubble">我从确认过的第二版继续写。身世只露一针，力量只写已经展示过的边界；第一个执念的真相仍然保持未知。你先看正文，哪里不对直接指出来。</div></div>
+        <div class="ob-desk__agent-in"><input id="deskInput" aria-label="对第一章说一句" placeholder="哪里不对，直接说……" /><button id="deskSend" aria-label="发送"><svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.4"><path d="m2 2 9 4.5L2 11l1.3-4.5L2 2Z"/><path d="M3.4 6.5H8"/></svg></button></div>
+      </aside>
+    </section>
+    </main>
+  </div>
+</div>
+
+<div class="ob-modal-mask" id="referenceModal" data-component="reference-paste" hidden>
+  <div class="ob-modal" role="dialog" aria-modal="true" aria-labelledby="referenceTitle">
+    <h2 id="referenceTitle">贴一小段就够了</h2>
+    <p>自己的旧稿最好，喜欢的文章截一段也可以。我只看节奏、镜头和句子，不带走人物、设定和原句。</p>
+    <textarea id="referenceText" placeholder="贴入 300—1000 字参考文字……"></textarea>
+    <div class="ob-modal__actions">
+      <button class="ob-action" id="referenceCancel">先不用</button>
+      <button class="ob-action ob-action--primary" id="referenceApply" disabled>用它校准</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var ONBOARDING_KEY = 'noya:onboarding:draft:v1';
+  var ONBOARDING_HISTORY_KEY = 'noya:book:zhongkui:onboarding-history:v1';
+  var DESK_EDITS_KEY = 'noya:onboarding:desk-edits:v1';
+  var pageState = {
+    appView: 'new',
+    phase: 'intro',
+    audience: null,
+    platform: null,
+    trialVersion: 0,
+    composerText: '',
+    activeBook: null,
+    activeSection: 'chapter'
+  };
+  var ideaInput = document.getElementById('ideaInput');
+  var beginBtn = document.getElementById('beginBtn');
+  var intro = document.getElementById('intro');
+  var session = document.getElementById('session');
+  var desk = document.getElementById('desk');
+  var shell = document.querySelector('.ob-shell');
+  var bookSidebar = document.getElementById('bookSidebar');
+  var currentBookNav = document.getElementById('currentBookNav');
+  var bookSwitcherTrigger = document.getElementById('bookSwitcherTrigger');
+  var bookSwitcherMenu = document.getElementById('bookSwitcherMenu');
+  var thread = document.getElementById('thread');
+  var scroll = document.getElementById('scroll');
+  var quickRow = document.getElementById('quickRow');
+  var composer = document.getElementById('composer');
+  var composerSend = document.getElementById('composerSend');
+  var referenceBtn = document.getElementById('referenceBtn');
+  var referenceModal = document.getElementById('referenceModal');
+  var resumeDraft = document.getElementById('resumeDraft');
+  var pendingDraft = null;
+  var draftChoiceLocked = false;
+  var reviewingHistory = false;
+  var historyReturn = { book: 'zhongkui', section: 'chapter' };
+  var returnTarget = null;
+  var deskSaveTimer = null;
+  var deskEdits = {};
+  try { deskEdits = JSON.parse(localStorage.getItem(DESK_EDITS_KEY)) || {}; } catch (e) {}
+
+  var BOOKS = {
+    zhongkui: {
+      title: '未命名 · 钟馗弟子',
+      meta: '第 1 章 · 初稿',
+      nextChapter: '第二章',
+      chapter: {
+        title: '第一章 · 纸船入城',
+        meta: '初稿 · 从确认过的试写继续',
+        html: '<p>纸船冲进巷口的那一刻，青年先一刀砍断了自己的影子。</p><p>刀锋落地，没有血。青石板上的黑影却猛地一缩，恰好避开船头扫来的白幡。幡上密密麻麻写满人名，最下面那个墨迹还湿，正是客栈掌柜。</p><p>满街灯火同时暗了一瞬。</p><p>青年没有回头。他两指并起，在眉心一点，右眼深处亮起一线暗红。</p>',
+        agent: '我从确认过的第二版继续写。你先看正文，哪里不对直接指出来。'
+      },
+      docs: {
+        outline: ['大纲', '从已确认的开端与终局向中间生长', '<p><strong>开端</strong>　钟馗弟子在人间度化执念，在第一桩异事里发现死者的执念被人为放大。</p><p><strong>中段留白</strong>　沿途会遇见怎样的人、哪些执念会反过来刺中他，尚未决定。</p><p><strong>终局</strong>　他捣毁魔界的阴谋，也终于回到自己不敢面对的那场大火。</p>'],
+        world: ['世界志', '只保留已经进入故事的法则', '<p><strong>阴阳之间</strong>　执念让亡者滞留，也会反过来侵蚀生者对现实的判断。</p><p><strong>钟馗门下</strong>　门人能看见不该看见之物，也能短暂拘住它们；代价会直接落在自身。</p>'],
+        threads: ['伏线', '2 条仍在生长', '<p><strong>那场大火</strong>　他记得自己点燃了宅院，却不敢确认当夜究竟是谁先疯。</p><p><strong>明日出生者的灵牌</strong>　纸船收走的也许并不只是死者。</p>'],
+        people: ['人物志', '以人物自己的语言持续补写', '<p><strong>钟馗弟子</strong></p><p>迷惘，赤诚，替众生解执，也在逃避自己的执。右眼能看见异物，第二道法只能拘住三息。</p><p><strong>钟馗</strong></p><p>在奈何桥边发现了他，收徒不是救他离苦，而是给他一条自己走出去的路。</p>'],
+        library: ['资料库', '被正文引用的事物', '<p><strong>无名白幡</strong>　幡上会出现仍活着的人的姓名，被纸船带走后，人会逐渐忘记自己与亲近之人。</p><p><strong>朱砂</strong>　开启右眼时所用，并非力量来源。</p>'],
+        style: ['笔法', '当前写法 · 可继续用正文校准', '<p>恐怖来自秩序悄然出错，而不是堆叠阴森形容词。</p><p>场面先铺开，再骤然落到一个具体动作；真正动手时，句子收短。</p><p>身世只露刺，不急着解释伤口。</p>']
+      }
+    },
+    fogharbor: {
+      title: '雾港没有月亮',
+      meta: '第 29 章正在写',
+      nextChapter: '第 30 章',
+      chapter: {
+        title: '第 29 章 · 潮声背后',
+        meta: '正在写 · 上次停在这里',
+        html: '<p>第三遍潮声响起时，港口所有系船的绳结同时松了半寸。</p><p>沈砚站在废灯塔下，没有去看那些向外漂的船。他盯着礁石之间那扇本不该存在的门，等门缝里的灯再亮一次。</p><p>这一次，门里有人叫出了他的真名。</p>',
+        agent: '我们上次停在门后传出真名这里。可以直接续写，也可以先改掉这次揭示。'
+      },
+      docs: {
+        outline: ['大纲', '第二卷 · 雾港沉潮', '<p><strong>已写</strong>　沈砚追查失踪渔船，确认潮汐正在重复一场二十年前没有发生过的海难。</p><p><strong>下一处锚点</strong>　进入废灯塔后的门，见到第一个记得真实海难的人。</p>'],
+        world: ['世界志', '雾港与外海', '<p><strong>雾港</strong>　每月有三夜看不见月亮，居民会把这三夜称作“退潮”。</p><p><strong>潮门</strong>　只会在错误的潮声之后出现，门后保存的是没有发生过的记忆。</p>'],
+        threads: ['伏线', '3 条未收束', '<p>二十年前的空白海难；灯塔守人的第二份航海日志；沈砚从未告诉任何人的真名。</p>'],
+        people: ['人物志', '7 人', '<p><strong>沈砚</strong></p><p>曾是领航员，能从潮声里听出船只的位置，却唯独听不见自己乘过的那艘船。</p>'],
+        library: ['资料库', '12 个条目', '<p><strong>铜制潮尺</strong>　刻度会在无月夜多出第十三格。</p><p><strong>第二份航海日志</strong>　记录着一场官方档案中不存在的海难。</p>'],
+        style: ['笔法', '当前写法', '<p>海面越广，人物动作越小；异常先落在日常器物上，再让读者意识到整个空间已经错位。</p>']
+      }
+    }
+  };
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+  }
+  function persistDraft() {
+    if (pageState.appView !== 'new') return;
+    if (pendingDraft && draftChoiceLocked) return;
+    if (pageState.phase === 'intro' && !ideaInput.value.trim() && !thread.children.length) return;
+    try {
+      localStorage.setItem(ONBOARDING_KEY, JSON.stringify({
+        version: 1,
+        savedAt: Date.now(),
+        returnTarget: returnTarget,
+        state: pageState,
+        idea: ideaInput.value,
+        thread: thread.innerHTML,
+        quick: quickRow.innerHTML,
+        composer: composer.value
+      }));
+    } catch (e) {}
+  }
+  function readDraft() {
+    try {
+      var draft = JSON.parse(localStorage.getItem(ONBOARDING_KEY));
+      return draft && draft.version === 1 ? draft : null;
+    } catch (e) {
+      return null;
+    }
+  }
+  function archiveOnboardingHistory() {
+    try {
+      localStorage.setItem(ONBOARDING_HISTORY_KEY, JSON.stringify({
+        version: 1,
+        book: 'zhongkui',
+        archivedAt: Date.now(),
+        state: Object.assign({}, pageState),
+        idea: ideaInput.value,
+        thread: thread.innerHTML
+      }));
+    } catch (error) {}
+  }
+  function normalizeReturnTarget(value) {
+    if (!value) return null;
+    try {
+      var target = new URL(value, window.location.origin);
+      if (target.origin !== window.location.origin || target.pathname !== '/p/04-d-three-column') return null;
+      var book = target.searchParams.get('book') || 'qingyun';
+      if (['qingyun', 'zhongkui', 'fogharbor'].indexOf(book) < 0) return null;
+      return target.pathname + target.search;
+    } catch (error) {
+      return null;
+    }
+  }
+  function returnBookName() {
+    if (!returnTarget) return '';
+    var target = new URL(returnTarget, window.location.origin);
+    var names = {
+      qingyun: '我在青云宗打卡修仙',
+      zhongkui: '未命名 · 钟馗弟子',
+      fogharbor: '雾港没有月亮'
+    };
+    return names[target.searchParams.get('book') || 'qingyun'] || '刚才的作品';
+  }
+  function syncReturnControl() {
+    var button = document.getElementById('backFlow');
+    var divider = document.getElementById('returnDivider');
+    button.hidden = !returnTarget;
+    divider.hidden = !returnTarget;
+    button.dataset.newBookExit = returnTarget ? 'true' : 'false';
+    if (returnTarget) document.getElementById('backFlowLabel').textContent = '返回《' + returnBookName() + '》';
+  }
+  function showDraftResume(draft) {
+    if (!draft) return;
+    pendingDraft = draft;
+    resumeDraft.hidden = false;
+    setDraftChoiceLocked(true);
+    var phaseNames = {
+      intro: '构思还没发出',
+      'core-question': '停在故事内核的讨论',
+      audience: '停在读者方向',
+      platform: '停在连载方向',
+      'trial-ready': '准备第一次试写',
+      feedback1: '正在看第一次试写',
+      'rewrite-ready': '准备重写同一幕',
+      'trial2-review': '正在看第二次试写',
+      confirmed: '方向已经确认'
+    };
+    document.getElementById('resumeDraftMeta').textContent = phaseNames[draft.state && draft.state.phase] || '可以从停下的位置继续';
+  }
+  function restoreDraft(draft) {
+    if (!draft) return;
+    var interruptedPhase = draft.state && draft.state.phase;
+    pageState = Object.assign(pageState, draft.state || {});
+    if (pageState.phase === 'writing-trial') pageState.phase = 'trial-ready';
+    if (pageState.phase === 'rewriting') pageState.phase = 'rewrite-ready';
+    ideaInput.value = draft.idea || '';
+    thread.innerHTML = draft.thread || '';
+    thread.querySelectorAll('.ob-loading').forEach(function (loadingNode) {
+      var message = loadingNode.closest('.ob-msg');
+      if (message) message.remove();
+    });
+    quickRow.innerHTML = draft.quick || '';
+    composer.value = draft.composer || '';
+    hidePrimaryViews();
+    if (pageState.phase === 'intro') intro.hidden = false;
+    else session.hidden = false;
+    shell.classList.add('is-new');
+    bookSidebar.hidden = true;
+    currentBookNav.hidden = true;
+    syncReturnControl();
+    document.getElementById('bookState').textContent = '新故事 · 继续上次';
+    resumeDraft.hidden = true;
+    pendingDraft = null;
+    setDraftChoiceLocked(false);
+    referenceBtn.hidden = pageState.phase !== 'feedback1' && pageState.phase !== 'feedback2';
+    composerSend.disabled = !composer.value.trim();
+    syncBegin();
+    if (pageState.phase === 'intro') ideaInput.focus();
+    else {
+      toBottom();
+      composer.focus();
+    }
+    persistDraft();
+    if (interruptedPhase === 'writing-trial') renderTrial1();
+    if (interruptedPhase === 'rewriting') renderTrial2();
+  }
+  function setPhase(phase) {
+    pageState.phase = phase;
+    composer.value = '';
+    pageState.composerText = '';
+    composerSend.disabled = true;
+    referenceBtn.hidden = phase !== 'feedback1' && phase !== 'feedback2';
+    persistDraft();
+  }
+  function toBottom() {
+    requestAnimationFrame(function () { scroll.scrollTop = scroll.scrollHeight; });
+  }
+  function agent(html, component) {
+    var el = document.createElement('div');
+    el.className = 'ob-msg ob-msg--agent';
+    if (component) el.setAttribute('data-component', component);
+    el.innerHTML = '<div class="ob-avatar"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="7" cy="7" r="4.8"/><path d="M4.8 6.2h4.4M4.8 8.5h2.7"/></svg></div><div class="ob-msg__body">' + html + '</div>';
+    thread.appendChild(el);
+    toBottom();
+    persistDraft();
+    return el;
+  }
+  function user(text) {
+    var el = document.createElement('div');
+    el.className = 'ob-msg ob-msg--user';
+    el.innerHTML = '<div class="ob-msg__body">' + esc(text) + '</div>';
+    thread.appendChild(el);
+    toBottom();
+    persistDraft();
+  }
+  function choices(items) {
+    quickRow.innerHTML = items.map(function (item) {
+      return '<button class="ob-quick" data-quick="' + item[0] + '">' + item[1] + '</button>';
+    }).join('');
+    persistDraft();
+  }
+  function clearChoices(skipSave) {
+    quickRow.innerHTML = '';
+    if (!skipSave) persistDraft();
+  }
+  function loading(label, done) {
+    clearChoices();
+    var el = agent('<span class="ob-loading"><i></i><i></i><i></i>' + label + '</span>');
+    setTimeout(function () { el.remove(); done(); }, 720);
+  }
+
+  function hidePrimaryViews() {
+    intro.hidden = true;
+    session.hidden = true;
+    desk.hidden = true;
+  }
+  function setDraftChoiceLocked(locked) {
+    draftChoiceLocked = locked;
+    var intake = ideaInput.closest('.ob-intake');
+    intake.classList.toggle('is-paused', locked);
+    if (locked) intake.setAttribute('inert', '');
+    else intake.removeAttribute('inert');
+    syncBegin();
+  }
+  function showNewBook() {
+    hidePrimaryViews();
+    intro.hidden = false;
+    shell.classList.add('is-new');
+    bookSidebar.hidden = true;
+    currentBookNav.hidden = true;
+    syncReturnControl();
+    document.getElementById('bookState').textContent = '开始一本新书';
+    pageState.appView = 'new';
+    pageState.activeBook = null;
+    pageState.activeSection = 'chapter';
+    pageState.phase = 'intro';
+    thread.innerHTML = '';
+    clearChoices(true);
+    composer.value = '';
+    composerSend.disabled = true;
+    setDraftChoiceLocked(false);
+    syncBegin();
+  }
+  function renderBookSection(section) {
+    var book = BOOKS[pageState.activeBook];
+    if (!book) return;
+    pageState.activeSection = section;
+    currentBookNav.querySelectorAll('[data-book-section]').forEach(function (button) {
+      button.classList.toggle('is-on', button.dataset.bookSection === section);
+    });
+    document.getElementById('localNewChapter').classList.remove('is-on');
+    var content = section === 'chapter' ? [book.chapter.title, book.chapter.meta, book.chapter.html] : book.docs[section];
+    if (!content) return;
+    document.getElementById('bookState').textContent = content[0];
+    var editKey = pageState.activeBook + ':' + section;
+    var proseHtml = deskEdits[editKey] || content[2];
+    document.getElementById('deskPaper').innerHTML = '<h1 id="deskTitle">' + content[0] + '</h1><div class="meta">' + content[1] + '</div><div class="prose">' + proseHtml + '</div>';
+    document.getElementById('deskAgentTitle').textContent = section === 'chapter' ? content[0].split(' · ')[0] : content[0];
+    var note = section === 'chapter' ? book.chapter.agent : '这份内容可以直接改。你说哪一处不对，我就从那一处开始。';
+    document.getElementById('deskAgentLog').innerHTML = '<div class="bubble">' + note + '</div>';
+    wireDeskEditing(editKey);
+    if (pageState.appView === 'book') {
+      history.replaceState(null, '', '/p/04-d-three-column?book=' + encodeURIComponent(pageState.activeBook) + '&section=' + encodeURIComponent(section));
+    }
+  }
+
+  function saveDeskEdits() {
+    try { localStorage.setItem(DESK_EDITS_KEY, JSON.stringify(deskEdits)); } catch (e) {}
+  }
+
+  function wireDeskEditing(editKey) {
+    var prose = document.querySelector('#deskPaper .prose');
+    if (!prose) return;
+    prose.querySelectorAll('p').forEach(function (paragraph) { paragraph.contentEditable = 'true'; });
+    prose.addEventListener('input', function () {
+      clearTimeout(deskSaveTimer);
+      deskSaveTimer = setTimeout(function () {
+        prose.querySelectorAll('[contenteditable]').forEach(function (node) { node.removeAttribute('contenteditable'); });
+        deskEdits[editKey] = prose.innerHTML;
+        saveDeskEdits();
+        prose.querySelectorAll('p').forEach(function (paragraph) { paragraph.contentEditable = 'true'; });
+      }, 260);
+    });
+  }
+
+  function openLocalNewChapter() {
+    var book = BOOKS[pageState.activeBook];
+    if (!book) return;
+    pageState.activeSection = 'new';
+    currentBookNav.querySelectorAll('[data-book-section]').forEach(function (button) { button.classList.remove('is-on'); });
+    document.getElementById('localNewChapter').classList.add('is-on');
+    document.getElementById('bookState').textContent = book.nextChapter;
+    var editKey = pageState.activeBook + ':new';
+    var newChapterHtml = deskEdits[editKey] || '<p>从一个你现在最想看的画面开始，或者直接让 agent 先排这一章。</p>';
+    document.getElementById('deskPaper').innerHTML = '<h1 id="deskTitle">' + book.nextChapter + '</h1><div class="meta">还没有正文</div><div class="prose">' + newChapterHtml + '</div>';
+    document.getElementById('deskAgentTitle').textContent = book.nextChapter;
+    document.getElementById('deskAgentLog').innerHTML = '<div class="bubble">我只接着眼前这本书往下排，不会为了补齐大纲先替你决定后面的故事。</div>';
+    wireDeskEditing(editKey);
+    history.replaceState(null, '', '/p/04-d-three-column?book=' + encodeURIComponent(pageState.activeBook) + '&section=new');
+  }
+
+  function begin() {
+    var text = ideaInput.value.trim();
+    if (!text) return;
+    intro.hidden = true;
+    session.hidden = false;
+    shell.classList.add('is-new');
+    bookSidebar.hidden = true;
+    currentBookNav.hidden = true;
+    pageState.appView = 'new';
+    document.getElementById('bookState').textContent = '新故事 · 还在聊';
+    user(text);
+    agent(
+      '<p>我先不急着替你搭世界。</p>' +
+      '<p>我听见的不是一个人四处降妖，而是一个自己也没有被度化的人，带着赤子之心去替别人解开执念。外面的魔界阴谋是长线，真正把故事拴住的，是他每度一个人，也被迫靠近自己一点。</p>' +
+      '<p>但这只是我现在的理解，还可能是我替你解释得太漂亮了。</p>' +
+      '<div class="ob-question">他最不敢度化的，究竟是什么？</div>'
+    );
+    setPhase('core-question');
+    choices([
+      ['fire', '那场大火'],
+      ['madness', '他怀疑疯的是自己'],
+      ['unknown', '我还没想好']
+    ]);
+    composer.placeholder = '也可以完全不按这些说法，直接讲……';
+    composer.focus();
+  }
+
+  function answerCore(text) {
+    user(text);
+    agent(
+      '<p>这一下故事才真正有了心脏。</p>' +
+      '<p>他不是忘不掉家人被烧死，而是不敢确认那一晚究竟是谁疯了。钟馗让他去度化众生，并不是给他一份差事，而是在逼他一次次走回那场火里。</p>' +
+      '<p>克苏鲁的部分也因此不只是怪物外形：那种不可名状之物会让人的认知先坏掉，连“我看到的是否真实”都不再可靠。</p>' +
+      '<div class="ob-question">第一次试写，你更想先证明它像你心里的故事，还是先证明陌生读者会立刻追下去？</div>' +
+      '<div class="ob-choice" data-component="audience-choice">' +
+        '<button data-audience="heart">先像我心里的故事</button>' +
+        '<button data-audience="reader">先让陌生读者追下去</button>' +
+      '</div>'
+    , 'audience-choice');
+    setPhase('audience');
+    choices([]);
+    composer.placeholder = '也可以直接说你准备写给谁看……';
+  }
+
+  function chooseAudience(kind) {
+    pageState.audience = kind;
+    user(kind === 'heart' ? '先让它像我心里的故事。' : '先让陌生读者立刻追下去。');
+    if (kind === 'heart') {
+      agent('<p>好。那第一段先不替市场证明什么，只验证三件事：邪异感、这个人身上的慈悲与危险、以及那场火怎样只露出一根针。</p>' + trialReady());
+      setPhase('trial-ready');
+      clearChoices();
+    } else {
+      agent(
+        '<p>那我还需要一个市场语境，但不会拿分类替你写故事。</p>' +
+        '<div class="ob-question">你更接近哪一种？不确定也没关系。</div>' +
+        '<div class="ob-choice" data-component="audience-choice">' +
+          '<button data-platform="male">男频连载</button>' +
+          '<button data-platform="female">女频连载</button>' +
+          '<button data-platform="none">暂时不按这个分</button>' +
+        '</div>'
+      );
+      setPhase('platform');
+    }
+  }
+
+  function choosePlatform(kind) {
+    pageState.platform = kind;
+    var names = { male: '男频连载', female: '女频连载', none: '暂时不按男频女频分' };
+    user(names[kind]);
+    var promise = kind === 'male'
+      ? '我先按连载读者的节奏来试：阴森要马上成立，主角要尽早动手，但力量必须看得见上限。'
+      : kind === 'female'
+        ? '我会把人物感受和关系张力放得更近，但开头仍然尽快兑现邪异与行动。'
+        : '我先只抓具体的阅读承诺，不套男频或女频模板。';
+    agent('<p>' + promise + '</p><p>身世只露一针；力量体系、主角名字和第一个执念的真相都先不定死。</p>' + trialReady());
+    setPhase('trial-ready');
+  }
+
+  function trialReady() {
+    return '<div class="ob-choice"><button class="ob-action--primary" data-write-trial="1">写这一段</button></div>';
+  }
+
+  function renderTrial1() {
+    pageState.trialVersion = 1;
+    agent(
+      '<div class="ob-trial" data-component="trial-draft">' +
+        '<div class="ob-trial__head"><b>第一次试写</b><span>只验证开头的感觉</span></div>' +
+        '<div class="ob-trial__text">' +
+          '<p>乌河县已经三天没死人，城里的丧钟却在子时响了第四遍。</p>' +
+          '<p>钟声落下时，巷口的积水忽然向高处流。一艘白纸折成的船从雨里滑来，船头点着两盏青灯。沿街人家的门缝里，一缕缕细黑的影子被灯火牵出，像有人在梦里把自己的名字交了出去。</p>' +
+          '<p>青年站在客栈二楼，看见掌柜趴在柜台上，嘴还在动，却已经叫不出妻儿的名字。</p>' +
+          '<p>纸船经过窗下时，他翻身落地。没有喝问，也没有亮身份。他只在眉心抹了一道朱砂，右眼里亮起极细的火线。船上空无一人，船腹却挤着几十张脸；它们没有五官，只在额头上写着姓名。</p>' +
+          '<p>他抬手一握，最前面那根黑线骤然绷紧。</p>' +
+          '<p>只绷住了三息。</p>' +
+          '<p>第一息，纸船停住。第二息，满船的人脸一齐转向他。第三息还没到，他的掌心已经裂开。白纸船猛地鼓胀起来，船腹深处传出一个被火烧哑的童声：</p>' +
+          '<p>“大哥，你怎么又来晚了？”</p>' +
+        '</div>' +
+      '</div>'
+    , 'trial-draft');
+    agent('<p>这还只是试写，不会因为出现在这里就自动变成正式设定。</p><div class="ob-question">你不用给它打分。直接告诉我，哪里抓住了你，哪里开始不对。</div>');
+    setPhase('feedback1');
+    choices([
+      ['focus', '重点还不够'],
+      ['slow', '主角出手再早一点'],
+      ['cliche', '第一个执念别太俗']
+    ]);
+    composer.placeholder = '比如：文笔没问题，但主角动得太晚……';
+  }
+
+  function answerFeedback(text) {
+    user(text);
+    agent(
+      '<p>我明白了。不是单纯把句子缩短，而是第一段要先兑现三份承诺：这里真的邪门、主角确实有办法、但他的办法远远不够。</p>' +
+      '<p>身世往后收，只留一个会让人不安的刺；第一个执念也不再用等亲人、放不下爱情这类现成答案。</p>' +
+      '<div class="ob-review-note" data-component="review-summary"><b>我又换了几个读者的位置盲看了一遍。</b><br>值得听的有两点：异象够怪，但主角第一次真正改变局面来得太晚；“纸船里传来家人的声音”太快解释了他的伤，会让长线提前泄气。还有一条只是偏好，我没有采用。</div>' +
+      '<div class="ob-choice"><button class="ob-action--primary" data-rewrite="1">照这个重写同一幕</button></div>'
+    , 'review-summary');
+    setPhase('rewrite-ready');
+    clearChoices();
+  }
+
+  function renderTrial2() {
+    pageState.trialVersion = 2;
+    agent(
+      '<div class="ob-trial" data-component="trial-draft">' +
+        '<div class="ob-trial__head"><b>第二次试写</b><span>同一幕 · 只改刚才三件事</span></div>' +
+        '<div class="ob-trial__text">' +
+          '<p>纸船冲进巷口的那一刻，青年先一刀砍断了自己的影子。</p>' +
+          '<p>刀锋落地，没有血。青石板上的黑影却猛地一缩，恰好避开船头扫来的白幡。幡上密密麻麻写满人名，最下面那个墨迹还湿，正是客栈掌柜。</p>' +
+          '<p>满街灯火同时暗了一瞬。</p>' +
+          '<p>青年两指并起，在眉心一点。右眼深处亮起一线暗红，纸船顿时换了一副模样——船是纸扎的，撑船的却是数百只从水里伸出的手。每只手腕上都拴着一块木牌，牌上的人分明还活着。</p>' +
+          '<p>他只看了一眼，右眼便渗出血来。</p>' +
+          '<p>钟馗门下的法，他如今只会前两道。第一道让他看见不该看见的东西；第二道，只能把它们留住三息。</p>' +
+          '<p>他一把攥住迎面飞来的白幡。</p>' +
+          '<p>“一。”</p>' +
+          '<p>纸船上的手同时抓向两侧民宅。</p>' +
+          '<p>“二。”</p>' +
+          '<p>掌心裂开，血顺着幡杆往下淌。青年没有松手，反而向前一步，把整艘船拖得横了过来。</p>' +
+          '<p>第三声还没出口，船腹忽然裂开。里面没有尸骨，也没有亡魂，只有一摞摞崭新的灵牌。最上面那块写着一个明日才会出生的孩子。</p>' +
+          '<p>青年第一次变了脸色。</p>' +
+        '</div>' +
+      '</div>'
+    , 'trial-draft');
+    agent('<p>这一版把行动提到了第一句，也把上限直接写进了动作。那块“明日才会出生的孩子”的灵牌仍只是试写提案，你不收，它就不会进入这本书。</p>');
+    setPhase('trial2-review');
+    choices([
+      ['accept-direction', '就是这个方向'],
+      ['more-feedback', '还有地方不对']
+    ]);
+    composer.placeholder = '继续按你的感觉说……';
+  }
+
+  function showConfirmation() {
+    user('就是这个方向。');
+    agent(
+      '<p>好，我真正记住的是这些：</p>' +
+      '<div class="ob-final-note" data-component="confirmation">' +
+        '<p>已经定下：钟馗弟子一路度化执念，也被迫度化自己；故事需要克苏鲁式的认知不安；开头按网络连载的速度，尽早兑现邪异、行动和成长空间。</p>' +
+        '<p>还在试：第一桩执念究竟是什么、力量怎样命名、那种物质如何影响死者。</p>' +
+        '<p>暂时留白：主角姓名、完整力量体系、魔界阴谋的答案。我不会为了资料看起来完整先补出来。</p>' +
+      '</div>' +
+      '<div class="ob-choice"><button class="ob-action--primary" data-start-book="1">正式写第一章</button><button data-more-talk="1">我还想再聊一轮</button></div>'
+    , 'confirmation');
+    setPhase('confirmed');
+    clearChoices();
+  }
+
+  function showDesk(bookKey, section) {
+    var key = bookKey || 'zhongkui';
+    var book = BOOKS[key];
+    if (!book) return;
+    window.location.href = '/p/04-d-three-column?book=' + encodeURIComponent(key) + '&section=' + encodeURIComponent(section || 'chapter');
+    return;
+    var cameFromOnboarding = pageState.appView === 'new' && thread.children.length > 0;
+    hidePrimaryViews();
+    desk.hidden = false;
+    shell.classList.remove('is-new');
+    bookSidebar.hidden = false;
+    currentBookNav.hidden = false;
+    document.getElementById('sideBookTitle').textContent = book.title;
+    document.getElementById('sideBookMeta').textContent = book.meta;
+    document.getElementById('sideChapterTitle').textContent = book.chapter.title;
+    document.getElementById('bookState').textContent = book.title;
+    reviewingHistory = false;
+    historyReturn = { book: key, section: section || 'chapter' };
+    document.getElementById('backFlow').hidden = key !== 'zhongkui' || !thread.children.length;
+    document.getElementById('backFlowLabel').textContent = '回看试写过程';
+    pageState.appView = 'book';
+    pageState.activeBook = key;
+    document.querySelectorAll('[data-switch-book]').forEach(function (link) {
+      var isCurrent = link.dataset.switchBook === key;
+      link.classList.toggle('is-current', isCurrent);
+      if (isCurrent) link.setAttribute('aria-current', 'page');
+      else link.removeAttribute('aria-current');
+    });
+    document.querySelectorAll('[data-current-note]').forEach(function (note) {
+      note.textContent = note.dataset.currentNote === key ? '当前' : '';
+    });
+    closeBookSwitcher();
+    if (section === 'new') openLocalNewChapter();
+    else renderBookSection(section || 'chapter');
+    if (cameFromOnboarding) {
+      try { localStorage.removeItem(ONBOARDING_KEY); } catch (e) {}
+    }
+  }
+
+  document.getElementById('voiceBtn').addEventListener('click', function () {
+    var button = this;
+    if (button.classList.contains('is-listening')) return;
+    button.classList.add('is-listening');
+    button.querySelector('span').textContent = '正在听…';
+    setTimeout(function () {
+      ideaInput.value = '我一直想写一个钟馗弟子在世间行走，去度化游离在各处的执念，也在度化自己和读者。他自己很迷惘，却有一颗赤子之心。后来他发现魔界正在用某种物质让死者更容易产生执念，最终他要捣毁这个阴谋，也度化自己。';
+      syncBegin();
+      persistDraft();
+      button.classList.remove('is-listening');
+      button.querySelector('span').textContent = '已经听见';
+    }, 900);
+  });
+  function syncBegin() { beginBtn.disabled = draftChoiceLocked || !ideaInput.value.trim(); }
+  ideaInput.addEventListener('input', function () {
+    syncBegin();
+    persistDraft();
+  });
+  beginBtn.addEventListener('click', begin);
+  function closeBookSwitcher() {
+    bookSwitcherMenu.hidden = true;
+    bookSwitcherTrigger.setAttribute('aria-expanded', 'false');
+  }
+  bookSwitcherTrigger.addEventListener('click', function () {
+    var willOpen = bookSwitcherMenu.hidden;
+    bookSwitcherMenu.hidden = !willOpen;
+    bookSwitcherTrigger.setAttribute('aria-expanded', String(willOpen));
+  });
+  document.addEventListener('click', function (event) {
+    if (!event.target.closest('.noya-book-switcher')) closeBookSwitcher();
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') closeBookSwitcher();
+  });
+  currentBookNav.addEventListener('click', function (e) {
+    if (e.target.closest('[data-new-chapter]')) {
+      openLocalNewChapter();
+      return;
+    }
+    var section = e.target.closest('[data-book-section]');
+    if (section) renderBookSection(section.dataset.bookSection);
+  });
+  syncBegin();
+
+  composer.addEventListener('input', function () {
+    pageState.composerText = composer.value;
+    composerSend.disabled = !composer.value.trim();
+    persistDraft();
+  });
+  composer.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && composer.value.trim()) submitComposer();
+  });
+  composerSend.addEventListener('click', submitComposer);
+
+  function submitComposer() {
+    var text = composer.value.trim();
+    if (!text) return;
+    if (pageState.phase === 'core-question') answerCore(text);
+    else if (pageState.phase === 'feedback1' || pageState.phase === 'feedback2') answerFeedback(text);
+    else if (pageState.phase === 'audience' || pageState.phase === 'platform') {
+      user(text);
+      pageState.audience = 'reader';
+      pageState.platform = 'custom';
+      agent('<p>明白。我用你刚才的具体说法来判断，不再给它硬贴分类。</p><p>第一段只验证邪异、主角尽早行动和成长空间；其他内容先留白。</p>' + trialReady());
+      setPhase('trial-ready');
+    } else if (pageState.phase === 'trial-ready') {
+      user(text);
+      agent('<p>这条会作为第一次试写的额外要求，但不会自动变成全书规则。</p>' + trialReady());
+      setPhase('trial-ready');
+    } else if (pageState.phase === 'rewrite-ready') {
+      user(text);
+      agent('<p>补充要求已经并进这次重写。仍然只改同一幕，不换故事。</p><div class="ob-choice"><button class="ob-action--primary" data-rewrite="1">按这些要求重写</button></div>');
+      setPhase('rewrite-ready');
+    } else if (pageState.phase === 'trial2-review') {
+      user(text);
+      agent('<p>记下了。这仍然是对当前试写的意见，不会变成整本书的永久规则。</p><div class="ob-choice"><button class="ob-action--primary" data-rewrite="1">再改同一幕</button></div>');
+      setPhase('rewrite-ready');
+    } else if (pageState.phase === 'confirmed') {
+      user(text);
+      agent('<p>好，这一轮只聊你刚才补充的内容。其他已经确认的方向不动。</p><div class="ob-choice"><button class="ob-action--primary" data-start-book="1">正式写第一章</button><button data-more-talk="1">再聊一句</button></div>');
+    }
+  }
+
+  quickRow.addEventListener('click', function (e) {
+    var button = e.target.closest('[data-quick]');
+    if (!button) return;
+    var kind = button.dataset.quick;
+    if (kind === 'fire' || kind === 'madness') {
+      answerCore('他前身是京城将门的长子。家里的人受到某种不可名状之物影响，开始疯癫怪异。最后一晚，他把宅子、家人和自己一起烧了。到了地狱，他喝了无数碗孟婆汤都过不了奈何桥，钟馗才收他为徒。他最不敢面对的是那场火，也不敢确认当时究竟是谁疯了。');
+    } else if (kind === 'unknown') {
+      answerCore('我还没有想清楚。但我希望那不是一个能轻易说出口的答案，最好连他自己都一直不敢确认。');
+    } else if (kind === 'focus' || kind === 'slow' || kind === 'cliche') {
+      answerFeedback('文笔没有问题，但重点还不够突出。阴森、恐怖和主角的武力应该更早出现；又不能一下把他写得太强，要看得见成长。第一个执念不要落入俗套，主角身世也不要急着讲。');
+    } else if (kind === 'accept-direction') {
+      showConfirmation();
+    } else if (kind === 'more-feedback') {
+      user('还有地方不对。');
+      agent('<div class="ob-question">那先不往正式章节走。是哪一处让你觉得它又偏了？直接说感觉就行。</div>');
+      setPhase('feedback2');
+      choices([]);
+      composer.focus();
+    }
+  });
+
+  thread.addEventListener('click', function (e) {
+    var tapped = e.target.closest('button');
+    if (tapped && tapped.disabled) return;
+    var audience = e.target.closest('[data-audience]');
+    var platform = e.target.closest('[data-platform]');
+    if (audience) {
+      audience.closest('.ob-choice').querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+      chooseAudience(audience.dataset.audience);
+    }
+    else if (platform) {
+      platform.closest('.ob-choice').querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+      choosePlatform(platform.dataset.platform);
+    }
+    else if (e.target.closest('[data-write-trial]')) {
+      if (pageState.phase !== 'trial-ready') return;
+      e.target.closest('[data-write-trial]').disabled = true;
+      setPhase('writing-trial');
+      loading('正在写同一个场景，只验证刚才说的三件事', renderTrial1);
+    } else if (e.target.closest('[data-rewrite]')) {
+      if (pageState.phase !== 'rewrite-ready') return;
+      e.target.closest('[data-rewrite]').disabled = true;
+      setPhase('rewriting');
+      loading('正在重写同一幕，没有换故事', renderTrial2);
+    } else if (e.target.closest('[data-start-book]')) {
+      if (pageState.phase !== 'confirmed') return;
+      e.target.closest('[data-start-book]').disabled = true;
+      archiveOnboardingHistory();
+      try { localStorage.removeItem(ONBOARDING_KEY); } catch (error) {}
+      pendingDraft = null;
+      window.location.href = '/p/04-d-three-column?book=zhongkui&section=chapter&from=onboarding';
+    } else if (e.target.closest('[data-more-talk]')) {
+      user('我还想再聊一轮。');
+      agent('<div class="ob-question">可以。现在最值得继续聊的不是资料，而是：你希望第一桩执念让读者在合上这一段后，心里留下什么东西？</div>');
+      setPhase('confirmed');
+      composer.placeholder = '比如：不是感动，而是不敢确定自己有没有做错……';
+      composer.focus();
+    }
+  });
+
+  referenceBtn.addEventListener('click', function () {
+    referenceModal.hidden = false;
+    document.getElementById('referenceText').focus();
+  });
+  document.getElementById('referenceCancel').addEventListener('click', function () { referenceModal.hidden = true; });
+  referenceModal.addEventListener('click', function (e) { if (e.target === referenceModal) referenceModal.hidden = true; });
+  document.getElementById('referenceText').addEventListener('input', function () {
+    document.getElementById('referenceApply').disabled = !this.value.trim();
+  });
+  document.getElementById('referenceApply').addEventListener('click', function () {
+    var text = document.getElementById('referenceText').value.trim();
+    if (!text) {
+      document.getElementById('referenceText').focus();
+      return;
+    }
+    referenceModal.hidden = true;
+    user('我贴了一段参考文字。');
+    agent('<p>我只从里面带走四件事：句子偏长但不拖，镜头先给空间再落到人，恐怖来自异常秩序而不是形容词，动作出现时会突然收短。</p><p>人物、设定和原句都不会进入我们的故事。下一版仍然重写刚才那一幕。</p>');
+  });
+
+  document.getElementById('backFlow').addEventListener('click', function () {
+    if (this.dataset.newBookExit === 'true' && returnTarget) {
+      if (!(pendingDraft && draftChoiceLocked)) persistDraft();
+      window.location.href = returnTarget;
+      return;
+    }
+    if (reviewingHistory) {
+      showDesk(historyReturn.book, historyReturn.section);
+      return;
+    }
+    historyReturn = { book: pageState.activeBook || 'zhongkui', section: pageState.activeSection || 'chapter' };
+    desk.hidden = true;
+    intro.hidden = true;
+    session.hidden = false;
+    shell.classList.add('is-new');
+    bookSidebar.hidden = true;
+    currentBookNav.hidden = true;
+    document.getElementById('bookState').textContent = '新故事 · 已定方向';
+    pageState.appView = 'new';
+    pageState.activeBook = null;
+    reviewingHistory = true;
+    this.hidden = false;
+    document.getElementById('backFlowLabel').textContent = '回到正文';
+    toBottom();
+  });
+
+  document.getElementById('continueDraft').addEventListener('click', function () {
+    restoreDraft(pendingDraft);
+  });
+  document.getElementById('restartDraft').addEventListener('click', function () {
+    try { localStorage.removeItem(ONBOARDING_KEY); } catch (e) {}
+    pendingDraft = null;
+    resumeDraft.hidden = true;
+    setDraftChoiceLocked(false);
+    ideaInput.value = '';
+    thread.innerHTML = '';
+    clearChoices(true);
+    syncBegin();
+    ideaInput.focus();
+  });
+
+  function sendDeskNote() {
+    var input = document.getElementById('deskInput');
+    var text = input.value.trim();
+    if (!text) return;
+    var log = document.getElementById('deskAgentLog');
+    var mine = document.createElement('div');
+    mine.style.cssText = 'margin:12px 0 8px 34px;padding:9px 11px;border-radius:10px 10px 3px 10px;background:var(--color-primary-soft);color:var(--color-text);';
+    mine.textContent = text;
+    log.appendChild(mine);
+    var reply = document.createElement('div');
+    reply.className = 'bubble';
+    var title = document.getElementById('deskTitle').textContent;
+    var prose = document.querySelector('#deskPaper .prose');
+    var first = prose && prose.querySelector('p');
+    var replacement = text.match(/(?:改成|换成|写成)[：:]?\s*[“"]?(.+?)[”"]?$/);
+    var changed = false;
+    if (pageState.activeSection === 'new') {
+      if (first) first.textContent = text;
+      changed = true;
+      reply.textContent = '已经把这句话保存为' + title + '的起点。后面的安排仍然留白。';
+    } else if (replacement && first) {
+      first.textContent = replacement[1];
+      changed = true;
+      reply.textContent = '已经改了' + title + '的第一处，其他内容没有动。';
+    } else if (/收短|啰嗦|克制/.test(text) && first) {
+      first.textContent = first.textContent.replace(/，([^，。]{1,18})，/, '，').replace('渐渐', '慢慢');
+      changed = true;
+      reply.textContent = '已经先收紧' + title + '的开头，其他段落没有动。';
+    } else {
+      reply.textContent = '我正在看' + title + '。请把“哪一句改成什么”说完整；这次没有改动内容。';
+    }
+    if (changed && prose) {
+      var editKey = pageState.activeBook + ':' + pageState.activeSection;
+      prose.querySelectorAll('[contenteditable]').forEach(function (node) { node.removeAttribute('contenteditable'); });
+      deskEdits[editKey] = prose.innerHTML;
+      saveDeskEdits();
+      prose.querySelectorAll('p').forEach(function (paragraph) { paragraph.contentEditable = 'true'; });
+    }
+    log.appendChild(reply);
+    input.value = '';
+  }
+  document.getElementById('deskSend').addEventListener('click', sendDeskNote);
+  document.getElementById('deskInput').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') sendDeskNote();
+  });
+
+  var initialParams = new URLSearchParams(window.location.search);
+  var initialBook = initialParams.get('book');
+  var savedDraft = readDraft();
+  var storedWorkspace = null;
+  try { storedWorkspace = localStorage.getItem('noya:last-workspace'); } catch (error) {}
+  returnTarget = normalizeReturnTarget(initialParams.get('return')) ||
+    normalizeReturnTarget(document.referrer) ||
+    normalizeReturnTarget(storedWorkspace) ||
+    normalizeReturnTarget(savedDraft && savedDraft.returnTarget);
+  if (initialParams.get('view') === 'book' && BOOKS[initialBook]) {
+    window.location.replace('/p/04-d-three-column?book=' + encodeURIComponent(initialBook) + '&section=' + encodeURIComponent(initialParams.get('section') || 'chapter'));
+  } else if (initialParams.get('new') === '1') {
+    showNewBook();
+    showDraftResume(savedDraft);
+  } else {
+    window.location.replace('/p/04-d-three-column');
+  }
+})();
+</script>

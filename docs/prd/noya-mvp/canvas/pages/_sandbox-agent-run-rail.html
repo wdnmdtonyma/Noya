@@ -1,0 +1,190 @@
+<!-- sandbox -->
+<!-- title: Agent 执行轨精修 -->
+<!-- manifest
+state: runState, expandedEvent
+components: agent-rail-controls, agent-run-summary, agent-event-stream [complex], agent-composer
+-->
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--color-bg); color: var(--color-text); font: var(--font-size-md)/var(--line-ui) var(--font-ui); }
+  .ar-lab { min-height: 100vh; display: grid; grid-template-columns: minmax(280px, 1fr) 448px; }
+  .ar-notes { display: grid; place-items: center; padding: var(--space-10); }
+  .ar-notes__inner { max-width: 520px; }
+  .ar-notes h1 { margin: 0 0 10px; font-size: var(--font-size-2xl); }
+  .ar-notes p { margin: 0 0 var(--space-5); color: var(--color-text-secondary); line-height: 1.8; }
+  .ar-state-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ar-state-controls button { min-height: 34px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text-secondary); font: inherit; cursor: pointer; }
+  .ar-state-controls button:hover, .ar-state-controls button.is-on { border-color: var(--color-primary); color: var(--color-primary); background: var(--color-primary-soft); }
+
+  .ar-rail { min-width: 0; display: flex; flex-direction: column; background: var(--color-surface); border-left: 1px solid var(--color-border); box-shadow: -8px 0 28px rgba(42,35,27,.035); }
+  .ar-head { min-height: 58px; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--color-border); }
+  .ar-brand { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--color-accent) 34%, var(--color-border)); border-radius: 9px; color: var(--color-accent); background: var(--color-accent-softer); }
+  .ar-head-copy { min-width: 0; flex: 1; }
+  .ar-head-copy b, .ar-head-copy span { display: block; }
+  .ar-head-copy b { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); }
+  .ar-head-copy span { margin-top: 1px; color: var(--color-text-tertiary); font-size: var(--font-size-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ar-status { display: inline-flex; align-items: center; gap: 6px; min-height: 24px; padding: 0 8px; border-radius: var(--radius-pill); color: var(--color-accent); background: var(--color-accent-soft); font-size: var(--font-size-xs); }
+  .ar-status i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: ar-pulse 1.25s var(--ease-in-out) infinite; }
+  .ar-status[data-state="complete"] { color: var(--color-done); background: var(--color-done-soft); }
+  .ar-status[data-state="waiting"] { color: var(--color-warn); background: var(--color-warn-soft); }
+  .ar-status[data-state="failed"] { color: var(--color-danger); background: var(--color-danger-soft); }
+  .ar-status[data-state="complete"] i, .ar-status[data-state="waiting"] i, .ar-status[data-state="failed"] i { animation: none; }
+  @keyframes ar-pulse { 50% { opacity: .3; transform: scale(.7); } }
+  .ar-icon-btn { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid transparent; border-radius: var(--radius-md); background: transparent; color: var(--color-text-tertiary); cursor: pointer; }
+  .ar-icon-btn:hover { border-color: var(--color-border); background: var(--color-surface-2); color: var(--color-text); }
+
+  .ar-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 16px 28px; }
+  .ar-brief { padding: 13px 14px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: linear-gradient(180deg, var(--color-surface-raised), var(--color-surface-2)); box-shadow: var(--shadow-xs); }
+  .ar-kicker { display: flex; align-items: center; gap: 7px; color: var(--color-text-tertiary); font-size: var(--font-size-xs); }
+  .ar-brief p { margin: 8px 0 0; color: var(--color-text); line-height: 1.7; }
+
+  .ar-section-head { display: flex; align-items: center; gap: 8px; margin: 18px 2px 10px; }
+  .ar-section-head b { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); }
+  .ar-section-head span { margin-left: auto; color: var(--color-text-tertiary); font-size: var(--font-size-xs); }
+  .ar-events { border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface-raised); box-shadow: var(--shadow-xs); overflow: hidden; }
+  .ar-event { position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; padding: 12px 13px; }
+  .ar-event + .ar-event { border-top: 1px solid var(--color-border-soft); }
+  .ar-event-mark { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; color: var(--color-text-tertiary); background: var(--color-surface-2); border: 1px solid var(--color-border); }
+  .ar-event[data-state="done"] .ar-event-mark { color: var(--color-done); background: var(--color-done-soft); border-color: transparent; }
+  .ar-event[data-state="running"] { background: var(--color-accent-softer); }
+  .ar-event[data-state="running"] .ar-event-mark { color: var(--color-accent); background: var(--color-surface-raised); border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border)); }
+  .ar-event[data-state="waiting"] { background: color-mix(in srgb, var(--color-warn-soft) 42%, var(--color-surface-raised)); }
+  .ar-event[data-state="waiting"] .ar-event-mark { color: var(--color-warn); background: var(--color-warn-soft); border-color: transparent; }
+  .ar-event[data-state="failed"] { background: color-mix(in srgb, var(--color-danger-soft) 55%, var(--color-surface-raised)); }
+  .ar-event[data-state="failed"] .ar-event-mark { color: var(--color-danger); background: var(--color-danger-soft); border-color: transparent; }
+  .ar-event-copy { min-width: 0; }
+  .ar-event-title { display: flex; align-items: baseline; gap: 8px; }
+  .ar-event-title b { font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); }
+  .ar-event-title time { margin-left: auto; color: var(--color-text-disabled); font: 10px var(--font-mono); }
+  .ar-event-desc { margin-top: 3px; color: var(--color-text-secondary); font-size: var(--font-size-xs); line-height: 1.65; }
+  .ar-event[data-state="queued"] .ar-event-title b, .ar-event[data-state="queued"] .ar-event-desc { color: var(--color-text-disabled); }
+  .ar-detail { margin-top: 8px; }
+  .ar-detail summary { width: max-content; list-style: none; color: var(--color-accent); font-size: var(--font-size-xs); cursor: pointer; }
+  .ar-detail summary::-webkit-details-marker { display: none; }
+  .ar-detail summary::after { content: "  ›"; }
+  .ar-detail[open] summary::after { content: "  ⌄"; }
+  .ar-detail-box { margin-top: 8px; padding: 9px 10px; border-radius: var(--radius-md); background: var(--color-surface-2); color: var(--color-text-secondary); font-size: var(--font-size-xs); line-height: 1.7; }
+  .ar-detail-box code { font: 10.5px/1.6 var(--font-mono); color: var(--color-text); }
+
+  .ar-result { display: none; margin-top: 12px; padding: 13px; border: 1px solid color-mix(in srgb, var(--color-done) 25%, var(--color-border)); border-radius: var(--radius-lg); background: var(--color-done-soft); }
+  .ar-result b { font-size: var(--font-size-sm); }
+  .ar-result p { margin: 5px 0 9px; color: var(--color-text-secondary); font-size: var(--font-size-xs); line-height: 1.65; }
+  .ar-result a { color: var(--color-done); font-size: var(--font-size-xs); font-weight: var(--font-weight-medium); text-decoration: none; }
+  .ar-actions { display: none; margin-top: 10px; gap: 8px; }
+  .ar-actions button { min-height: 32px; padding: 0 10px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-raised); color: var(--color-text); font: inherit; font-size: var(--font-size-xs); cursor: pointer; }
+  .ar-actions button:first-child { border-color: var(--color-primary); background: var(--color-primary); color: white; }
+
+  .ar-compose { padding: 12px; border-top: 1px solid var(--color-border); background: color-mix(in srgb, var(--color-surface) 94%, transparent); }
+  .ar-compose-box { display: flex; align-items: flex-end; gap: 8px; padding: 9px 9px 9px 12px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-lg); background: var(--color-surface-raised); box-shadow: var(--shadow-xs); }
+  .ar-compose-box:focus-within { border-color: color-mix(in srgb, var(--color-primary) 55%, var(--color-border)); box-shadow: var(--focus-ring); }
+  .ar-compose textarea { flex: 1; min-height: 22px; max-height: 90px; resize: none; border: 0; outline: 0; background: transparent; color: var(--color-text); font: inherit; line-height: 1.65; }
+  .ar-send { width: 30px; height: 30px; display: grid; place-items: center; flex: 0 0 auto; border: 0; border-radius: var(--radius-md); background: var(--color-primary); color: white; cursor: pointer; }
+  .ar-send:hover { background: var(--color-primary-hover); }
+
+  .ar-rail[data-run-state="complete"] .ar-result { display: block; }
+  .ar-rail[data-run-state="waiting"] .ar-actions, .ar-rail[data-run-state="failed"] .ar-actions { display: flex; }
+  @media (max-width: 760px) { .ar-lab { grid-template-columns: 1fr; } .ar-notes { display: none; } .ar-rail { min-height: 100vh; border-left: 0; } }
+</style>
+
+<div class="ar-lab">
+  <section class="ar-notes">
+    <div class="ar-notes__inner">
+      <h1>Agent 执行轨</h1>
+      <p>作者只需要判断任务在做什么、做到哪、是否需要自己决定。默认信息克制，具体查询、命中与改动按需展开。</p>
+      <div class="ar-state-controls" data-component="agent-rail-controls">
+        <button class="is-on" data-show-state="running">运行中</button>
+        <button data-show-state="complete">已完成</button>
+        <button data-show-state="waiting">等待决定</button>
+        <button data-show-state="failed">失败</button>
+      </div>
+    </div>
+  </section>
+
+  <aside class="ar-rail" id="agentRailLab" data-run-state="running">
+    <header class="ar-head">
+      <span class="ar-brand"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.35"/><path d="M5.5 6.7h5M5.5 9.3h3.2" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg></span>
+      <div class="ar-head-copy"><b>Agent</b><span>第 13 章 · 初稿写作</span></div>
+      <span class="ar-status" id="agentRailStatus" data-state="running"><i></i><span>运行中</span></span>
+      <button class="ar-icon-btn" title="收起执行轨"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="m10 4-4 4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </header>
+
+    <div class="ar-scroll">
+      <section class="ar-brief" data-component="agent-run-summary">
+        <div class="ar-kicker"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 3h10v10H3z" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 6h5M5.5 8.5h5M5.5 11h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>你的要求</div>
+        <p>按确认过的五件事写第 13 章，韩拾遗第一次出现时不要抬头。</p>
+      </section>
+
+      <div class="ar-section-head"><b>执行过程</b><span id="agentRailProgress">3 / 6</span></div>
+      <section class="ar-events" data-component="agent-event-stream">
+        <article class="ar-event" data-state="done" data-step="confirm">
+          <span class="ar-event-mark"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="m3.5 8.2 3 3 6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <div class="ar-event-copy"><div class="ar-event-title"><b>确认本章安排</b><time>00:01</time></div><div class="ar-event-desc">五个故事事件已固定为本次写作依据。</div></div>
+        </article>
+        <article class="ar-event" data-state="done" data-step="search">
+          <span class="ar-event-mark"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="3.8" stroke="currentColor" stroke-width="1.4"/><path d="m10 10 3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+          <div class="ar-event-copy"><div class="ar-event-title"><b>查找相关内容</b><time>00:03</time></div><div class="ar-event-desc">找到 8 条与藏经阁、韩拾遗和首次签到相关的内容。</div><details class="ar-detail"><summary>查看查找结果</summary><div class="ar-detail-box">命中：第 11—12 章摘要、韩拾遗人物志、藏经阁地点、签到伏线与《引气诀》条目。</div></details></div>
+        </article>
+        <article class="ar-event" data-state="running" data-step="read">
+          <span class="ar-event-mark"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 3.5h4.1A1.9 1.9 0 0 1 9 5.4V13H4.8A1.8 1.8 0 0 1 3 11.2V3.5Z" stroke="currentColor" stroke-width="1.25"/><path d="M13 3.5H8.9A1.9 1.9 0 0 0 7 5.4V13h4.2a1.8 1.8 0 0 0 1.8-1.8V3.5Z" stroke="currentColor" stroke-width="1.25"/></svg></span>
+          <div class="ar-event-copy"><div class="ar-event-title"><b>阅读前文与资料</b><time>00:06</time></div><div class="ar-event-desc">正在核对林凡此时知道什么，以及韩拾遗能表现到什么程度。</div><details class="ar-detail"><summary>查看阅读结论</summary><div class="ar-detail-box">林凡尚不知道签到奖励的完整用途；韩拾遗只应留下“观察者”的印象，不能提前暴露身份。</div></details></div>
+        </article>
+        <article class="ar-event" data-state="queued" data-step="write"><span class="ar-event-mark"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="m4 12 1-3 6.5-6.5 2 2L7 11l-3 1Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span><div class="ar-event-copy"><div class="ar-event-title"><b>生成初稿</b></div><div class="ar-event-desc">按已确认安排写出完整章节。</div></div></article>
+        <article class="ar-event" data-state="queued" data-step="check"><span class="ar-event-mark"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 2.5 13 4v3.8c0 2.8-1.9 4.8-5 5.7-3.1-.9-5-2.9-5-5.7V4l5-1.5Z" stroke="currentColor" stroke-width="1.25"/><path d="m5.6 8.1 1.5 1.5 3.3-3.4" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="ar-event-copy"><div class="ar-event-title"><b>检查前后连续性</b></div><div class="ar-event-desc">核对人物认知、地点、能力与伏线。</div></div></article>
+        <article class="ar-event" data-state="queued" data-step="save"><span class="ar-event-mark"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 3h8l2 2v8H3V3Z" stroke="currentColor" stroke-width="1.25"/><path d="M5 3v4h5V3M5.5 13V9.5h5V13" stroke="currentColor" stroke-width="1.25"/></svg></span><div class="ar-event-copy"><div class="ar-event-title"><b>保存初稿</b></div><div class="ar-event-desc">完成后正文会进入可编辑状态，不更新长期资料。</div></div></article>
+      </section>
+
+      <section class="ar-result" id="agentRailResult">
+        <b>初稿已经写好</b><p>生成 2,740 字，并完成连续性检查。长期资料尚未更新，定稿前仍可自由修改。</p><a href="#">定位到第 13 章初稿 →</a>
+      </section>
+      <div class="ar-actions" id="agentRailActions"><button>处理这个问题</button><button>停止并保留当前内容</button></div>
+    </div>
+
+    <footer class="ar-compose" data-component="agent-composer"><div class="ar-compose-box"><textarea rows="1" placeholder="告诉 Agent 要看、查找或修改什么…"></textarea><button class="ar-send" title="发送"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="m3 8 9-5-2.3 10-2-3-4.7-2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></button></div></footer>
+  </aside>
+</div>
+
+<script>
+(function () {
+  var rail = document.getElementById('agentRailLab');
+  var status = document.getElementById('agentRailStatus');
+  var progress = document.getElementById('agentRailProgress');
+  var states = {
+    running: { label: '运行中', progress: '3 / 6', step: 'read', desc: '正在核对林凡此时知道什么，以及韩拾遗能表现到什么程度。' },
+    complete: { label: '已完成', progress: '6 / 6', step: null },
+    waiting: { label: '等待决定', progress: '4 / 6', step: 'check', desc: '发现韩拾遗的身份与第 8 章设定冲突，需要你决定保留哪一个版本。' },
+    failed: { label: '执行失败', progress: '3 / 6', step: 'write', desc: '生成中断。已确认的安排和查找结果仍然保留，可以重试。' }
+  };
+  function icon(kind) {
+    if (kind === 'done') return '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="m3.5 8.2 3 3 6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    return '<span style="width:7px;height:7px;border:1.5px solid currentColor;border-top-color:transparent;border-radius:50%;animation:ar-spin .8s linear infinite"></span>';
+  }
+  var style = document.createElement('style'); style.textContent = '@keyframes ar-spin{to{transform:rotate(360deg)}}'; document.head.appendChild(style);
+  function show(runState) {
+    rail.dataset.runState = runState;
+    status.dataset.state = runState;
+    status.querySelector('span').textContent = states[runState].label;
+    progress.textContent = states[runState].progress;
+    document.querySelectorAll('[data-show-state]').forEach(function (button) { button.classList.toggle('is-on', button.dataset.showState === runState); });
+    var order = ['confirm', 'search', 'read', 'write', 'check', 'save'];
+    var activeIndex = runState === 'complete' ? order.length : order.indexOf(states[runState].step);
+    order.forEach(function (name, index) {
+      var event = document.querySelector('[data-step="' + name + '"]');
+      var mark = event.querySelector('.ar-event-mark');
+      var desc = event.querySelector('.ar-event-desc');
+      var eventState = index < activeIndex ? 'done' : index === activeIndex ? (runState === 'waiting' ? 'waiting' : runState === 'failed' ? 'failed' : 'running') : 'queued';
+      event.dataset.state = eventState;
+      if (eventState === 'done') mark.innerHTML = icon('done');
+      else if (eventState === 'running') mark.innerHTML = icon('running');
+      else if (eventState === 'waiting') mark.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 4v4M8 11.5v.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+      else if (eventState === 'failed') mark.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="m5 5 6 6M11 5l-6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+      else mark.innerHTML = '';
+      if (index === activeIndex && states[runState].desc) desc.textContent = states[runState].desc;
+    });
+  }
+  document.querySelector('[data-component="agent-rail-controls"]').addEventListener('click', function (event) {
+    var button = event.target.closest('[data-show-state]');
+    if (button) show(button.dataset.showState);
+  });
+  show('running');
+})();
+</script>
