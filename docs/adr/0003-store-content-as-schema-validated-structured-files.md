@@ -1,0 +1,3 @@
+# Store content as schema-validated structured files
+
+The MVP stores authoritative work content in structured files rather than Markdown documents; text fields may contain Markdown syntax, including long-form literary content. Each document follows an explicit, versioned schema with parsing and validation, and domain documents remain independent of the chosen serialization so future format or schema changes use deliberate migrations. This replaces the earlier Markdown-first proposal: the concrete structured encoding and per-document fields remain to be specified, but using structured files does not require breaking all narrative content into atomic facts.
