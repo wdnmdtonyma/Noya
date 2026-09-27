@@ -9,7 +9,7 @@ Noya 帮助独立作者把一次次创作决定持续写成长篇小说，同时
 _Avoid_: 长对话、会话
 
 **Context Agent**：
-在一个写作任务中直接与作者交流的 Agent。它准备 Writing Package、检查 Writer 的章节方案与正文并反馈具体问题，也可以根据作者反馈直接完成不改变当前叙事结构的局部正文修改。
+在一个写作任务中直接与作者交流的 Agent。它准备 Writing Package，派发 Writing Agent 与正文检查员并转达作者想法和检查反馈，检查 Writer 的章节方案，也可以直接完成纯措辞层面的正文修正。
 _Avoid_: Context Setter、Writing Agent
 
 **Writing Agent**：
@@ -38,12 +38,20 @@ _Avoid_: Prompt、聊天记录
 **编辑建议（Editorial Suggestion）**：
 针对章节具体段落提出的表达、节奏或阅读效果改善意见，包含具体问题与修改方向，不单独决定章节能否交给作者。未满足作者已接受的明确要求属于质量门禁问题，不因涉及阅读效果而降为普通编辑建议。
 
+**正文检查员（Chapter Reviewer）**：
+按章节质量门禁检查正文的 Subagent。每次检查使用新会话，只接收 Writing Brief、Context Pack 和当前正文版本，看不到作者讨论与废案；明确冲突必须附依据原文。
+_Avoid_: Context Agent 自查、评分器
+
+**同步核对员（Sync Checker）**：
+Context 同步时逐条核对资料变化是否有定稿正文原文依据、是否与既有资料冲突的 Subagent。它不决定写入，只报告核对结论。
+_Avoid_: 同步执行者
+
 **局部修改（Local Revision）**：
-不改变现有 Writing Brief 的正文修正，由 Context Agent 根据作者反馈直接完成。修改字数不决定它是否局部。
+不推翻已有写作方向的正文修改，包括追加要求和较大幅度的调整。由原 Writing Agent 在同一会话中根据反馈和最新 Writing Brief 完成；纯措辞修正可由 Context Agent 直接完成。修改字数不决定它是否局部。
 _Avoid_: 小改
 
 **结构性重写（Structural Rewrite）**：
-需要改变 Writing Brief 中目标、事件、人物、动机、因果、结果或揭示时机的正文修改，由新的 Writing Agent 根据更新后的 Writing Package 完成。
+作者推翻已有写作方向、几乎需要重写整章的修改，例如改变关键事件的结果、人物动机的方向或揭示时机。由新的 Writing Agent 根据更新后的 Writing Package 完成，旧 Writer 随之停止；因为让模型撤回上下文中的旧方案并不可靠。
 _Avoid_: 大改
 
 **章节（Chapter）**：
