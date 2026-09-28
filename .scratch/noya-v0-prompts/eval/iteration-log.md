@@ -24,4 +24,4 @@
 2. **纯措辞修正时 Context Agent 不知道写手初稿工作文件的路径。** `edit` 只允许作用于活跃 Writer 的方案或初稿工作文件，但路径只写进了 Writer 的首条消息。建议 `get_subagents({ agent_id })` 返回该 Writer 的方案与初稿工作文件路径。
 3. **交稿时告诉作者"初稿位置"缺少面向作者的路径。** 同第 1 条；若产物路径可得，Context Agent 可直接告知。
 4. **写手不提交就结束时，Context 只能看到最后回复的前 200 字。** Writer SP 要求"意见与要求矛盾时不提交，用一两句话说明"，依赖这 200 字足够；暂不改，观察审计中的"未提交产物"轮次。
-5. **SP / Skill 路径与实现侧占位不一致（2026-09-28 发现）。** 实现侧 `v0/noya.config.json` 指向占位文件 `prompts/{context,writer,reviewer,sync-checker}.md` 与 `prompts/skills/`（含占位 Skill `ask-work`、`sync-canon`、`write-chapter`）。正式 SP 在 `prompts/sp/`，正式 Skill 为 `answer`、`context-sync`、`write-chapter`。需统一：配置改指 `prompts/sp/`，删除占位 SP 与重复的占位 Skill；否则 Context 会同时看到两套 Skill。
+5. **SP / Skill 路径与实现侧占位不一致（2026-09-28 发现，已在本地处理）。** 已把 `v0/noya.config.json` 改指 `prompts/sp/`，删除占位 SP 与占位 Skill `ask-work`、`sync-canon`；配置文件属于实现 ticket 01，随其提交。原记录： 实现侧 `v0/noya.config.json` 指向占位文件 `prompts/{context,writer,reviewer,sync-checker}.md` 与 `prompts/skills/`（含占位 Skill `ask-work`、`sync-canon`、`write-chapter`）。正式 SP 在 `prompts/sp/`，正式 Skill 为 `answer`、`context-sync`、`write-chapter`。需统一：配置改指 `prompts/sp/`，删除占位 SP 与重复的占位 Skill；否则 Context 会同时看到两套 Skill。
