@@ -9,6 +9,7 @@
 | 日期 | 版本 | 说明 |
 |---|---|---|
 | 2026-09-28 | v1 | 初稿：四份 SP 与三个 Skill，汉字数 context 986 / writer 845 / reviewer 843 / sync_checker 564 / write-chapter 912 / context-sync 563 / answer 394 |
+| 2026-09-28 | v2 | 补工作循环（未经真实运行，依据：Pi 自定义 SP 会去掉默认提示词，循环规则需自带）。Context SP 加"每一轮"（先定位、拿不准重读 Skill、当轮执行）；write-chapter / context-sync 加"通知 → 下一步"表；三个 Subagent SP 加"只有提交算数、提交成功前不结束本轮"。汉字数 context 1071 / writer 948 / reviewer 900 / sync_checker 597 / write-chapter 1010 / context-sync 641 / answer 394 |
 
 ## 运行记录
 
