@@ -1,0 +1,32 @@
+{
+  "worksRoot": "./works",
+  "roles": {
+    "context": {
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "thinking": "low"
+    },
+    "writer": {
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "thinking": "high"
+    },
+    "reviewer": {
+      "provider": "deepseek",
+      "model": "deepseek-v4-pro",
+      "thinking": "high"
+    },
+    "sync_checker": {
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "thinking": "low"
+    }
+  },
+  "prompts": {
+    "context": "./prompts/sp/context.md",
+    "writer": "./prompts/sp/writer.md",
+    "reviewer": "./prompts/sp/reviewer.md",
+    "sync_checker": "./prompts/sp/sync_checker.md"
+  },
+  "skillsDir": "./prompts/skills"
+}

@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Chapter",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "title",
+    "order",
+    "status",
+    "content",
+    "summary",
+    "key_characters"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "order": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "finalized"
+      ]
+    },
+    "content": {
+      "type": "string",
+      "description": "完整正文，允许 Markdown 语法"
+    },
+    "summary": {
+      "type": "string",
+      "description": "根据实际正文生成的检索摘要"
+    },
+    "key_characters": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "重要登场角色的人物 ID"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "finalized"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        }
+      }
+    }
+  ]
+}

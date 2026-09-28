@@ -1,0 +1,337 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CharacterProfile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "name",
+    "aliases",
+    "summary",
+    "content",
+    "state",
+    "abilities",
+    "possessions",
+    "resources",
+    "relationships",
+    "cognition"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "格式版本"
+    },
+    "id": {
+      "$ref": "#/$defs/id",
+      "description": "稳定人物 ID"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "当前姓名"
+    },
+    "aliases": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "别名与称号"
+    },
+    "summary": {
+      "type": "string",
+      "description": "人物检索摘要"
+    },
+    "content": {
+      "type": "string",
+      "description": "画像、经历、性格与动机，允许 Markdown"
+    },
+    "state": {
+      "$ref": "#/$defs/state",
+      "description": "当前地点与已明确状态"
+    },
+    "abilities": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ability"
+      },
+      "description": "已掌握的能力与掌握程度"
+    },
+    "possessions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/possession"
+      },
+      "description": "装备、随身物品与另处存放的物品"
+    },
+    "resources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/resource"
+      },
+      "description": "货币、贡献等资源余额"
+    },
+    "relationships": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/relationship"
+      },
+      "description": "本人物视角的人物关系"
+    },
+    "cognition": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/cognition"
+      },
+      "description": "重要认知与明确不知情记录"
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nullable_text": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "location_id",
+        "attributes"
+      ],
+      "properties": {
+        "location_id": {
+          "$ref": "#/$defs/nullable_text",
+          "description": "所在世界志节点 ID；未知为 null"
+        },
+        "attributes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/state_attribute"
+          },
+          "description": "按作品需要建立的状态项"
+        }
+      }
+    },
+    "state_attribute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "label",
+        "value"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "description": "状态项稳定键，同一人物内唯一"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "可读名称，例如修为、伤势"
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "description": "已经明确的状态描述"
+        }
+      }
+    },
+    "ability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entry_id",
+        "mastery",
+        "content"
+      ],
+      "properties": {
+        "entry_id": {
+          "$ref": "#/$defs/id",
+          "description": "资料库中的能力定义 ID"
+        },
+        "mastery": {
+          "$ref": "#/$defs/nullable_text",
+          "description": "掌握程度；未知为 null"
+        },
+        "content": {
+          "type": "string",
+          "description": "个人使用情况和限制，允许 Markdown"
+        }
+      }
+    },
+    "possession": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "entry_id",
+        "name",
+        "quantity",
+        "usage",
+        "location",
+        "condition",
+        "attunement",
+        "content"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id",
+          "description": "具体物品或同质物品堆的稳定 ID"
+        },
+        "entry_id": {
+          "$ref": "#/$defs/nullable_text",
+          "description": "资料库物品定义 ID；未单独建档为 null"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "持有物名称"
+        },
+        "quantity": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "description": "持有数量；未知为 null，耗尽则移出当前持有列表"
+        },
+        "usage": {
+          "type": "string",
+          "enum": [
+            "equipped",
+            "carried",
+            "stored",
+            "unknown"
+          ],
+          "description": "装备、携带、存放或未明确"
+        },
+        "location": {
+          "$ref": "#/$defs/nullable_text",
+          "description": "佩戴位置或存放处"
+        },
+        "condition": {
+          "$ref": "#/$defs/nullable_text",
+          "description": "当前品相或损坏情况"
+        },
+        "attunement": {
+          "$ref": "#/$defs/nullable_text",
+          "description": "认主、绑定情况"
+        },
+        "content": {
+          "type": "string",
+          "description": "该持有物的个人经历或特殊情况，允许 Markdown"
+        }
+      }
+    },
+    "resource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "name",
+        "amount",
+        "unit",
+        "content"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "description": "资源类型稳定键，同一人物内唯一"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "资源名称"
+        },
+        "amount": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "当前余额；未知为 null"
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1,
+          "description": "数量单位"
+        },
+        "content": {
+          "type": "string",
+          "description": "个人余额相关说明，允许 Markdown"
+        }
+      }
+    },
+    "relationship": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "character_id",
+        "content"
+      ],
+      "properties": {
+        "character_id": {
+          "$ref": "#/$defs/id",
+          "description": "对方人物 ID"
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "description": "从本人物角度描述关系、态度与变化，允许 Markdown"
+        }
+      }
+    },
+    "cognition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "content",
+        "source_chapter_ids"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id",
+          "description": "认知记录稳定 ID"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "known",
+            "belief",
+            "suspicion",
+            "unaware"
+          ],
+          "description": "已知、相信、怀疑或明确不知情"
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "description": "人物视角的具体认知，允许 Markdown"
+        },
+        "source_chapter_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "description": "支持该认知记录的正文来源；尚无正文来源时为空"
+        }
+      }
+    }
+  }
+}

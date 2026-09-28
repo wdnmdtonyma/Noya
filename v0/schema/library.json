@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LibraryEntry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "kind",
+    "name",
+    "aliases",
+    "summary",
+    "effects",
+    "requirements",
+    "limitations",
+    "attributes",
+    "content"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "格式版本"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "稳定资料条目 ID"
+    },
+    "kind": {
+      "type": "string",
+      "minLength": 1,
+      "description": "资料类型，例如 artifact；完整词表待定"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "条目名称"
+    },
+    "aliases": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/text"
+      },
+      "description": "别名与其他称呼"
+    },
+    "summary": {
+      "type": "string",
+      "description": "检索摘要，与详细设定保持一致"
+    },
+    "effects": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/text"
+      },
+      "description": "已确定的作用与效果"
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/text"
+      },
+      "description": "已确定的使用、修炼或触发条件"
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/text"
+      },
+      "description": "已确定的限制和代价"
+    },
+    "attributes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/attribute"
+      },
+      "description": "对象特有的可扩展属性"
+    },
+    "content": {
+      "type": "string",
+      "description": "外观、背景、补充说明和未知，允许 Markdown"
+    }
+  },
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scalar": {
+      "type": [
+        "string",
+        "number",
+        "boolean"
+      ],
+      "minLength": 1,
+      "description": "非空文本、数字或布尔值，必须是已确定的信息"
+    },
+    "attribute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "label",
+        "value",
+        "unit"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "description": "属性稳定键，同一条目内唯一，同义属性在作品内复用"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "可读属性名称"
+        },
+        "value": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/scalar"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/scalar"
+              }
+            }
+          ],
+          "description": "已确定的属性值，或一层标量列表"
+        },
+        "unit": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "description": "必要的计量单位；无单位或不适用时为 null"
+        }
+      }
+    }
+  }
+}

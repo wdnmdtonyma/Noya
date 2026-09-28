@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ChapterReview",
+  "description": "一次章节正文检查的四项结论及具体反馈，不代表作者定稿或文学质量评分",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "chapter_id",
+    "checks",
+    "feedback"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "检查结果的格式版本"
+    },
+    "chapter_id": {
+      "$ref": "#/$defs/text",
+      "description": "被检查章节的稳定 ID，不替代正文版本关联"
+    },
+    "checks": {
+      "type": "object",
+      "description": "四项门禁的检查结论，所有项必须显式提供",
+      "additionalProperties": false,
+      "required": [
+        "requirements",
+        "character_motivation",
+        "possessions_and_abilities",
+        "ability_rules"
+      ],
+      "properties": {
+        "requirements": {
+          "$ref": "#/$defs/check_status",
+          "description": "本次写作要求的符合性"
+        },
+        "character_motivation": {
+          "$ref": "#/$defs/check_status",
+          "description": "人物动机与人设及剧情依据的一致性"
+        },
+        "possessions_and_abilities": {
+          "$ref": "#/$defs/check_status",
+          "description": "人物持有物、掌握能力及其当时状态的正确性"
+        },
+        "ability_rules": {
+          "$ref": "#/$defs/check_status",
+          "description": "道具和法术的效果、条件、代价与限制的正确性"
+        }
+      }
+    },
+    "feedback": {
+      "type": "array",
+      "description": "明确冲突、待核实事项和编辑建议；无反馈时显式为空数组",
+      "items": {
+        "$ref": "#/$defs/feedback_item"
+      }
+    }
+  },
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S",
+      "description": "至少包含一个非空白字符的文本，允许 Markdown"
+    },
+    "check_status": {
+      "type": "string",
+      "enum": [
+        "passed",
+        "failed",
+        "needs_verification"
+      ],
+      "description": "已检查通过、存在明确冲突，或证据不足待核实"
+    },
+    "location": {
+      "type": "object",
+      "description": "被检查正文中的问题位置，遗漏问题允许没有可摘录原文",
+      "additionalProperties": false,
+      "required": [
+        "excerpt",
+        "description"
+      ],
+      "properties": {
+        "excerpt": {
+          "description": "当前正文的原文摘录；问题是内容遗漏时为 null",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "$ref": "#/$defs/text",
+          "description": "场景和位置说明；遗漏问题需说明缺失内容与检查范围"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "description": "一条可回查的要求或作品依据，摘录与检查者的推断分开",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "locator",
+        "excerpt"
+      ],
+      "properties": {
+        "source_id": {
+          "$ref": "#/$defs/text",
+          "description": "Writing Brief、章节或作品资料条目的稳定 ID"
+        },
+        "locator": {
+          "$ref": "#/$defs/text",
+          "description": "来源内的字段或段落位置，例如 limitations[1]"
+        },
+        "excerpt": {
+          "$ref": "#/$defs/text",
+          "description": "来源该处的原文摘录，不填写模型自行推导的结论"
+        }
+      }
+    },
+    "feedback_item": {
+      "type": "object",
+      "description": "一项具体检查反馈：区分性质并提供位置、理由、来源与修正目标",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "category",
+        "location",
+        "reason",
+        "evidence",
+        "revision_goal"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "violation",
+            "needs_verification",
+            "suggestion"
+          ],
+          "description": "明确冲突、待核实事项或非阻断的编辑建议"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "requirements",
+            "character_motivation",
+            "possessions_and_abilities",
+            "ability_rules",
+            "expression"
+          ],
+          "description": "问题归属的门禁项；普通编辑建议归入 expression"
+        },
+        "location": {
+          "$ref": "#/$defs/location",
+          "description": "问题在被检查正文中的具体位置"
+        },
+        "reason": {
+          "$ref": "#/$defs/text",
+          "description": "具体问题与判断理由；待核实项说明当前缺失或冲突的依据"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          },
+          "description": "来源证据；明确冲突至少一条，其他类型允许为空"
+        },
+        "revision_goal": {
+          "description": "希望达到的修正效果；待核实项为 null，不把不确定性转成修改指令",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "violation"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "evidence": {
+                "type": "array",
+                "minItems": 1
+              },
+              "revision_goal": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "needs_verification"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "revision_goal": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "suggestion"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "category": {
+                "const": "expression"
+              },
+              "revision_goal": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "category": {
+                "enum": [
+                  "requirements",
+                  "character_motivation",
+                  "possessions_and_abilities",
+                  "ability_rules"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

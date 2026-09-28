@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WritingBrief",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "chapter_id",
+    "mode",
+    "intent",
+    "requirements",
+    "constraints",
+    "ending",
+    "creative_scope",
+    "leave_open"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "格式版本"
+    },
+    "id": {
+      "$ref": "#/$defs/text",
+      "description": "本份 Brief 的稳定标识"
+    },
+    "chapter_id": {
+      "$ref": "#/$defs/text",
+      "description": "目标章节的稳定 ID"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "write_chapter",
+        "rewrite_chapter"
+      ],
+      "description": "新写章节或结构性重写"
+    },
+    "intent": {
+      "$ref": "#/$defs/text",
+      "description": "本章目标与希望达到的效果，允许 Markdown"
+    },
+    "requirements": {
+      "$ref": "#/$defs/text_list",
+      "description": "已经接受的具体写作要求，未限定时可为空列表"
+    },
+    "constraints": {
+      "$ref": "#/$defs/text_list",
+      "description": "本次明确边界，不复制完整事实档案"
+    },
+    "ending": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "description": "指定的结束位置或局面；未指定为 null"
+    },
+    "creative_scope": {
+      "$ref": "#/$defs/text_list",
+      "description": "明确允许 Writer 自行安排的范围"
+    },
+    "leave_open": {
+      "$ref": "#/$defs/text_list",
+      "description": "本次需保持未定、不擅自补全的事项"
+    }
+  },
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "text_list": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/text"
+      }
+    }
+  }
+}

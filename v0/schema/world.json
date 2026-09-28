@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WorldGuide",
+  "description": "包含空间、组织和运行规则的递归世界志文档",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "nodes"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "文档格式版本"
+    },
+    "nodes": {
+      "type": "array",
+      "description": "本文件包含的完整子树根节点，层级由 children 继续展开",
+      "items": {
+        "$ref": "#/$defs/world_node"
+      }
+    }
+  },
+  "$defs": {
+    "world_node_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref_id"
+      ],
+      "properties": {
+        "ref_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "其他内容文件中完整子树根节点的稳定 ID，通过索引定位"
+        }
+      }
+    },
+    "world_node": {
+      "type": "object",
+      "description": "一个拥有摘要、详细设定和下级条目的世界志节点",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "title",
+        "summary",
+        "content",
+        "children"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "作品内稳定且唯一的节点 ID，移动节点不改变 ID"
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "description": "条目类型，例如 faction、location、rule；完整词表待定"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "description": "节点名称"
+        },
+        "summary": {
+          "type": "string",
+          "description": "供 Context Agent 快速筛选资料的摘要，应与详细设定保持一致"
+        },
+        "content": {
+          "type": "string",
+          "description": "完整设定与适用范围，允许 Markdown；未知内容保持明确未知"
+        },
+        "children": {
+          "type": "array",
+          "description": "完整下级节点或子树引用；没有下级时使用空数组",
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/world_node"
+              },
+              {
+                "$ref": "#/$defs/world_node_ref"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
