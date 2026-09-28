@@ -10,7 +10,8 @@ SP 与 Skills 的正式内容不在本 ticket 内：放置占位 SP（四个角�
 
 **Status:** ready-for-agent
 
-- [ ] 依赖加入 `@earendil-works/pi-ai@0.87.1`（精确版本）；启动器检查 `rg` 可用，否则报错退出
+- [ ] 在仓库 `v0/` 目录从零建立项目（此前没有任何代码）：Node ≥ 22.19、ESM、TypeScript 由 Node 直接运行（只用可擦除语法，无构建步骤）；依赖精确版本 `@earendil-works/pi-coding-agent@0.87.1`、`@earendil-works/pi-ai@0.87.1`、`ajv@8.17.1`，开发依赖 `typescript@5.8.3`、`@types/node@22.15.3`；提交 lockfile，`node_modules` 不入库；提供 `noya` 可执行入口、`test`（Node 内置测试运行器）与 `typecheck`（`tsc --noEmit`）脚本
+- [ ] 启动器检查 `rg` 可用，否则报错退出
 - [ ] 配置：作品根目录；四个角色各自的 provider（`deepseek`）、模型 ID、thinking 档位；SP 文件与 Skills 目录位置；支持 `NOYA_CONFIG` 覆盖配置文件位置
 - [ ] 配置校验：thinking 档位必须是该模型支持的值（`deepseek-flash`：low/high/max；`deepseek-v4-pro`：high/max）；内置列表以外的模型 ID 必须附上下文窗口、最大输出与支持档位，并据此注册；否则报错退出
 - [ ] Noya 使用自己的空 Pi 配置目录与认证文件路径；启动器与测试设置 `PI_OFFLINE=1`、`PI_SKIP_VERSION_CHECK=1`

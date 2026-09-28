@@ -105,14 +105,15 @@ Status: ready-for-agent
 
 ### 依赖与运行环境
 
-- 直接依赖 `@earendil-works/pi-coding-agent@0.87.1` 与 `@earendil-works/pi-ai@0.87.1`（后者用于模型注册与测试用 faux provider；被 coding-agent 锁在其内部的副本不能直接引用）。ajv 8.17.1。
+- 项目从零建立在仓库的 `v0/` 目录：Node ≥ 22.19、ESM、TypeScript。源码与测试由 Node 直接运行（类型擦除，只使用可擦除的 TypeScript 语法，不引入构建步骤）；测试用 Node 内置测试运行器；`tsc --noEmit` 做类型检查。所有依赖使用精确版本，提交 lockfile，`node_modules` 不入库。
+- 直接依赖 `@earendil-works/pi-coding-agent@0.87.1` 与 `@earendil-works/pi-ai@0.87.1`（后者用于模型注册与测试用 faux provider；被 coding-agent 锁在其内部的副本不能直接引用）。ajv 8.17.1。开发依赖：`typescript@5.8.3`、`@types/node@22.15.3`。
 - `rg` 是前置依赖：启动器检查 `rg` 可用，不可用时报错退出。内置 `find` 依赖的 `fd` 不要求：Noya 用 Node 文件系统 glob 实现 `find` 的操作并注册同名工具覆盖内置版本。
 - 启动器与测试均设置 `PI_OFFLINE=1` 与 `PI_SKIP_VERSION_CHECK=1`，禁止 Pi 联网下载工具或检查版本。
 - Noya 使用自己的空 Pi 配置目录（agentDir）与自己的认证文件路径，不读取本机 `~/.pi` 下的设置、认证、全局包、SYSTEM.md 或 APPEND_SYSTEM.md。
 
 ### 配置
 
-v0 目录下的一份 JSON 配置（可用环境变量 `NOYA_CONFIG` 指向其他文件），包含：
+`v0/` 目录下的一份 JSON 配置（可用环境变量 `NOYA_CONFIG` 指向其他文件），包含：
 
 - 作品根目录。
 - 每个角色（`context` / `writer` / `reviewer` / `sync_checker`）：provider（v0 固定 `deepseek`）、模型 ID、thinking 档位。
