@@ -4,6 +4,7 @@ import { SessionManager, type AgentSession, type ModelRuntime } from "@earendil-
 import {
   applyCanonChanges,
   cloneCanon,
+  findById,
   findWorld,
   limitDepth,
   listCanon,
@@ -202,7 +203,7 @@ export class TaskHub {
     if (args.op === "get") {
       const ids = [...new Set((args.ids as string[]) ?? [])];
       const lines = ids.map((id) => {
-        const item = items.find((candidate) => candidate.id === id);
+        const item = findById(state, id);
         return item ? `${item.type} ${item.id}\n${JSON.stringify(item.doc, null, 2)}` : `未找到 ${id}`;
       });
       return lines.join("\n\n");
@@ -351,6 +352,8 @@ export class TaskHub {
     if (agent.status === "retired" || agent.status === "terminated" || agent.status === "failed") {
       refuse(`Writer 状态为${STATUS_LABEL[agent.status]}，不能发送消息`);
     }
+    const session = await this.ensureWriterSession(agent);
+    if (!session) refuse("Writer 会话不存在");
     if (typeof args.package_id === "string") {
       const next = loadPackage(this.task, args.package_id);
       const current = agent.packageId ? loadPackage(this.task, agent.packageId) : undefined;
@@ -363,8 +366,6 @@ export class TaskHub {
     const pkg = agent.packageId ? loadPackage(this.task, agent.packageId) : undefined;
     if (!pkg) refuse("Writer 没有绑定 Package");
     const text = `${String(args.message ?? "")}\n\n${briefBlock(pkg.brief)}`;
-    const session = this.sessions.get(agent.id);
-    if (!session) refuse("Writer 会话不存在");
     if (agent.status === "running") {
       await session.steer(text);
       return "消息将在 Writer 下一次模型调用前送达";
@@ -411,10 +412,12 @@ export class TaskHub {
 
   submitPlan(agentId: string): string {
     const agent = this.agent(agentId);
+    this.requireSubmittable(agent);
     const file = join(agent.workspaceDir, "plan.md");
     if (!existsSync(file)) refuse("还没有方案文件 plan.md");
     const text = readFileSync(file, "utf8");
     if (!/\S/.test(text)) refuse("方案为空");
+    this.requireSubmittable(agent);
     const id = `plan_${nextArtifactNumber(this.task.artifactsDir, "plan")}`;
     copyFileSync(file, join(this.task.artifactsDir, `${id}.md`));
     this.noteArtifact(agent, id);
@@ -423,6 +426,7 @@ export class TaskHub {
 
   submitDraft(agentId: string): string {
     const agent = this.agent(agentId);
+    this.requireSubmittable(agent);
     if (!agent.artifacts.some((id) => id.startsWith("plan_"))) refuse("提交初稿前必须先提交章节方案");
     return this.snapshotDraft(agent, join(agent.workspaceDir, "draft.md"));
   }
@@ -433,7 +437,7 @@ export class TaskHub {
     if (!draft) refuse("被检查的初稿不存在");
     const pkg = loadPackage(this.task, draft.meta.package_id);
     if (!pkg) refuse("初稿所属 Package 不存在");
-    const parsed = parsePack(pkg.pack, loadCanon(this.work.workDir), String(pkg.brief.id));
+    const parsed = parsePack(pkg.pack, undefined, String(pkg.brief.id));
     const problems = [...parsed.errors, ...reviewProblems(args.review, draft.markdown, pkg.brief, parsed.sections)];
     if (problems.length > 0) refuse(...problems);
     const id = `review_${nextArtifactNumber(this.task.artifactsDir, "review")}`;
@@ -508,10 +512,12 @@ export class TaskHub {
       const problems = applyCanonChanges(trial, []);
       if (problems.length > 0) refuse(...problems);
       const written = await saveCanon(this.work.workDir, before, trial);
-      commitFiles(this.work.workDir, written, `finalize ${chapterId} (${this.taskId} / ${draftId})`);
+      const commit = commitFiles(this.work.workDir, written, `finalize ${chapterId} (${this.taskId} / ${draftId})`);
       this.registry.finalizations.push({ chapter_id: chapterId, draft_id: draftId, at: new Date().toISOString() });
       this.save();
-      return `${chapterId} 已定稿，请进行 Context 同步`;
+      const notice = `${chapterId} 已定稿，请进行 Context 同步`;
+      const extra = commit.includes("未提交修改") ? `\n${commit.slice(commit.indexOf("正式区"))}` : "";
+      return `${notice}${extra}`;
     });
   }
 
@@ -589,7 +595,7 @@ export class TaskHub {
     if (pending) refuse(pending);
     const pkg = loadPackage(this.task, packageId);
     if (!pkg) refuse(`Package ${packageId} 不存在`);
-    this.retireWriters();
+    await this.retireWriters();
     const id = this.nextAgentId("writer");
     const workspace = join(this.task.agentsDir, id);
     mkdirSync(join(workspace, "input"), { recursive: true });
@@ -659,20 +665,57 @@ export class TaskHub {
     agent.status = "running";
     this.save();
     void session.prompt(prompt).catch((error: unknown) => {
+      if (agent.status === "retired" || agent.status === "terminated" || this.stopRequested.has(agent.id)) {
+        void this.finishRound(agent.id).catch(() => undefined);
+        return;
+      }
       agent.failureReason = error instanceof Error ? error.message : String(error);
       this.failing.add(agent.id);
       void this.finishRound(agent.id).catch(() => undefined);
     });
   }
 
-  private retireWriters(): void {
-    for (const agent of this.registry.subagents) {
-      if (agent.role !== "writer" || !["running", "idle", "stopped"].includes(agent.status)) continue;
+  private async retireWriters(): Promise<void> {
+    const active = this.registry.subagents.filter(
+      (agent) => agent.role === "writer" && ["running", "idle", "stopped"].includes(agent.status),
+    );
+    for (const agent of active) {
       const running = agent.status === "running";
       agent.status = "retired";
-      if (running) void this.sessions.get(agent.id)?.abort().catch(() => undefined);
+      this.save();
+      if (!running) continue;
+      await this.sessions.get(agent.id)?.abort().catch(() => undefined);
+      await this.finishRound(agent.id);
     }
-    this.save();
+  }
+
+  private async ensureWriterSession(agent: SubagentRecord): Promise<AgentSession | undefined> {
+    const existing = this.sessions.get(agent.id);
+    if (existing) return existing;
+    if (agent.role !== "writer" || (agent.status !== "stopped" && agent.status !== "idle") || !agent.sessionFile) return undefined;
+    if (!existsSync(agent.sessionFile)) return undefined;
+    const binding = this.models.writer;
+    const created = await createRoleSession({
+      role: "writer",
+      cwd: agent.workspaceDir,
+      agentDir: this.work.agentDir,
+      modelRuntime: this.modelRuntime,
+      model: binding.model,
+      thinking: binding.thinking,
+      sessionManager: SessionManager.open(agent.sessionFile, this.task.sessionDir, agent.workspaceDir),
+      taskId: this.taskId,
+      agentId: agent.id,
+      skillsDir: this.config.skillsDir,
+      promptFile: this.config.prompts.writer,
+    });
+    this.sessions.set(agent.id, created.session);
+    return created.session;
+  }
+
+  private requireSubmittable(agent: SubagentRecord): void {
+    if (this.stopRequested.has(agent.id) || agent.status === "retired" || agent.status === "terminated" || agent.status === "failed") {
+      refuse(`Writer 状态为${STATUS_LABEL[agent.status]}，不能提交`);
+    }
   }
 
   private remember(id: string, role: SubagentRecord["role"], inputRef: string, workspaceDir: string, packageId?: string): SubagentRecord {

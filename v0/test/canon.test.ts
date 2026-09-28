@@ -312,4 +312,84 @@ describe("正式资料与路径", { concurrency: false }, () => {
     assert.doesNotMatch(toolTexts(fx.session, "read").at(-1) ?? "", /\[拒绝\]/);
     assert.match(toolTexts(fx.session, "read").at(-1) ?? "", /问答/);
   });
+
+  test("同一批可以先写子节点，检索能按全文和持有物 ID 找到", async () => {
+    const worldPath = join(fx.work.workDir, "canon", "world.json");
+    const stored = JSON.parse(readFileSync(worldPath, "utf8"));
+    const dropRefs = (nodes: Array<Record<string, unknown>>): Array<Record<string, unknown>> =>
+      nodes.flatMap((node) => {
+        if ("ref_id" in node) return [];
+        if (Array.isArray(node.children)) node.children = dropRefs(node.children as Array<Record<string, unknown>>);
+        return [node];
+      });
+    stored.nodes = dropRefs(stored.nodes);
+    writeFileSync(worldPath, JSON.stringify(stored));
+    const place = (id: string, title: string) => ({ id, kind: "location", title, summary: `${title}摘要`, content: `${title}内容` });
+    await ask(fx, "可以按子节点在前写下三级地点", [
+      fauxAssistantMessage([
+        fauxToolCall("write_canon", {
+          author_confirmation: "可以",
+          changes: [
+            { type: "world_node", op: "upsert", parent_id: "mid", node: place("leaf", "叶") },
+            { type: "world_node", op: "upsert", parent_id: "root", node: place("mid", "枝") },
+            { type: "world_node", op: "upsert", parent_id: null, node: place("root", "干") },
+          ],
+        }),
+      ]),
+    ]);
+    assert.doesNotMatch(toolTexts(fx.session, "write_canon").at(-1) ?? "", /\[拒绝\]/);
+    const world = JSON.parse(readFileSync(join(fx.work.workDir, "canon", "world.json"), "utf8"));
+    const root = world.nodes.find((node: { id: string }) => node.id === "root");
+    assert.equal(root.children[0].id, "mid");
+    assert.equal(root.children[0].children[0].id, "leaf");
+    await ask(fx, "可以再删掉这三级", [
+      fauxAssistantMessage([
+        fauxToolCall("write_canon", {
+          author_confirmation: "可以",
+          changes: [
+            { type: "world_node", op: "delete", id: "root" },
+            { type: "world_node", op: "delete", id: "mid" },
+            { type: "world_node", op: "delete", id: "leaf" },
+          ],
+        }),
+      ]),
+    ]);
+    assert.doesNotMatch(toolTexts(fx.session, "write_canon").at(-1) ?? "", /\[拒绝\]/);
+    await ask(fx, "搜宗门编号", [fauxAssistantMessage([fauxToolCall("query_canon", { op: "search", query: "sect" })])]);
+    assert.match(toolTexts(fx.session, "query_canon").at(-1) ?? "", /world_node\tsect/);
+    await ask(fx, "可以给林凡一把木剑", [
+      fauxAssistantMessage([
+        fauxToolCall("write_canon", {
+          author_confirmation: "可以",
+          changes: [
+            {
+              type: "character",
+              op: "upsert",
+              doc: person("lin", {
+                state: { location_id: "hill", attributes: [] },
+                abilities: [{ entry_id: "gong", mastery: "初学", content: "刚入门" }],
+                possessions: [
+                  {
+                    id: "sword",
+                    entry_id: null,
+                    name: "木剑",
+                    quantity: 1,
+                    usage: "carried",
+                    location: null,
+                    condition: null,
+                    attunement: null,
+                    content: "一把普通木剑",
+                  },
+                ],
+              }),
+            },
+          ],
+        }),
+      ]),
+    ]);
+    assert.doesNotMatch(toolTexts(fx.session, "write_canon").at(-1) ?? "", /\[拒绝\]/);
+    await ask(fx, "取出木剑", [fauxAssistantMessage([fauxToolCall("query_canon", { op: "get", ids: ["sword"] })])]);
+    assert.match(toolTexts(fx.session, "query_canon").at(-1) ?? "", /possession sword/);
+    assert.match(toolTexts(fx.session, "query_canon").at(-1) ?? "", /木剑/);
+  });
 });

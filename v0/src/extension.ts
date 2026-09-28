@@ -54,6 +54,7 @@ export function createNoyaExtension(taskId: string, role: RoleName, agentId?: st
       };
       pi.on("session_before_switch", blockSwitch);
       pi.on("session_before_fork", blockSwitch);
+      pi.on("session_before_tree", blockSwitch);
       const tellAuthor = async (content: string, triggerTurn = false) => {
         await hub.contextSession?.sendCustomMessage(
           { customType: "noya.notice", content, display: true },

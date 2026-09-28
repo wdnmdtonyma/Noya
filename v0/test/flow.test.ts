@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, describe, test } from "node:test";
+import { openWritingSession } from "../src/app.ts";
 import { writeAudit } from "../src/audit.ts";
 import { loadRegistry } from "../src/layout.ts";
 import { resolveRoleModels } from "../src/models.ts";
@@ -333,6 +334,13 @@ describe("写作流程", { concurrency: false }, () => {
       fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_2" })]),
     ]);
     assert.match(toolTexts(fx.session, "spawn_subagent").at(-1) ?? "", /\[拒绝\].*待同步/);
+    fx.faux.context.setResponses([fauxAssistantMessage("再次定稿后同步")]);
+    await fx.session.prompt("/finalize draft_2");
+    await fx.session.waitForIdle();
+    const again = JSON.parse(readFileSync(join(fx.work.workDir, "canon", "chapters", "ch1.json"), "utf8"));
+    assert.equal(again.order, 1);
+    assert.equal(again.summary, "");
+    assert.deepEqual(JSON.parse(readFileSync(join(fx.work.workDir, "canon", "sync.json"), "utf8")).pending_chapter_ids, ["ch1"]);
   });
 
   test("同步只接受定稿正文里的依据，摘要写入后可以开始下一章", async () => {
@@ -391,6 +399,10 @@ describe("写作流程", { concurrency: false }, () => {
     await waitFor(() => transcript(fx.session).includes("check_"), "核对通知");
     await fx.session.waitForIdle();
     assert.match(subagentTranscript(fx, "sync_checker-1"), /恰好一条结论/);
+    await turn(fx, "没有作者确认不能写入无依据的变更", [
+      fauxAssistantMessage([fauxToolCall("apply_sync", { proposal_id: "proposal_1", change_ids: ["sum"] })]),
+    ]);
+    assert.match(toolTexts(fx.session, "apply_sync").at(-1) ?? "", /\[拒绝\].*作者确认/);
     await turn(fx, "不能给核对员发消息", [
       fauxAssistantMessage([fauxToolCall("send_message", { agent_id: "sync_checker-1", message: "改成有依据" })]),
     ]);
@@ -485,5 +497,179 @@ describe("写作流程", { concurrency: false }, () => {
     assert.equal(resolved.models.writer.model.id, "custom-noya");
     assert.equal(resolved.models.writer.model.contextWindow, 4096);
     assert.equal(resolved.models.writer.model.maxTokens, 256);
+  });
+
+  test("停止后的 Writer 可以继续，新 Writer 退役旧的，检查不回查正式区", async () => {
+    fx.faux.writer.appendResponses([
+      fauxAssistantMessage([fauxToolCall("read", { path: join(fx.work.workDir, "canon", "characters", "lin.json") })]),
+      fauxAssistantMessage("读不到"),
+    ]);
+    fx.faux.context.setResponses([
+      fauxAssistantMessage([fauxToolCall("send_message", { agent_id: "writer-1", message: "读一下人物文件" })]),
+      fauxAssistantMessage("让他读"),
+      fauxAssistantMessage("读完了"),
+    ]);
+    await fx.session.prompt("让写手读人物");
+    await waitFor(() => subagentTranscript(fx, "writer-1").includes("不在允许访问"), "写手越界");
+    await fx.session.waitForIdle();
+
+    fx.faux.context.setResponses([
+      fauxAssistantMessage([fauxToolCall("stop_subagent", { agent_id: "writer-1" })]),
+      fauxAssistantMessage("停"),
+      fauxAssistantMessage("已停"),
+    ]);
+    await fx.session.prompt("停掉写手");
+    await fx.session.waitForIdle();
+    assert.equal(loadRegistry(fx.hub.task).subagents.find((item) => item.id === "writer-1")?.status, "stopped");
+
+    let resumedText = "";
+    fx.faux.writer.appendResponses([
+      async (ctx) => {
+        resumedText = JSON.stringify(ctx);
+        return fauxAssistantMessage("继续写");
+      },
+    ]);
+    fx.faux.context.setResponses([
+      fauxAssistantMessage([fauxToolCall("send_message", { agent_id: "writer-1", message: "接着写洞口" })]),
+      fauxAssistantMessage("已送出"),
+      fauxAssistantMessage("写手回复了"),
+    ]);
+    await fx.session.prompt("让他继续");
+    await waitFor(() => resumedText.includes("接着写洞口"), "停止后的新一轮");
+    await fx.session.waitForIdle();
+    assert.match(resumedText, /Writing Brief/);
+
+    const slip = {
+      schema_version: 1,
+      id: "slip",
+      kind: "clue",
+      name: "纸条",
+      aliases: [],
+      summary: "一张纸条",
+      effects: [],
+      requirements: [],
+      limitations: [],
+      attributes: [],
+      content: "纸条上写着矿洞口",
+    };
+    await turn(fx, "可以记下纸条", [
+      fauxAssistantMessage([fauxToolCall("write_canon", { author_confirmation: "可以", changes: [{ type: "library", op: "upsert", doc: slip }] })]),
+    ]);
+    assert.doesNotMatch(toolTexts(fx.session, "write_canon").at(-1) ?? "", /\[拒绝\]/);
+    const slipBrief = { ...brief, id: "brief-slip", chapter_id: "ch3", intent: "写纸条被发现" };
+    const slipPack = "## 纸条\n来源：slip\n\n纸条上写着矿洞口。\n";
+    await turn(fx, "准备纸条这一章", [fauxAssistantMessage([fauxToolCall("save_package", { brief: slipBrief, pack: slipPack })])]);
+    assert.equal(toolTexts(fx.session, "save_package").at(-1), "package_5");
+
+    fx.faux.writer.appendResponses([
+      fauxAssistantMessage([fauxToolCall("write", { path: "plan.md", content: "# 方案\n\n看见纸条。" })]),
+      fauxAssistantMessage([fauxToolCall("submit_plan", {})]),
+      fauxAssistantMessage([fauxToolCall("write", { path: "draft.md", content: draftBody })]),
+      fauxAssistantMessage([fauxToolCall("submit_draft", {})]),
+      fauxAssistantMessage("纸条章写好了"),
+    ]);
+    fx.faux.context.setResponses([
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_5" })]),
+      fauxAssistantMessage("派出第二个写手"),
+      fauxAssistantMessage("第二个写完了"),
+    ]);
+    await fx.session.prompt("派新写手写纸条");
+    await waitFor(() => transcript(fx.session).includes("draft_3"), "第二位写手交稿");
+    await fx.session.waitForIdle();
+    const agents = loadRegistry(fx.hub.task).subagents;
+    assert.equal(agents.find((item) => item.id === "writer-1")?.status, "retired");
+    assert.equal(agents.find((item) => item.id === "writer-2")?.status, "idle");
+
+    await turn(fx, "可以删掉纸条", [
+      fauxAssistantMessage([
+        fauxToolCall("write_canon", { author_confirmation: "可以", changes: [{ type: "library", op: "delete", id: "slip" }] }),
+      ]),
+    ]);
+    assert.doesNotMatch(toolTexts(fx.session, "write_canon").at(-1) ?? "", /\[拒绝\]/);
+    fx.faux.reviewer.appendResponses([
+      fauxAssistantMessage([fauxToolCall("write", { path: "draft.md", content: "偷偷改" })]),
+      fauxAssistantMessage([fauxToolCall("save_review", { review: { ...passedReview(), chapter_id: "ch3" } })]),
+      fauxAssistantMessage("查完纸条"),
+    ]);
+    fx.faux.context.setResponses([
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_3" })]),
+      fauxAssistantMessage("请检查"),
+      fauxAssistantMessage("检查到了"),
+    ]);
+    await fx.session.prompt("检查纸条初稿");
+    await waitFor(() => transcript(fx.session).includes("review_3"), "来源删除后的检查");
+    await fx.session.waitForIdle();
+    const reviewerId = loadRegistry(fx.hub.task).subagents.find((item) => item.role === "reviewer" && item.inputRef === "draft_3")?.id ?? "";
+    const reviewText = subagentTranscript(fx, reviewerId);
+    assert.match(reviewText, /Tool write not found/);
+    assert.match(reviewText, /review_3/);
+    assert.doesNotMatch(reviewText, /不是已有正式资料/);
+
+    let releaseStop: () => void = () => undefined;
+    const stopGate = new Promise<void>((resolve) => {
+      releaseStop = resolve;
+    });
+    fx.faux.writer.appendResponses([
+      async () => {
+        await stopGate;
+        return fauxAssistantMessage("不该再写");
+      },
+    ]);
+    fx.faux.context.setResponses([
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_4" })]),
+      fauxAssistantMessage("第三个写手出发"),
+    ]);
+    await fx.session.prompt("再派一个写手");
+    await waitFor(() => loadRegistry(fx.hub.task).subagents.some((item) => item.id === "writer-3" && item.status === "running"), "第三个写手运行");
+    fx.faux.context.setResponses([fauxAssistantMessage("已经停了")]);
+    const stopping = fx.session.prompt("/stop");
+    releaseStop();
+    await stopping;
+    await fx.session.waitForIdle();
+    assert.equal(loadRegistry(fx.hub.task).subagents.find((item) => item.id === "writer-3")?.status, "stopped");
+
+    fx.hub.registry.subagents.push({
+      id: "writer-9",
+      role: "writer",
+      sessionFile: "",
+      inputRef: "package_4",
+      status: "running",
+      artifacts: [],
+      rounds: [{ startedAt: new Date().toISOString(), artifacts: [] }],
+      workspaceDir: fx.hub.task.agentsDir,
+    });
+    fx.hub.save();
+    const resumed = await openWritingSession({
+      work: fx.work,
+      config: fx.config,
+      runtime: fx.runtime,
+      models: fx.hub.models,
+      resume: true,
+    });
+    try {
+      const afterResume = loadRegistry(fx.hub.task);
+      const exited = afterResume.subagents.find((item) => item.id === "writer-9");
+      assert.equal(exited?.status, "terminated");
+      assert.equal(exited?.failureReason, "进程退出");
+      assert.ok(exited?.rounds.at(-1)?.endedAt);
+      assert.equal(afterResume.subagents.find((item) => item.id === "writer-3")?.status, "stopped");
+      let continued = "";
+      fx.faux.writer.appendResponses([
+        async (ctx) => {
+          continued = JSON.stringify(ctx);
+          return fauxAssistantMessage("恢复后写完");
+        },
+      ]);
+      fx.faux.context.setResponses([
+        fauxAssistantMessage([fauxToolCall("send_message", { agent_id: "writer-3", message: "恢复后写一句" })]),
+        fauxAssistantMessage("送出"),
+        fauxAssistantMessage("恢复后的回复到了"),
+      ]);
+      await resumed.runtimeHost.session.prompt("继续停掉的写手");
+      await waitFor(() => continued.includes("恢复后写一句"), "继续任务后的新一轮");
+      await resumed.runtimeHost.session.waitForIdle();
+    } finally {
+      resumed.runtimeHost.session.dispose();
+    }
   });
 });

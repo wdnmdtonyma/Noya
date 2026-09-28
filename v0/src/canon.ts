@@ -340,8 +340,9 @@ function deleteWorld(state: CanonState, id: string): string | undefined {
 
 export function applyCanonChanges(state: CanonState, changes: CanonChange[]): string[] {
   const errors: string[] = [];
-  const deferred: CanonChange[] = [];
-  const applyOne = (change: CanonChange, allowDefer: boolean): void => {
+  const worldUpserts: CanonChange[] = [];
+  const worldDeletes: CanonChange[] = [];
+  const applyOne = (change: CanonChange): void => {
     const type = change.type;
     const op = change.op;
     if (type === "chapter_meta") {
@@ -383,23 +384,6 @@ export function applyCanonChanges(state: CanonState, changes: CanonChange[]): st
       else state.library.delete(id);
       return;
     }
-    if (type === "world_node" && op === "upsert") {
-      const parentId = (change.parent_id ?? null) as string | null;
-      const node = change.node as Record<string, unknown>;
-      if (parentId !== null && !findWorld(state, parentId) && !findWorld(state, String(node.id))) {
-        if (allowDefer) deferred.push(change);
-        else errors.push(`世界志父节点 ${parentId} 不存在`);
-        return;
-      }
-      const problem = upsertWorld(state, parentId, node);
-      if (problem) errors.push(problem);
-      return;
-    }
-    if (type === "world_node" && op === "delete") {
-      const problem = deleteWorld(state, String(change.id));
-      if (problem) errors.push(problem);
-      return;
-    }
     if (type === "outline_node" && op === "upsert") {
       const node = change.node as OutlineNode;
       const index = state.outline.nodes.findIndex((item) => item.id === node.id);
@@ -415,8 +399,47 @@ export function applyCanonChanges(state: CanonState, changes: CanonChange[]): st
     }
   };
 
-  for (const change of changes) applyOne(change, true);
-  for (const change of deferred) applyOne(change, false);
+  for (const change of changes) {
+    if (change.type === "world_node" && change.op === "upsert") worldUpserts.push(change);
+    else if (change.type === "world_node" && change.op === "delete") worldDeletes.push(change);
+    else applyOne(change);
+  }
+  let pendingUpserts = worldUpserts;
+  while (pendingUpserts.length > 0) {
+    const waiting: CanonChange[] = [];
+    for (const change of pendingUpserts) {
+      const parentId = (change.parent_id ?? null) as string | null;
+      const node = change.node as Record<string, unknown>;
+      if (!findWorld(state, String(node.id)) && parentId !== null && !findWorld(state, parentId)) {
+        waiting.push(change);
+        continue;
+      }
+      const problem = upsertWorld(state, parentId, node);
+      if (problem) errors.push(problem);
+    }
+    if (waiting.length === pendingUpserts.length) {
+      for (const change of waiting) errors.push(`世界志父节点 ${String(change.parent_id)} 不存在`);
+      break;
+    }
+    pendingUpserts = waiting;
+  }
+  let pendingDeletes = worldDeletes;
+  while (pendingDeletes.length > 0) {
+    const waiting: CanonChange[] = [];
+    for (const change of pendingDeletes) {
+      const problem = deleteWorld(state, String(change.id));
+      if (problem?.includes("有下级")) waiting.push(change);
+      else if (problem) errors.push(problem);
+    }
+    if (waiting.length === pendingDeletes.length) {
+      for (const change of waiting) {
+        const problem = deleteWorld(state, String(change.id));
+        if (problem) errors.push(problem);
+      }
+      break;
+    }
+    pendingDeletes = waiting;
+  }
   errors.push(...checkSchema(validators.world, state.world, "世界志"));
   errors.push(...checkSchema(validators.outline, state.outline, "大纲"));
   errors.push(...consistencyErrors(state));
@@ -502,6 +525,20 @@ function nodeSummary(node: { title?: string; summary?: string; content?: string;
   return node.summary || node.content || "";
 }
 
+export function findById(state: CanonState, id: string): { type: string; id: string; doc: unknown } | undefined {
+  const listed = listCanon(state).find((item) => item.id === id);
+  if (listed) return { type: listed.type, id: listed.id, doc: listed.doc };
+  for (const [characterId, doc] of state.characters) {
+    for (const item of recordList(doc.possessions)) {
+      if (String(item.id) === id) return { type: "possession", id, doc: { ...item, character_id: characterId } };
+    }
+    for (const item of recordList(doc.cognition)) {
+      if (String(item.id) === id) return { type: "cognition", id, doc: { ...item, character_id: characterId } };
+    }
+  }
+  return undefined;
+}
+
 export function listCanon(state: CanonState): ListedItem[] {
   const items: ListedItem[] = [];
   for (const chapter of state.chapters.values()) {
@@ -510,7 +547,7 @@ export function listCanon(state: CanonState): ListedItem[] {
       id: chapter.id,
       title: chapter.title,
       summary: chapter.summary,
-      text: `${chapter.title}\n${chapter.summary}\n${chapter.content}`,
+      text: JSON.stringify(chapter),
       doc: chapter,
     });
   }
@@ -541,7 +578,7 @@ export function listCanon(state: CanonState): ListedItem[] {
       id: node.id,
       title: node.title,
       summary: nodeSummary(node),
-      text: `${node.title}\n${node.summary}\n${node.content}`,
+      text: JSON.stringify({ id: node.id, kind: node.kind, title: node.title, summary: node.summary, content: node.content }),
       doc: node,
     });
   });
@@ -551,7 +588,7 @@ export function listCanon(state: CanonState): ListedItem[] {
       id: node.id,
       title: node.title,
       summary: node.content,
-      text: `${node.title}\n${node.content}`,
+      text: JSON.stringify(node),
       doc: node,
     });
   }

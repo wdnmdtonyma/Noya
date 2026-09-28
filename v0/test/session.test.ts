@@ -112,6 +112,11 @@ test("切换或分叉会话会被取消，并提示改用 noya 命令", async ()
   assert.equal(switched.cancelled, true);
   const forked = await fx.runtimeHost.fork("missing");
   assert.equal(forked.cancelled, true);
+  const leaf = fx.session.sessionManager.getLeafId();
+  const other = fx.session.sessionManager.getEntries().find((entry) => entry.id !== leaf);
+  assert.ok(other);
+  const tree = await fx.session.navigateTree(other.id);
+  assert.equal(tree.cancelled, true);
   assert.match(transcript(fx.session), new RegExp(SWITCH_HINT));
 });
 });

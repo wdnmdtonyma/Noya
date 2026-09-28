@@ -8,7 +8,7 @@ export interface PackSection {
   unknown: boolean;
 }
 
-export function parsePack(pack: string, state: CanonState, briefId: string): { sections: PackSection[]; errors: string[] } {
+export function parsePack(pack: string, state: CanonState | undefined, briefId: string): { sections: PackSection[]; errors: string[] } {
   const text = toLf(pack);
   const lines = text.split("\n");
   const errors: string[] = [];
@@ -28,7 +28,7 @@ export function parsePack(pack: string, state: CanonState, briefId: string): { s
     (chunks.at(-1) ?? prelude).push(line);
   }
   if (prelude.some((line) => line.trim() !== "")) errors.push("Context Pack 在第一个段落之前有内容");
-  const known = formalIds(state);
+  const known = state ? formalIds(state) : undefined;
   const sections: PackSection[] = [];
   chunks.forEach((chunk, index) => {
     const heading = chunk[0] ?? "";
@@ -50,7 +50,7 @@ export function parsePack(pack: string, state: CanonState, briefId: string): { s
     if (!unknown) {
       for (const token of tokens) {
         if (token === briefId) errors.push(`${label}的来源 ${token} 是 Brief ID，不能作为资料来源`);
-        else if (!isId(token) || !known.has(token)) errors.push(`${label}的来源 ${token} 不是已有正式资料`);
+        else if (known && (!isId(token) || !known.has(token))) errors.push(`${label}的来源 ${token} 不是已有正式资料`);
         else sourceIds.push(token);
       }
     }

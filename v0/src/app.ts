@@ -19,6 +19,12 @@ export async function openWritingSession(options: {
       if (agent.status === "running" || agent.status === "idle") {
         agent.status = "terminated";
         agent.failureReason = "进程退出";
+        const round = agent.rounds.at(-1);
+        if (round && !round.endedAt) {
+          round.endedAt = new Date().toISOString();
+          round.outcome = "retired";
+          round.note = "进程退出";
+        }
       }
     }
     saveRegistry(existing.task, existing.registry);
