@@ -3,7 +3,7 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { NoyaConfig } from "./config.ts";
 import { resolveToolPath } from "./guard.ts";
-import { listArtifactIds, listTasks, loadRegistry, resolveWork, taskLayout, type SubagentRecord } from "./layout.ts";
+import { listArtifactIds, listTasks, loadRegistry, resolveWork, taskLayout, type SubagentRecord, type TaskLayout } from "./layout.ts";
 import { messageText } from "./transcript.ts";
 import { isRefusal } from "./util.ts";
 
@@ -23,10 +23,17 @@ function readEntries(file: string): Array<Record<string, unknown>> {
     .map((line) => JSON.parse(line) as Record<string, unknown>);
 }
 
-function collect(file: string, role: string): { hits: ToolHit[]; input: number; output: number; started?: string; ended?: string } {
+interface UsageTotals {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  cost: number;
+}
+
+function collect(file: string, role: string): { hits: ToolHit[]; usage: UsageTotals; started?: string; ended?: string } {
   const hits: ToolHit[] = [];
-  let input = 0;
-  let output = 0;
+  const usage: UsageTotals = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 };
   let started: string | undefined;
   let ended: string | undefined;
   const calls = new Map<string, { tool: string; path?: string }>();
@@ -43,11 +50,14 @@ function collect(file: string, role: string): { hits: ToolHit[]; input: number; 
       toolName?: string;
       toolCallId?: string;
       isError?: boolean;
-      usage?: { input?: number; output?: number };
+      usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; cost?: { total?: number } };
     };
     if (message.role === "assistant") {
-      input += message.usage?.input ?? 0;
-      output += message.usage?.output ?? 0;
+      usage.input += message.usage?.input ?? 0;
+      usage.output += message.usage?.output ?? 0;
+      usage.cacheRead += message.usage?.cacheRead ?? 0;
+      usage.cacheWrite += message.usage?.cacheWrite ?? 0;
+      usage.cost += message.usage?.cost?.total ?? 0;
       if (Array.isArray(message.content)) {
         for (const part of message.content as Array<{ type?: string; id?: string; name?: string; arguments?: { path?: string } }>) {
           if (part.type !== "toolCall" || !part.name) continue;
@@ -64,7 +74,7 @@ function collect(file: string, role: string): { hits: ToolHit[]; input: number; 
       }
     }
   }
-  return { hits, input, output, started, ended };
+  return { hits, usage, started, ended };
 }
 
 function skillName(path: string | undefined, skillsDir: string, cwd: string): string | undefined {
@@ -135,6 +145,7 @@ export async function writeAudit(config: NoyaConfig, workRef: string, taskId?: s
     tokenLine("context", context),
     ...subagentReports.map((item) => tokenLine(item.agent.id, item.report, item.agent)),
   ];
+  const planLines = planReviewLines(stored, task, stored.context_session_file);
   const emptyRounds = stored.subagents.flatMap((agent) =>
     agent.rounds
       .filter((round) => round.artifacts.length === 0)
@@ -167,6 +178,9 @@ export async function writeAudit(config: NoyaConfig, workRef: string, taskId?: s
     ...finalized,
     latestLine,
     "",
+    "## 方案检查",
+    ...planLines,
+    "",
     "## Token 与耗时",
     ...tokenLines,
     "",
@@ -190,7 +204,7 @@ function formatChecks(checks: Record<string, string> | undefined): string {
 
 function tokenLine(
   label: string,
-  report: { input: number; output: number; started?: string; ended?: string },
+  report: { usage: UsageTotals; started?: string; ended?: string },
   agent?: SubagentRecord,
 ): string {
   const duration = agent
@@ -198,6 +212,48 @@ function tokenLine(
     : report.started && report.ended
       ? Date.parse(report.ended) - Date.parse(report.started)
       : 0;
-  return `- ${label}：输入 ${report.input}，输出 ${report.output}，耗时 ${duration} ms`;
+  const usage = report.usage;
+  return `- ${label}：输入 ${usage.input}，缓存读取 ${usage.cacheRead}，缓存写入 ${usage.cacheWrite}，输出 ${usage.output}，费用 ${usage.cost}，耗时 ${duration} ms`;
+}
+
+function planReviewLines(stored: ReturnType<typeof loadRegistry>, task: TaskLayout, contextFile: string): string[] {
+  const plans = listArtifactIds(task, "plan");
+  if (plans.length === 0) return ["- 没有方案"];
+  const reads = readToolPaths(contextFile);
+  return plans.map((planId) => {
+    const writer = stored.subagents.find((agent) => agent.rounds.some((round) => round.artifacts.includes(planId)) || agent.artifacts.includes(planId));
+    if (!writer) return `- ${planId}：找不到提交它的 Writer`;
+    const planRound = writer.rounds.find((round) => round.artifacts.includes(planId));
+    const planAt = Date.parse(planRound?.endedAt ?? planRound?.startedAt ?? "");
+    const sameRoundDraft = planRound?.artifacts.find((id) => id.startsWith("draft_"));
+    const laterRound = writer.rounds.find((round) => {
+      if (round === planRound || !round.artifacts.some((id) => id.startsWith("draft_"))) return false;
+      const at = Date.parse(round.startedAt);
+      return !Number.isNaN(planAt) && !Number.isNaN(at) && at > planAt;
+    });
+    const draftId = laterRound?.artifacts.find((id) => id.startsWith("draft_")) ?? sameRoundDraft;
+    if (!draftId) return `- ${planId}（${writer.id}）：还没有据此提交初稿`;
+    const draftAt = laterRound ? Date.parse(laterRound.startedAt) : planAt;
+    const saw = !sameRoundDraft && reads.some((read) => {
+      const path = read.path.replaceAll("\\", "/");
+      const hit = path.includes(planId) || path === "plan.md" || path.endsWith("/plan.md");
+      return hit && read.at > planAt && read.at < draftAt;
+    });
+    return `- ${planId}（${writer.id} → ${draftId}）：Context 在写初稿前${saw ? "读过方案" : "没有读方案"}`;
+  });
+}
+
+function readToolPaths(file: string): Array<{ at: number; path: string }> {
+  const reads: Array<{ at: number; path: string }> = [];
+  for (const entry of readEntries(file)) {
+    const at = Date.parse(typeof entry.timestamp === "string" ? entry.timestamp : "");
+    if (Number.isNaN(at) || entry.type !== "message") continue;
+    const message = entry.message as { role?: string; content?: unknown };
+    if (message.role !== "assistant" || !Array.isArray(message.content)) continue;
+    for (const part of message.content as Array<{ type?: string; name?: string; arguments?: { path?: string } }>) {
+      if (part.type === "toolCall" && part.name === "read" && part.arguments?.path) reads.push({ at, path: part.arguments.path });
+    }
+  }
+  return reads;
 }
 

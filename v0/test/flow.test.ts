@@ -328,6 +328,7 @@ describe("写作流程", { concurrency: false }, () => {
     assert.deepEqual(sync.pending_chapter_ids, ["ch1"]);
     assert.equal(liveMessages(fx.session).some((message) => message.role === "user" && JSON.stringify(message.content).includes("已定稿，请进行 Context 同步")), false);
     assert.match(transcript(fx.session), /ch1 已定稿，请进行 Context 同步/);
+    assert.doesNotMatch(transcript(fx.session), /另有未提交修改/);
     await turn(fx, "再存一份要求", [fauxAssistantMessage([fauxToolCall("save_package", { brief, pack })])]);
     assert.match(toolTexts(fx.session, "save_package").at(-1) ?? "", /\[拒绝\].*待同步/);
     await turn(fx, "再派写手", [
@@ -451,7 +452,8 @@ describe("写作流程", { concurrency: false }, () => {
     const second = JSON.parse(readFileSync(mappingPath, "utf8")) as { jia: string; yi: string };
     assert.equal(second.jia, "draft_2");
     assert.equal(second.yi, "draft_1");
-    const blind = readFileSync(join(fx.work.workDir, "tasks", fx.hub.taskId, "compare", "甲.md"), "utf8");
+    const blindPath = join(fx.work.runtimeDir, "compare", fx.hub.taskId, "甲.md");
+    const blind = readFileSync(blindPath, "utf8");
     assert.doesNotMatch(blind, /draft_/);
     fx.faux.context.setResponses([fauxAssistantMessage("好")]);
     await fx.session.prompt("/compare-pick 甲 因为更完整");
@@ -465,6 +467,8 @@ describe("写作流程", { concurrency: false }, () => {
     assert.equal(record.char_counts.甲 > 0, true);
     await turn(fx, "读映射", [fauxAssistantMessage([fauxToolCall("read", { path: mappingPath })])]);
     assert.match(toolTexts(fx.session, "read").at(-1) ?? "", /\[拒绝\]/);
+    await turn(fx, "读甲", [fauxAssistantMessage([fauxToolCall("read", { path: blindPath })])]);
+    assert.match(toolTexts(fx.session, "read").at(-1) ?? "", /\[拒绝\]/);
     const reportPath = await writeAudit(fx.config, fx.work.workDir, fx.hub.taskId);
     const report = readFileSync(reportPath, "utf8");
     assert.match(report, /context save_package：/);
@@ -476,6 +480,8 @@ describe("写作流程", { concurrency: false }, () => {
     assert.match(report, /proposal：1/);
     assert.match(report, /proposal_1：2 次核对/);
     assert.match(report, /定稿 draft_2 最近一次检查：requirements=passed/);
+    assert.match(report, /plan_1（writer-1 → draft_1）：Context 在写初稿前没有读方案/);
+    assert.match(report, /缓存读取/);
     assert.equal(existsSync(reportPath), true);
     const registry = loadRegistry(fx.hub.task);
     assert.equal(registry.finalizations[0]?.draft_id, "draft_2");

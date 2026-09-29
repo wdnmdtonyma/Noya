@@ -29,6 +29,10 @@ export async function main(argv: string[]): Promise<void> {
   }
   const resume = argv.includes("--continue");
   const workRef = argv.find((arg) => arg !== "--continue");
+  if (resume && !workRef) {
+    console.error("用法：noya <作品> --continue");
+    process.exit(1);
+  }
   const agentDir = join(config.worksRoot, ".noya", "agent");
   const { runtime, models } = await resolveRoleModels(config, agentDir);
   const work = workRef ? resolveWork(config.worksRoot, agentDir, workRef) : await createWork(config.worksRoot, agentDir);

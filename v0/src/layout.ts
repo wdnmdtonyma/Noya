@@ -169,11 +169,15 @@ export function latestTask(work: WorkLayout): { task: TaskLayout; registry: Task
   return { task: taskLayout(work, registry.task_id), registry };
 }
 
+export function isArtifactId(id: string, kind: "package" | "plan" | "draft" | "review" | "proposal" | "check"): boolean {
+  return new RegExp(`^${kind}_\\d+$`).test(id);
+}
+
 export function nextArtifactNumber(directory: string, prefix: string): number {
   if (!existsSync(directory)) return 1;
   let max = 0;
   for (const name of readdirSync(directory)) {
-    const match = new RegExp(`^${prefix}_(\\d+)`).exec(name);
+    const match = new RegExp(`^${prefix}_(\\d+)\\.(?:md|json)$`).exec(name);
     if (match) max = Math.max(max, Number(match[1]));
   }
   return max + 1;
@@ -206,6 +210,7 @@ export interface ReviewArtifact {
 export interface ProposalArtifact {
   proposal_id: string;
   chapter_id: string;
+  chapter_content_sha256: string;
   changes: Array<Record<string, unknown>>;
 }
 
@@ -220,12 +225,14 @@ export function packageFile(task: TaskLayout, id: string): string {
 }
 
 export function loadPackage(task: TaskLayout, id: string): PackageArtifact | undefined {
+  if (!isArtifactId(id, "package")) return undefined;
   const file = packageFile(task, id);
   if (!existsSync(file)) return undefined;
   return readJsonFile(file);
 }
 
 export function loadDraft(task: TaskLayout, id: string): { meta: DraftMeta; markdown: string } | undefined {
+  if (!isArtifactId(id, "draft")) return undefined;
   const metaFile = join(task.artifactsDir, `${id}.json`);
   const bodyFile = join(task.artifactsDir, `${id}.md`);
   if (!existsSync(metaFile) || !existsSync(bodyFile)) return undefined;
@@ -233,6 +240,7 @@ export function loadDraft(task: TaskLayout, id: string): { meta: DraftMeta; mark
 }
 
 export function loadReview(task: TaskLayout, id: string): ReviewArtifact | undefined {
+  if (!isArtifactId(id, "review")) return undefined;
   const file = join(task.artifactsDir, `${id}.json`);
   if (!existsSync(file)) return undefined;
   const parsed = readJsonFile<ReviewArtifact>(file);
@@ -241,11 +249,19 @@ export function loadReview(task: TaskLayout, id: string): ReviewArtifact | undef
 
 export function listArtifactIds(task: TaskLayout, prefix: string): string[] {
   if (!existsSync(task.artifactsDir)) return [];
-  return readdirSync(task.artifactsDir)
-    .map((name) => new RegExp(`^(${prefix}_\\d+)\\.`).exec(name)?.[1])
-    .filter((id): id is string => !!id)
-    .sort((a, b) => artifactNumber(a) - artifactNumber(b))
-    .filter((id, index, all) => all.indexOf(id) === index);
+  const names = new Set(readdirSync(task.artifactsDir));
+  const ids = new Set<string>();
+  for (const name of names) {
+    const match = new RegExp(`^(${prefix}_\\d+)\\.(md|json)$`).exec(name);
+    if (!match?.[1]) continue;
+    const id = match[1];
+    if (prefix === "draft") {
+      if (names.has(`${id}.md`) && names.has(`${id}.json`)) ids.add(id);
+    } else if (prefix === "plan") {
+      if (match[2] === "md") ids.add(id);
+    } else if (match[2] === "json") ids.add(id);
+  }
+  return [...ids].sort((a, b) => artifactNumber(a) - artifactNumber(b));
 }
 
 export function artifactNumber(id: string): number {

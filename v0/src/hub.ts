@@ -1,4 +1,4 @@
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { SessionManager, type AgentSession, type ModelRuntime } from "@earendil-works/pi-coding-agent";
 import {
@@ -27,6 +27,7 @@ import {
   type TaskRegistry,
   type WorkLayout,
   artifactNumber,
+  isArtifactId,
   listArtifactIds,
   loadDraft,
   loadPackage,
@@ -42,7 +43,7 @@ import { reviewProblems, splitDraft } from "./review.ts";
 import { checkSchema, toolValidators, validators } from "./schema.ts";
 import { createRoleSession } from "./session.ts";
 import { assistantFailure, authorConfirmationProblem } from "./transcript.ts";
-import { git, isId, nonWhitespaceLength, refuse, verbatimIncludes, withWriteLock, writeJson } from "./util.ts";
+import { contentHash, createFileExclusive, git, isId, nonWhitespaceLength, refuse, verbatimIncludes, withWriteLock } from "./util.ts";
 
 const hubs = new Map<string, TaskHub>();
 
@@ -80,8 +81,9 @@ function commitFiles(workDir: string, files: string[], message: string): string 
   const ours = new Set(paths);
   const others = status
     .split("\n")
-    .map((line) => line.slice(3).trim())
-    .filter((path) => path && !ours.has(path) && ![...ours].some((item) => path.endsWith(item)));
+    .map((line) => line.slice(3))
+    .map((path) => path.split(" -> ").at(-1) ?? path)
+    .filter((path) => path && !ours.has(path));
   git(workDir, ["add", "-A", "--", ...paths]);
   git(workDir, ["commit", "-m", message, "--", ...paths]);
   const commit = git(workDir, ["rev-parse", "--short", "HEAD"]);
@@ -252,11 +254,13 @@ export class TaskHub {
       errors.push(...parsed.errors);
     }
     if (errors.length > 0) refuse(...errors);
-    const number = nextArtifactNumber(this.task.artifactsDir, "package");
-    const id = `package_${number}`;
-    const artifact: PackageArtifact = { id, brief: brief as Record<string, unknown>, pack };
-    await writeJson(packageFile(this.task, id), artifact);
-    return id;
+    const briefRecord = brief as Record<string, unknown>;
+    return withWriteLock(async () => {
+      const id = `package_${nextArtifactNumber(this.task.artifactsDir, "package")}`;
+      const artifact: PackageArtifact = { id, brief: briefRecord, pack };
+      await createFileExclusive(packageFile(this.task, id), `${JSON.stringify(artifact, null, 2)}\n`);
+      return id;
+    });
   }
 
   async saveRevision(): Promise<string> {
@@ -302,15 +306,27 @@ export class TaskHub {
       errors.push(...applyCanonChanges(trial, canonChanges));
     }
     if (errors.length > 0) refuse(...[...new Set(errors)]);
-    const id = `proposal_${nextArtifactNumber(this.task.artifactsDir, "proposal")}`;
-    const artifact: ProposalArtifact = { proposal_id: id, chapter_id: chapterId, changes };
-    await writeJson(join(this.task.artifactsDir, `${id}.json`), artifact);
-    return id;
+    const savedContent = chapter?.content ?? "";
+    return withWriteLock(async () => {
+      const fresh = loadCanon(this.work.workDir).chapters.get(chapterId);
+      if (!fresh) refuse(`章节 ${chapterId} 不存在`);
+      if (contentHash(fresh.content) !== contentHash(savedContent)) refuse("定稿正文在保存清单前发生了变化");
+      const id = `proposal_${nextArtifactNumber(this.task.artifactsDir, "proposal")}`;
+      const artifact: ProposalArtifact = {
+        proposal_id: id,
+        chapter_id: chapterId,
+        chapter_content_sha256: contentHash(fresh.content),
+        changes,
+      };
+      await createFileExclusive(join(this.task.artifactsDir, `${id}.json`), `${JSON.stringify(artifact, null, 2)}\n`);
+      return id;
+    });
   }
 
   applySync(args: Record<string, unknown>): Promise<string> {
     return withWriteLock(async () => {
-      const proposalId = String(args.proposal_id);
+      const proposalId = String(args.proposal_id ?? "");
+      if (!isArtifactId(proposalId, "proposal")) refuse(`产物 ID「${proposalId}」不符合 proposal_数字 的格式`);
       const proposal = this.loadProposal(proposalId);
       if (!proposal) refuse(`同步清单 ${proposalId} 不存在`);
       const check = this.latestCheck(proposalId);
@@ -319,13 +335,29 @@ export class TaskHub {
       const verdicts = new Map(check.verdicts.map((verdict) => [String(verdict.change_id), String(verdict.verdict)]));
       const missing = selected.filter((id) => !proposal.changes.some((change) => change.id === id));
       if (missing.length > 0) refuse(`同步清单中没有变更 ${missing.join("、")}`);
+      const beforePreview = loadCanon(this.work.workDir);
+      const currentChapter = beforePreview.chapters.get(proposal.chapter_id);
+      if (!currentChapter) refuse(`章节 ${proposal.chapter_id} 不存在`);
+      if (!proposal.chapter_content_sha256) refuse(`同步清单 ${proposalId} 没有记录它所依据的定稿正文`);
+      if (contentHash(currentChapter.content) !== proposal.chapter_content_sha256) {
+        refuse(`章节 ${proposal.chapter_id} 的定稿正文已经和这份清单不一致`);
+      }
+      const stale = proposal.changes.filter((change) => selected.includes(String(change.id))).flatMap((change) => {
+        const evidence = Array.isArray(change.evidence) ? (change.evidence as unknown[]) : [];
+        return evidence.flatMap((excerpt) =>
+          typeof excerpt === "string" && verbatimIncludes(currentChapter.content, excerpt)
+            ? []
+            : [`变更 ${String(change.id)} 的依据摘录没有出现在当前定稿正文中`],
+        );
+      });
+      if (stale.length > 0) refuse(...stale);
       const needsConfirmation = selected.some((id) => verdicts.get(id) !== "supported");
       if (needsConfirmation) {
         const problem = authorConfirmationProblem(this.requireContext(), typeof args.author_confirmation === "string" ? args.author_confirmation : undefined);
         if (problem) refuse(problem);
       }
       const chosen = proposal.changes.filter((change) => selected.includes(String(change.id))).map((change) => change.change as Record<string, unknown>);
-      const before = loadCanon(this.work.workDir);
+      const before = beforePreview;
       const trial = cloneCanon(before);
       const problems = applyCanonChanges(trial, chosen);
       if (problems.length > 0) refuse(...problems);
@@ -341,9 +373,19 @@ export class TaskHub {
 
   async spawnSubagent(args: Record<string, unknown>): Promise<string> {
     const role = String(args.role) as SubagentRecord["role"];
-    if (role === "writer") return this.spawnWriter(String(args.package_id));
-    if (role === "reviewer") return this.spawnReviewer(String(args.draft_id));
-    return this.spawnChecker(String(args.proposal_id));
+    if (role === "writer") {
+      const packageId = String(args.package_id ?? "");
+      if (!isArtifactId(packageId, "package")) refuse(`产物 ID「${packageId}」不符合 package_数字 的格式`);
+      return this.spawnWriter(packageId);
+    }
+    if (role === "reviewer") {
+      const draftId = String(args.draft_id ?? "");
+      if (!isArtifactId(draftId, "draft")) refuse(`产物 ID「${draftId}」不符合 draft_数字 的格式`);
+      return this.spawnReviewer(draftId);
+    }
+    const proposalId = String(args.proposal_id ?? "");
+    if (!isArtifactId(proposalId, "proposal")) refuse(`产物 ID「${proposalId}」不符合 proposal_数字 的格式`);
+    return this.spawnChecker(proposalId);
   }
 
   async sendMessage(args: Record<string, unknown>): Promise<string> {
@@ -355,6 +397,7 @@ export class TaskHub {
     const session = await this.ensureWriterSession(agent);
     if (!session) refuse("Writer 会话不存在");
     if (typeof args.package_id === "string") {
+      if (!isArtifactId(args.package_id, "package")) refuse(`产物 ID「${args.package_id}」不符合 package_数字 的格式`);
       const next = loadPackage(this.task, args.package_id);
       const current = agent.packageId ? loadPackage(this.task, agent.packageId) : undefined;
       if (!next || !current) refuse("Package 不存在");
@@ -410,7 +453,7 @@ export class TaskHub {
     ].join("\n");
   }
 
-  submitPlan(agentId: string): string {
+  submitPlan(agentId: string): Promise<string> {
     const agent = this.agent(agentId);
     this.requireSubmittable(agent);
     const file = join(agent.workspaceDir, "plan.md");
@@ -418,13 +461,16 @@ export class TaskHub {
     const text = readFileSync(file, "utf8");
     if (!/\S/.test(text)) refuse("方案为空");
     this.requireSubmittable(agent);
-    const id = `plan_${nextArtifactNumber(this.task.artifactsDir, "plan")}`;
-    copyFileSync(file, join(this.task.artifactsDir, `${id}.md`));
-    this.noteArtifact(agent, id);
-    return id;
+    return withWriteLock(async () => {
+      this.requireSubmittable(agent);
+      const id = `plan_${nextArtifactNumber(this.task.artifactsDir, "plan")}`;
+      await createFileExclusive(join(this.task.artifactsDir, `${id}.md`), text);
+      this.noteArtifact(agent, id);
+      return id;
+    });
   }
 
-  submitDraft(agentId: string): string {
+  submitDraft(agentId: string): Promise<string> {
     const agent = this.agent(agentId);
     this.requireSubmittable(agent);
     if (!agent.artifacts.some((id) => id.startsWith("plan_"))) refuse("提交初稿前必须先提交章节方案");
@@ -440,16 +486,18 @@ export class TaskHub {
     const parsed = parsePack(pkg.pack, undefined, String(pkg.brief.id));
     const problems = [...parsed.errors, ...reviewProblems(args.review, draft.markdown, pkg.brief, parsed.sections)];
     if (problems.length > 0) refuse(...problems);
-    const id = `review_${nextArtifactNumber(this.task.artifactsDir, "review")}`;
-    const artifact: ReviewArtifact = {
-      review_id: id,
-      draft_id: draft.meta.draft_id,
-      chapter_id: String(pkg.brief.chapter_id),
-      review: args.review as Record<string, unknown>,
-    };
-    await writeJson(join(this.task.artifactsDir, `${id}.json`), artifact);
-    this.noteArtifact(agent, id);
-    return id;
+    return withWriteLock(async () => {
+      const id = `review_${nextArtifactNumber(this.task.artifactsDir, "review")}`;
+      const artifact: ReviewArtifact = {
+        review_id: id,
+        draft_id: draft.meta.draft_id,
+        chapter_id: String(pkg.brief.chapter_id),
+        review: args.review as Record<string, unknown>,
+      };
+      await createFileExclusive(join(this.task.artifactsDir, `${id}.json`), `${JSON.stringify(artifact, null, 2)}\n`);
+      this.noteArtifact(agent, id);
+      return id;
+    });
   }
 
   async saveSyncCheck(agentId: string, args: Record<string, unknown>): Promise<string> {
@@ -478,14 +526,17 @@ export class TaskHub {
       } else if (ids.length > 0) errors.push(`变更 ${String(verdict.change_id)} 只有冲突结论可以列出 conflicting_ids`);
     }
     if (errors.length > 0) refuse(...errors);
-    const id = `check_${nextArtifactNumber(this.task.artifactsDir, "check")}`;
-    const artifact: CheckArtifact = { check_id: id, proposal_id: proposal.proposal_id, verdicts };
-    await writeJson(join(this.task.artifactsDir, `${id}.json`), artifact);
-    this.noteArtifact(agent, id);
-    return id;
+    return withWriteLock(async () => {
+      const id = `check_${nextArtifactNumber(this.task.artifactsDir, "check")}`;
+      const artifact: CheckArtifact = { check_id: id, proposal_id: proposal.proposal_id, verdicts };
+      await createFileExclusive(join(this.task.artifactsDir, `${id}.json`), `${JSON.stringify(artifact, null, 2)}\n`);
+      this.noteArtifact(agent, id);
+      return id;
+    });
   }
 
   async finalize(draftArg: string): Promise<string> {
+    if (draftArg && !isArtifactId(draftArg, "draft")) refuse(`产物 ID「${draftArg}」不符合 draft_数字 的格式`);
     const draftId = draftArg || listArtifactIds(this.task, "draft").at(-1);
     if (!draftId) refuse("没有可定稿的初稿");
     const draft = loadDraft(this.task, draftId);
@@ -534,35 +585,39 @@ export class TaskHub {
     const swap = this.random() >= 0.5;
     const jia = swap ? last : first;
     const yi = swap ? first : last;
-    const directory = join(this.task.taskDir, "compare");
+    const directory = join(this.work.runtimeDir, "compare", this.taskId);
     mkdirSync(directory, { recursive: true });
     const jiaPath = join(directory, "甲.md");
     const yiPath = join(directory, "乙.md");
     writeFileSync(jiaPath, jia.markdown.endsWith("\n") ? jia.markdown : `${jia.markdown}\n`);
     writeFileSync(yiPath, yi.markdown.endsWith("\n") ? yi.markdown : `${yi.markdown}\n`);
-    const mappingDir = join(this.work.runtimeDir, "compare");
-    mkdirSync(mappingDir, { recursive: true });
-    writeFileSync(
-      join(mappingDir, `${this.taskId}.json`),
-      `${JSON.stringify({ jia: jia.meta.draft_id, yi: yi.meta.draft_id })}\n`,
-    );
-    this.comparison = { jia: jia.meta.draft_id, yi: yi.meta.draft_id, chapterId: latest.meta.chapter_id, writerId: latest.meta.writer_id };
+    const mapping = {
+      jia: jia.meta.draft_id,
+      yi: yi.meta.draft_id,
+      chapter_id: latest.meta.chapter_id,
+      writer_id: latest.meta.writer_id,
+    };
+    mkdirSync(join(this.work.runtimeDir, "compare"), { recursive: true });
+    writeFileSync(this.mappingFile(), `${JSON.stringify(mapping, null, 2)}\n`);
+    this.comparison = { jia: mapping.jia, yi: mapping.yi, chapterId: mapping.chapter_id, writerId: mapping.writer_id };
     return `请阅读甲、乙两份正文。\n甲 ${jiaPath}\n乙 ${yiPath}`;
   }
 
   comparePick(input: string): string {
-    if (!this.comparison) refuse("没有进行中的对照比较");
+    const comparison = this.currentComparison();
+    if (!comparison) refuse("没有进行中的对照比较");
+    this.comparison = comparison;
     const choice = (["都不好", "甲", "乙"] as const).find((item) => input === item || input.startsWith(`${item} `));
     if (!choice) refuse("选择必须是甲、乙或都不好");
     const reason = input.slice(choice.length).trim();
-    const jia = loadDraft(this.task, this.comparison.jia);
-    const yi = loadDraft(this.task, this.comparison.yi);
+    const jia = loadDraft(this.task, comparison.jia);
+    const yi = loadDraft(this.task, comparison.yi);
     if (!jia || !yi) refuse("对照的初稿已不存在");
     const writerDrafts = listArtifactIds(this.task, "draft")
       .map((id) => loadDraft(this.task, id))
-      .filter((draft): draft is NonNullable<typeof draft> => !!draft && draft.meta.writer_id === this.comparison?.writerId);
-    const low = Math.min(artifactNumber(this.comparison.jia), artifactNumber(this.comparison.yi));
-    const high = Math.max(artifactNumber(this.comparison.jia), artifactNumber(this.comparison.yi));
+      .filter((draft): draft is NonNullable<typeof draft> => !!draft && draft.meta.writer_id === comparison.writerId);
+    const low = Math.min(artifactNumber(comparison.jia), artifactNumber(comparison.yi));
+    const high = Math.max(artifactNumber(comparison.jia), artifactNumber(comparison.yi));
     const covered = new Set(
       writerDrafts.filter((draft) => {
         const number = artifactNumber(draft.meta.draft_id);
@@ -574,9 +629,9 @@ export class TaskHub {
       .filter((review) => covered.has(review.draft_id)).length;
     const record = {
       task_id: this.taskId,
-      chapter_id: this.comparison.chapterId,
-      draft_ids: [this.comparison.jia, this.comparison.yi],
-      mapping: { 甲: this.comparison.jia, 乙: this.comparison.yi },
+      chapter_id: comparison.chapterId,
+      draft_ids: [comparison.jia, comparison.yi],
+      mapping: { 甲: comparison.jia, 乙: comparison.yi },
       choice,
       reason,
       char_counts: { 甲: hanCount(jia.markdown), 乙: hanCount(yi.markdown) },
@@ -585,9 +640,30 @@ export class TaskHub {
     };
     mkdirSync(this.work.runtimeDir, { recursive: true });
     appendFileSync(join(this.work.runtimeDir, "evaluations.jsonl"), `${JSON.stringify(record)}\n`);
-    const reveal = `揭晓：甲 = ${this.comparison.jia}，乙 = ${this.comparison.yi}`;
+    const reveal = `揭晓：甲 = ${comparison.jia}，乙 = ${comparison.yi}`;
     this.comparison = undefined;
+    if (existsSync(this.mappingFile())) unlinkSync(this.mappingFile());
     return reveal;
+  }
+
+  private mappingFile(): string {
+    return join(this.work.runtimeDir, "compare", `${this.taskId}.json`);
+  }
+
+  private currentComparison(): { jia: string; yi: string; chapterId: string; writerId: string } | undefined {
+    if (this.comparison) return this.comparison;
+    if (!existsSync(this.mappingFile())) return undefined;
+    const parsed = readJsonFile<{ jia?: string; yi?: string; chapter_id?: string; writer_id?: string }>(this.mappingFile());
+    if (!parsed.jia || !parsed.yi || !isArtifactId(parsed.jia, "draft") || !isArtifactId(parsed.yi, "draft")) return undefined;
+    const jia = loadDraft(this.task, parsed.jia);
+    const yi = loadDraft(this.task, parsed.yi);
+    if (!jia || !yi) return undefined;
+    return {
+      jia: parsed.jia,
+      yi: parsed.yi,
+      chapterId: parsed.chapter_id || jia.meta.chapter_id,
+      writerId: parsed.writer_id || jia.meta.writer_id,
+    };
   }
 
   private async spawnWriter(packageId: string): Promise<string> {
@@ -748,24 +824,27 @@ export class TaskHub {
     this.save();
   }
 
-  private snapshotDraft(agent: SubagentRecord, file: string): string {
+  private snapshotDraft(agent: SubagentRecord, file: string): Promise<string> {
     if (!existsSync(file)) refuse("还没有初稿文件 draft.md");
     const markdown = readFileSync(file, "utf8");
     const split = splitDraft(markdown);
     if ("error" in split) refuse(split.error);
     const pkg = agent.packageId ? loadPackage(this.task, agent.packageId) : undefined;
     if (!pkg) refuse("Writer 没有绑定 Package");
-    const id = `draft_${nextArtifactNumber(this.task.artifactsDir, "draft")}`;
-    const meta: DraftMeta = {
-      draft_id: id,
-      writer_id: agent.id,
-      package_id: pkg.id,
-      chapter_id: String(pkg.brief.chapter_id),
-    };
-    writeFileSync(join(this.task.artifactsDir, `${id}.md`), markdown.endsWith("\n") ? markdown : `${markdown}\n`);
-    writeFileSync(join(this.task.artifactsDir, `${id}.json`), `${JSON.stringify(meta, null, 2)}\n`);
-    if (agent.artifacts) this.noteArtifact(agent, id);
-    return id;
+    const body = markdown.endsWith("\n") ? markdown : `${markdown}\n`;
+    return withWriteLock(async () => {
+      const id = `draft_${nextArtifactNumber(this.task.artifactsDir, "draft")}`;
+      const meta: DraftMeta = {
+        draft_id: id,
+        writer_id: agent.id,
+        package_id: pkg.id,
+        chapter_id: String(pkg.brief.chapter_id),
+      };
+      await createFileExclusive(join(this.task.artifactsDir, `${id}.json`), `${JSON.stringify(meta, null, 2)}\n`);
+      await createFileExclusive(join(this.task.artifactsDir, `${id}.md`), body);
+      this.noteArtifact(agent, id);
+      return id;
+    });
   }
 
   private pendingProblem(): string | undefined {
@@ -811,6 +890,7 @@ export class TaskHub {
   }
 
   private loadProposal(id: string): ProposalArtifact | undefined {
+    if (!isArtifactId(id, "proposal")) return undefined;
     const file = join(this.task.artifactsDir, `${id}.json`);
     if (!existsSync(file)) return undefined;
     const parsed = readJsonFile<ProposalArtifact>(file);
