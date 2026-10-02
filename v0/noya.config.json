@@ -4,22 +4,22 @@
     "context": {
       "provider": "deepseek",
       "model": "deepseek-flash",
-      "thinking": "low"
+      "thinking": "max"
     },
     "writer": {
       "provider": "deepseek",
       "model": "deepseek-flash",
-      "thinking": "high"
+      "thinking": "max"
     },
     "reviewer": {
       "provider": "deepseek",
-      "model": "deepseek-v4-pro",
-      "thinking": "high"
+      "model": "deepseek-flash",
+      "thinking": "max"
     },
     "sync_checker": {
       "provider": "deepseek",
       "model": "deepseek-flash",
-      "thinking": "low"
+      "thinking": "max"
     }
   },
   "prompts": {

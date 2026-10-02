@@ -392,4 +392,17 @@ describe("正式资料与路径", { concurrency: false }, () => {
     assert.match(toolTexts(fx.session, "query_canon").at(-1) ?? "", /possession sword/);
     assert.match(toolTexts(fx.session, "query_canon").at(-1) ?? "", /木剑/);
   });
+
+  test("写成 JSON 字符串的 changes 会被解析后写入", async () => {
+    await ask(fx, "可以写入", [
+      fauxAssistantMessage([
+        fauxToolCall("write_canon", {
+          author_confirmation: "可以",
+          changes: JSON.stringify([{ type: "character", op: "upsert", doc: person("stringified") }]),
+        }),
+      ]),
+    ]);
+    assert.doesNotMatch(toolTexts(fx.session, "write_canon").at(-1) ?? "", /\[拒绝\]/);
+    assert.ok(existsSync(join(fx.work.workDir, "canon", "characters", "stringified.json")));
+  });
 });

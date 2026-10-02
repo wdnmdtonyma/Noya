@@ -42,10 +42,12 @@ import { parsePack } from "./pack.ts";
 import { reviewProblems, splitDraft } from "./review.ts";
 import { checkSchema, toolValidators, validators } from "./schema.ts";
 import { createRoleSession } from "./session.ts";
+import { styleProblems } from "./style-lint.ts";
 import { assistantFailure, authorConfirmationProblem } from "./transcript.ts";
 import { contentHash, createFileExclusive, git, isId, nonWhitespaceLength, refuse, verbatimIncludes, withWriteLock } from "./util.ts";
 
 const hubs = new Map<string, TaskHub>();
+const STYLE_REFUSAL_LIMIT = 2;
 
 const STATUS_LABEL: Record<SubagentStatus, string> = {
   running: "运行中",
@@ -103,6 +105,8 @@ export class TaskHub {
   private readonly sessions = new Map<string, AgentSession>();
   private readonly stopRequested = new Set<string>();
   private readonly failing = new Set<string>();
+  // 每个写手连续被文风检查拒绝的次数；到上限后放行，避免弱模型在同一处反复打转。
+  private readonly styleRefusals = new Map<string, number>();
   private comparison: { jia: string; yi: string; chapterId: string; writerId: string } | undefined;
 
   constructor(
@@ -474,7 +478,18 @@ export class TaskHub {
     const agent = this.agent(agentId);
     this.requireSubmittable(agent);
     if (!agent.artifacts.some((id) => id.startsWith("plan_"))) refuse("提交初稿前必须先提交章节方案");
-    return this.snapshotDraft(agent, join(agent.workspaceDir, "draft.md"));
+    const file = join(agent.workspaceDir, "draft.md");
+    const split = existsSync(file) ? splitDraft(readFileSync(file, "utf8")) : undefined;
+    const problems = split && !("error" in split) ? styleProblems(split.content) : [];
+    const refused = this.styleRefusals.get(agent.id) ?? 0;
+    if (problems.length > 0 && refused < STYLE_REFUSAL_LIMIT) {
+      this.styleRefusals.set(agent.id, refused + 1);
+      refuse("文风检查未通过，按下列问题修改 draft.md 后再次提交：", ...problems);
+    }
+    this.styleRefusals.delete(agent.id);
+    const submitted = this.snapshotDraft(agent, file);
+    if (problems.length === 0) return submitted;
+    return submitted.then((id) => [id, "文风检查仍有问题，已随稿提交：", ...problems.map((problem) => `- ${problem}`)].join("\n"));
   }
 
   async saveReview(agentId: string, args: Record<string, unknown>): Promise<string> {
