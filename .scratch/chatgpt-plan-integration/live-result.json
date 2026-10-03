@@ -1,0 +1,123 @@
+{
+  "date": "2026-10-03",
+  "piAI": "1.0.0",
+  "piCodingAgent": "1.0.0",
+  "model": "gpt-6.1-sol",
+  "thinking": "low",
+  "workId": "wae0dfc9d",
+  "taskId": "te2f8115a",
+  "oauth": {
+    "browserAuthorization": "passed",
+    "sharedStoredCredential": "passed",
+    "realRefresh": "passed",
+    "restartReuse": "passed"
+  },
+  "roles": {
+    "context": {
+      "models": [
+        "openai/gpt-6.1-sol"
+      ],
+      "completedResponses": 43,
+      "failedResponses": 0,
+      "successfulTools": [
+        "read",
+        "query_canon",
+        "save_package",
+        "spawn_subagent",
+        "ls",
+        "find",
+        "send_message",
+        "save_sync_proposal",
+        "apply_sync"
+      ]
+    },
+    "writer": {
+      "models": [
+        "openai/gpt-6.1-sol"
+      ],
+      "completedResponses": 8,
+      "failedResponses": 0,
+      "successfulTools": [
+        "write",
+        "submit_plan",
+        "submit_draft"
+      ],
+      "roundOutcomes": [
+        "completed",
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "artifacts": [
+        "plan_1",
+        "draft_1"
+      ]
+    },
+    "reviewer": {
+      "models": [
+        "openai/gpt-6.1-sol"
+      ],
+      "completedResponses": 2,
+      "failedResponses": 0,
+      "successfulTools": [
+        "save_review"
+      ],
+      "roundOutcomes": [
+        "completed"
+      ],
+      "artifacts": [
+        "review_1"
+      ]
+    },
+    "sync_checker": {
+      "models": [
+        "openai/gpt-6.1-sol"
+      ],
+      "completedResponses": 5,
+      "failedResponses": 0,
+      "successfulTools": [
+        "query_canon",
+        "save_sync_check"
+      ],
+      "roundOutcomes": [
+        "completed"
+      ],
+      "artifacts": [
+        "check_1"
+      ]
+    }
+  },
+  "artifacts": [
+    "check_1.json",
+    "draft_1.json",
+    "draft_1.md",
+    "package_1.json",
+    "package_2.json",
+    "package_3.json",
+    "plan_1.md",
+    "proposal_1.json",
+    "review_1.json"
+  ],
+  "finalization": {
+    "draftId": "draft_1",
+    "authorApproved": true
+  },
+  "pendingChapters": [],
+  "review": {
+    "requirements": "passed",
+    "character_motivation": "passed",
+    "possessions_and_abilities": "passed",
+    "ability_rules": "passed"
+  },
+  "resume": {
+    "sameTask": true,
+    "newCompletedRequest": true,
+    "canonQueryAfterRestart": "passed"
+  },
+  "typecheck": "passed",
+  "fullSuite": {
+    "passed": 57,
+    "failed": 0
+  },
+  "credentialLeakCheck": "passed"
+}

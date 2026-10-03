@@ -1,4 +1,4 @@
-import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { registerFindTool } from "./find-tool.ts";
 import { contextEditZones, contextReadZones, directoryZones, guardDecision, pathArgument, resolveToolPath } from "./guard.ts";
 import { getHub } from "./hub.ts";
@@ -36,6 +36,15 @@ export function createNoyaExtension(taskId: string, role: RoleName, agentId?: st
       return undefined;
     });
     if (role === "context") {
+      const showBillingSource = (_event: unknown, ctx: ExtensionContext) => {
+        const subscriptionHistory = ctx.sessionManager.getBranch().some((entry) =>
+          entry.type === "message" && entry.message.role === "assistant" && entry.message.provider === "openai");
+        ctx.ui.setStatus("noya.billing", ctx.model?.provider === "openai" || subscriptionHistory
+          ? "API 估算金额，非 ChatGPT 订阅扣费"
+          : undefined);
+      };
+      pi.on("session_start", showBillingSource);
+      pi.on("model_select", showBillingSource);
       pi.on("context", (event) => ({
         messages: [
           ...event.messages,

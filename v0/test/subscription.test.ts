@@ -66,6 +66,9 @@ test("未登录仍能打开 OpenAI 写作任务，环境 API key 和旧 Codex �
     assert.equal(fx.session.model?.id, "gpt-6.1-sol");
     await assert.rejects(fx.session.prompt("测试订阅"), /login/);
     await assert.rejects(fx.runtime.getAuth("openai"), /login openai/);
+    await writeFile(join(fx.work.agentDir, "auth.json"), JSON.stringify({ openai: { type: "api_key", key: "sk-stored-sentinel" } }));
+    await fx.runtime.refresh({ allowNetwork: false });
+    await assert.rejects(fx.runtime.getAuth("openai"), /login openai/);
     assert.equal(fetch.mock.calls.length, 0);
   } finally {
     await fx.cleanup();
@@ -186,13 +189,17 @@ test("四角色共用订阅完成方案、短稿、独立检查、作者定稿�
   } finally { await fx.cleanup(); }
 });
 
-for (const failure of ["incomplete", "disconnected", "failed", "usage_limit", "usage_unavailable"] as const) {
+for (const failure of ["incomplete", "disconnected", "unfinished", "failed", "usage_limit", "usage_unavailable"] as const) {
   test(`${failure} 流中已收到工具也不执行，助手记录失败且旧产物保留`, async (t) => {
     const fx = await openFixture({ provider: "openai" });
     try {
       await authorize(fx);
       await writeFile(join(fx.work.workDir, "visible.md"), "KEEP_EXISTING_ARTIFACT\n");
       const events = completed([call("read", { path: "visible.md" })]).slice(0, -1);
+      if (failure === "unfinished") {
+        events.splice(1, 1);
+        events.push({ type: "response.completed", response: { status: "completed", output: [] } });
+      }
       if (failure === "incomplete") events.push({ type: "response.incomplete", response: { status: "incomplete", incomplete_details: { reason: "max_output_tokens" }, output: [] } });
       if (failure === "failed") events.push({ type: "response.failed", response: { status: "failed", error: { code: "server_error", message: "test failure" } } });
       if (failure.startsWith("usage_")) events.push({ type: "response.failed", response: { status: "failed", error: { code: failure === "usage_limit" ? "subscription_sharing_usage_limit_exceeded" : "subscription_sharing_usage_unavailable", message: "quota test" } } });
@@ -200,7 +207,7 @@ for (const failure of ["incomplete", "disconnected", "failed", "usage_limit", "u
       await fx.session.prompt("失败轮次");
       const last = liveMessages(fx.session).at(-1);
       assert.equal(last?.stopReason, "error");
-      assert.match(String(last?.errorMessage), failure === "incomplete" ? /incomplete/ : failure === "disconnected" ? /terminal/ : failure === "failed" ? /server_error/ : /subscription_sharing_usage/);
+      assert.match(String(last?.errorMessage), failure === "incomplete" ? /incomplete/ : failure === "disconnected" ? /terminal/ : failure === "unfinished" ? /unfinished tool/ : failure === "failed" ? /server_error/ : /subscription_sharing_usage/);
       assert.equal(toolTexts(fx.session, "read").length, 0);
       assert.equal(await readFile(join(fx.work.workDir, "visible.md"), "utf8"), "KEEP_EXISTING_ARTIFACT\n");
     } finally { await fx.cleanup(); }
