@@ -29,11 +29,12 @@ interface UsageTotals {
   cacheRead: number;
   cacheWrite: number;
   cost: number;
+  subscription: boolean;
 }
 
 function collect(file: string, role: string): { hits: ToolHit[]; usage: UsageTotals; started?: string; ended?: string } {
   const hits: ToolHit[] = [];
-  const usage: UsageTotals = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 };
+  const usage: UsageTotals = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, subscription: false };
   let started: string | undefined;
   let ended: string | undefined;
   const calls = new Map<string, { tool: string; path?: string }>();
@@ -46,6 +47,7 @@ function collect(file: string, role: string): { hits: ToolHit[]; usage: UsageTot
     if (entry.type !== "message") continue;
     const message = entry.message as {
       role?: string;
+      provider?: string;
       content?: unknown;
       toolName?: string;
       toolCallId?: string;
@@ -53,6 +55,7 @@ function collect(file: string, role: string): { hits: ToolHit[]; usage: UsageTot
       usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; cost?: { total?: number } };
     };
     if (message.role === "assistant") {
+      usage.subscription ||= message.provider === "openai";
       usage.input += message.usage?.input ?? 0;
       usage.output += message.usage?.output ?? 0;
       usage.cacheRead += message.usage?.cacheRead ?? 0;
@@ -213,7 +216,8 @@ function tokenLine(
       ? Date.parse(report.ended) - Date.parse(report.started)
       : 0;
   const usage = report.usage;
-  return `- ${label}：输入 ${usage.input}，缓存读取 ${usage.cacheRead}，缓存写入 ${usage.cacheWrite}，输出 ${usage.output}，费用 ${usage.cost}，耗时 ${duration} ms`;
+  const billing = usage.subscription ? "含 ChatGPT 订阅调用，实际用量以官方页面为准" : `费用 ${usage.cost}`;
+  return `- ${label}：输入 ${usage.input}，缓存读取 ${usage.cacheRead}，缓存写入 ${usage.cacheWrite}，输出 ${usage.output}，${billing}，耗时 ${duration} ms`;
 }
 
 function planReviewLines(stored: ReturnType<typeof loadRegistry>, task: TaskLayout, contextFile: string): string[] {
@@ -256,4 +260,3 @@ function readToolPaths(file: string): Array<{ at: number; path: string }> {
   }
   return reads;
 }
-

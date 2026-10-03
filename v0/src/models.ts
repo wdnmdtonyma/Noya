@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { getSupportedThinkingLevels, type Model, type ThinkingLevel } from "@earendil-works/pi-ai";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { type NoyaConfig, type RoleName, ROLES } from "./config.ts";
+import { useChatGPTSubscription } from "./subscription.ts";
 
 export interface RoleBinding {
   model: Model<any>;
@@ -13,11 +14,13 @@ const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "ma
 
 export async function createModelRuntime(agentDir: string): Promise<ModelRuntime> {
   mkdirSync(agentDir, { recursive: true });
-  return ModelRuntime.create({
+  const runtime = await ModelRuntime.create({
     authPath: join(agentDir, "auth.json"),
     modelsPath: join(agentDir, "models.json"),
     refreshOnCreate: false,
   });
+  useChatGPTSubscription(runtime);
+  return runtime;
 }
 
 export async function resolveRoleModels(
@@ -35,7 +38,7 @@ export async function resolveRoleModels(
     const thinkingLevelMap: Record<string, string | null> = {};
     for (const level of THINKING_LEVELS) thinkingLevelMap[level] = null;
     for (const level of spec.thinkingLevels) thinkingLevelMap[level] = level;
-    writeCustomModel(agentDir, {
+    writeCustomModel(agentDir, spec.provider, {
       id: spec.model,
       name: spec.model,
       reasoning: spec.thinkingLevels.some((level) => level !== "off"),
@@ -61,17 +64,17 @@ export async function resolveRoleModels(
   return { runtime, models };
 }
 
-function writeCustomModel(agentDir: string, model: Record<string, unknown>): void {
+function writeCustomModel(agentDir: string, providerId: string, model: Record<string, unknown>): void {
   const modelsPath = join(agentDir, "models.json");
   const current = existsSync(modelsPath)
     ? (JSON.parse(readFileSync(modelsPath, "utf8")) as { providers?: Record<string, { models?: unknown[] }> })
     : {};
   const providers = current.providers ?? {};
-  const provider = providers.deepseek ?? {};
+  const provider = providers[providerId] ?? {};
   const models = Array.isArray(provider.models) ? [...provider.models] : [];
   const index = models.findIndex((item) => !!item && typeof item === "object" && (item as { id?: string }).id === model.id);
   if (index >= 0) models[index] = model;
   else models.push(model);
-  providers.deepseek = { ...provider, models };
+  providers[providerId] = { ...provider, models };
   writeFileSync(modelsPath, `${JSON.stringify({ ...current, providers }, null, 2)}\n`);
 }

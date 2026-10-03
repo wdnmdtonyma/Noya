@@ -17,7 +17,7 @@ import { openWritingSession } from "../src/app.ts";
 import { ROLES, loadConfig, type NoyaConfig, type RoleName } from "../src/config.ts";
 import type { TaskHub } from "../src/hub.ts";
 import { createWork, type WorkLayout } from "../src/layout.ts";
-import { createModelRuntime, type RoleBinding } from "../src/models.ts";
+import { createModelRuntime, resolveRoleModels, type RoleBinding } from "../src/models.ts";
 import { liveMessages, messageText } from "../src/transcript.ts";
 
 export { fauxAssistantMessage, fauxToolCall };
@@ -34,7 +34,7 @@ export interface Fixture {
   cleanup: () => Promise<void>;
 }
 
-export async function openFixture(options?: { random?: () => number; beforeOpen?: (work: WorkLayout) => Promise<void> }): Promise<Fixture> {
+export async function openFixture(options?: { provider?: "openai"; random?: () => number; beforeOpen?: (work: WorkLayout) => Promise<void> }): Promise<Fixture> {
   const root = await mkdtemp(join(tmpdir(), "noya-"));
   const worksRoot = join(root, "works");
   const agentDir = join(root, "pi-agent");
@@ -60,18 +60,22 @@ export async function openFixture(options?: { random?: () => number; beforeOpen?
     }),
   );
   const config = loadConfig(configFile);
-  const runtime = await createModelRuntime(agentDir);
+  if (options?.provider === "openai") {
+    for (const role of ROLES) config.roles[role] = { provider: "openai", model: "gpt-6.1-sol", thinking: "low" };
+  }
+  const resolved = options?.provider === "openai" ? await resolveRoleModels(config, agentDir) : undefined;
+  const runtime = resolved?.runtime ?? await createModelRuntime(agentDir);
   const faux = {} as Record<RoleName, FauxProviderHandle>;
   for (const role of ROLES) {
     faux[role] = fauxProvider({
       provider: `noya-${role}`,
       models: [{ id: "scripted", reasoning: true, contextWindow: 32000, maxTokens: 2048 }],
     });
-    runtime.registerNativeProvider(faux[role].provider);
+    if (!resolved) runtime.registerNativeProvider(faux[role].provider);
   }
   await runtime.refresh({ allowNetwork: false });
-  const models = {} as Record<RoleName, RoleBinding>;
-  for (const role of ROLES) {
+  const models = resolved?.models ?? {} as Record<RoleName, RoleBinding>;
+  for (const role of resolved ? [] : ROLES) {
     const model = runtime.getModel(`noya-${role}`, "scripted");
     if (!model) throw new Error(`faux model missing for ${role}`);
     if (!getSupportedThinkingLevels(model).includes("low")) throw new Error(`${role} does not support low`);

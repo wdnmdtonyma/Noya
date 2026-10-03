@@ -6,7 +6,7 @@ export const ROLES = ["context", "writer", "reviewer", "sync_checker"] as const;
 export type RoleName = (typeof ROLES)[number];
 
 export interface RoleConfig {
-  provider: "deepseek";
+  provider: "deepseek" | "openai";
   model: string;
   thinking: string;
   contextWindow?: number;
@@ -40,13 +40,13 @@ function requiredString(record: Record<string, unknown>, key: string, label: str
 function roleConfig(value: unknown, role: RoleName): RoleConfig {
   const record = asRecord(value, `角色 ${role}`);
   const provider = requiredString(record, "provider", role);
-  if (provider !== "deepseek") throw new Error(`${role} 的 provider 必须是 deepseek`);
+  if (provider !== "deepseek" && provider !== "openai") throw new Error(`${role} 的 provider 必须是 deepseek 或 openai`);
   const thinkingLevels = record.thinkingLevels;
   if (thinkingLevels !== undefined && (!Array.isArray(thinkingLevels) || thinkingLevels.some((item) => typeof item !== "string"))) {
     throw new Error(`${role} 的 thinkingLevels 必须是字符串数组`);
   }
   return {
-    provider: "deepseek",
+    provider,
     model: requiredString(record, "model", role),
     thinking: requiredString(record, "thinking", role),
     ...(typeof record.contextWindow === "number" ? { contextWindow: record.contextWindow } : {}),
