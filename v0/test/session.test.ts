@@ -43,7 +43,8 @@ test("Context 系统提示词只含 Noya 的提示词、Skill 清单和工作目
 test("Context 的工具是规格里的名单，没有 bash 和 write", () => {
   const names = [...fx.session.getActiveToolNames()].sort();
   assert.deepEqual(names, [
-    "apply_sync",
+      "apply_sync",
+      "ask_author",
     "edit",
     "find",
     "get_subagents",

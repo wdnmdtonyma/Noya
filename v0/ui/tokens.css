@@ -1,0 +1,112 @@
+/* Noya MVP · production prototype design tokens
+   纸与墨：低对比暖纸承载长文，朱砂只用于当前位置与主要动作，墨绿用于 Agent 的可靠状态。 */
+
+:root {
+  /* 暖中性色阶：bg < surface < raised，三层足够区分工作台、面板和浮层 */
+  --paper-950: #211f1c;
+  --paper-800: #4c4741;
+  --paper-650: #6f6860;
+  --paper-500: #958d83;
+  --paper-350: #bdb4a8;
+  --paper-250: #d3cabd;
+  --paper-180: #e0d8cd;
+  --paper-120: #ebe5dc;
+  --paper-80: #f1eee8;
+  --paper-50: #f7f5f0;
+  --paper-25: #fbfaf7;
+  --paper-0: #ffffff;
+
+  --color-bg: var(--paper-80);
+  --color-bg-subtle: #f4f1eb;
+  --color-bg-hover: #ebe6dd;
+  --color-surface: var(--paper-25);
+  --color-surface-2: var(--paper-50);
+  --color-surface-raised: var(--paper-0);
+  --color-surface-sunken: #ece7de;
+
+  --color-text: var(--paper-950);
+  --color-text-secondary: var(--paper-650);
+  --color-text-tertiary: var(--paper-500);
+  --color-text-muted: var(--paper-500);
+  --color-text-disabled: var(--paper-350);
+  --color-text-inverse: var(--paper-0);
+  --color-overlay: rgba(33, 31, 28, .32);
+
+  --color-border: var(--paper-180);
+  --color-border-strong: var(--paper-250);
+  --color-border-soft: var(--paper-120);
+
+  --color-primary: #a33f32;
+  --color-primary-hover: #8c342a;
+  --color-primary-active: #782b24;
+  --color-primary-soft: #f6e7e3;
+  --color-primary-softer: #fbf2ef;
+
+  --color-accent: #2f6558;
+  --color-accent-hover: #27574c;
+  --color-accent-soft: #e3eeea;
+  --color-accent-softer: #f1f7f4;
+
+  --color-done: #3f7651;
+  --color-done-soft: #e5f0e8;
+  --color-success: var(--color-done);
+  --color-success-soft: var(--color-done-soft);
+  --color-warn: #9a6a25;
+  --color-warn-soft: #f6ecd9;
+  --color-warning: var(--color-warn);
+  --color-warning-soft: var(--color-warn-soft);
+  --color-danger: #b1493f;
+  --color-danger-soft: #f7e7e4;
+  --color-info: #466c8a;
+  --color-info-soft: #e8eff4;
+
+  --font-ui: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+             "Microsoft YaHei", "Segoe UI", sans-serif;
+  --font-prose: "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC",
+                "STSong", Georgia, serif;
+  --font-mono: "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
+
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 13px;
+  --font-size-lg: 15px;
+  --font-size-xl: 19px;
+  --font-size-2xl: 24px;
+  --font-size-3xl: 32px;
+  --line-tight: 1.35;
+  --line-ui: 1.55;
+  --line-prose: 1.95;
+  --font-weight-normal: 400;
+  --font-weight-medium: 520;
+  --font-weight-semibold: 650;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 999px;
+
+  --shadow-xs: 0 1px 2px rgba(42, 35, 27, .045);
+  --shadow-sm: 0 2px 6px rgba(42, 35, 27, .06);
+  --shadow-md: 0 8px 24px rgba(42, 35, 27, .09);
+  --shadow-lg: 0 18px 48px rgba(42, 35, 27, .14);
+  --shadow-pop: 0 12px 36px rgba(42, 35, 27, .16);
+  --focus-ring: 0 0 0 3px rgba(163, 63, 50, .13);
+
+  --ease-out: cubic-bezier(.22, .61, .36, 1);
+  --ease-in-out: cubic-bezier(.45, 0, .25, 1);
+  --ease-spring: cubic-bezier(.34, 1.32, .64, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+}

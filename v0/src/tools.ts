@@ -64,6 +64,7 @@ const WRITE_CANON = [
 
 export function registerRoleTools(pi: ExtensionAPI, hub: TaskHub, role: RoleName, agentId?: string): void {
   if (role === "context") {
+    tool(pi, "ask_author", "只在真正需要作者选择方向时提问。结构性重写前复述新方向并确认；不要用于常规章节方案审批。提问后结束本轮等待真实回答。", toolContracts.decision, args => hub.askAuthor(args), true);
     tool(pi, "query_canon", QUERY_CANON, toolContracts.query, (args) => hub.queryCanon(args));
     tool(pi, "write_canon", WRITE_CANON, toolContracts.writeCanon, (args) => hub.writeCanon(args), true);
     tool(pi, "save_package", "保存本章的 Writing Brief 和 Context Pack，返回 package_id。", toolContracts.package, (args) => hub.savePackage(args), true);

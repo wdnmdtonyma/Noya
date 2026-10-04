@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>Noya · 写作任务</title><link rel="stylesheet" href="/tokens.css"><link rel="stylesheet" href="/app.css"><script type="module" src="/app.js"></script></head>
+<body>
+<div id="app" class="app">
+  <header class="app-header">
+    <a class="brand" href="/" aria-label="Noya 首页"><span class="brand-mark">N</span><span>Noya<span class="brand-caption">让故事继续</span></span></a>
+    <span class="header-divider"></span>
+    <button id="work-switcher" class="work-switcher" aria-haspopup="dialog"><span class="work-icon">▤</span><span id="work-name">选择作品</span><span class="chevron">⌄</span></button>
+    <span id="connection" class="connection" role="status"><i class="status-dot"></i><span>正在连接</span></span>
+  </header>
+  <div id="connection-error" class="connection-error" role="alert" hidden></div>
+  <div id="active-notice" class="active-notice" hidden></div>
+  <div class="workspace">
+    <main id="task-pane" class="task-pane">
+      <div class="task-heading"><div><span class="eyebrow">写作空间</span><h1 id="task-title">从一个念头开始</h1></div><span id="task-status" class="task-status"></span></div>
+      <div id="feed" class="feed" tabindex="0" aria-label="任务对话">
+        <section id="empty" class="empty"><div class="empty-mark" aria-hidden="true"><span>叙</span><i></i></div><span class="eyebrow">每个故事，都值得被写下</span><h2>下一页，从这里开始。</h2><p id="empty-hint">一个人物、一场相遇，或还没想清楚的念头。<br>和 Noya 聊聊，让故事慢慢有形。</p><button id="create-first" class="primary" hidden>开始第一部作品 <span>↗</span></button><div class="empty-rule"></div><span class="empty-note">先聊想法，等你决定好，再开始写。</span></section>
+        <div id="messages" class="messages"></div>
+        <div id="stream" class="stream" hidden aria-label="正在生成回复"></div>
+        <div id="execution" class="execution" hidden></div>
+        <section id="decision" class="decision" hidden></section>
+        <div id="task-error" class="task-error" role="alert" hidden></div>
+        <div id="sync-notice" class="sync-notice" hidden></div>
+      </div>
+      <button id="new-content" class="new-content" hidden>↓ 查看新内容</button>
+      <div id="composer-area" class="composer-area">
+        <div id="reference" class="reference" hidden></div>
+        <form id="composer" class="composer"><label class="sr-only" for="message">给 Noya 的要求</label><textarea id="message" rows="2" maxlength="30000" placeholder="聊聊想法，或告诉 Noya 接下来写什么…"></textarea><div class="composer-toolbar"><span id="composer-meta">与你一起，把故事写下去</span><div class="composer-actions"><button type="button" id="stop" class="quiet-button" hidden>停止</button><button id="send" class="send-button" type="submit" aria-label="发送消息"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button></div></div></form>
+        <div class="composer-foot"><span>Enter 发送 <b>·</b> Shift + Enter 换行</span><span id="save-hint">输入仅保存在本机</span></div>
+      </div>
+    </main>
+    <aside id="reader" class="reader" aria-label="正文阅读" hidden><header class="reader-bar"><span class="eyebrow">正文阅读 <span class="readonly">只读</span></span><button id="close-reader" class="icon-button" aria-label="关闭正文阅读">×</button></header><div class="reader-scroll"><div id="reader-meta" class="reader-meta"></div><article id="reader-content" class="reader-content"></article><details id="review-details" class="review-details"><summary id="review-label"></summary><div id="review-content"></div></details><div class="reader-end">— 本版结束 —</div></div><footer class="reader-footer"><button id="revise" class="secondary">对这版提意见</button><button id="finalize" class="primary">将这版定稿</button></footer></aside>
+  </div>
+</div>
+<dialog id="dialog" aria-labelledby="dialog-title"><div id="dialog-body"></div></dialog>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body></html>

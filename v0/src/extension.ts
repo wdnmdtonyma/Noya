@@ -15,6 +15,7 @@ export function createNoyaExtension(taskId: string, role: RoleName, agentId?: st
     registerRoleTools(pi, hub, role, agentId);
     if (role === "context") registerFindTool(pi);
     pi.on("tool_call", (event) => {
+      if (hub.isCancelled) return { block: true, reason: "作者已停止整个任务，请等待作者继续。" };
       const rawPath = pathArgument(event.toolName, event.input);
       if (rawPath === undefined) return undefined;
       const cwd = hub.cwdFor(role, agentId);

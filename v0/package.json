@@ -12,7 +12,10 @@
   "scripts": {
     "noya": "node --disable-warning=ExperimentalWarning src/cli.ts",
     "test": "node --disable-warning=ExperimentalWarning --test --test-reporter=spec test/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.ui.json --noEmit",
+    "dev": "npm run build && node --watch --disable-warning=ExperimentalWarning src/web.ts",
+    "build": "tsc -p tsconfig.ui.json",
+    "start": "node --disable-warning=ExperimentalWarning src/web.ts"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "1.0.0",

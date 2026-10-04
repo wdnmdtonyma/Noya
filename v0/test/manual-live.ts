@@ -1,0 +1,20 @@
+/** Opt-in live browser acceptance. Uses existing credentials; isolates all works. */
+process.env.PI_OFFLINE = "1";
+process.env.PI_SKIP_VERSION_CHECK = "1";
+const { mkdtemp } = await import("node:fs/promises");
+const { tmpdir } = await import("node:os");
+const { join, resolve } = await import("node:path");
+const { fileURLToPath } = await import("node:url");
+const { loadConfig } = await import("../src/config.ts");
+const { resolveRoleModels } = await import("../src/models.ts");
+const { LocalApp } = await import("../src/local-app.ts");
+const { startLocalServer } = await import("../src/local-server.ts");
+const original = loadConfig(process.env.NOYA_CONFIG || fileURLToPath(new URL("../noya.chatgpt.config.json", import.meta.url)));
+const runtime = await resolveRoleModels(original, join(original.worksRoot, ".noya", "agent"));
+const worksRoot = process.env.NOYA_ACCEPTANCE_ROOT ? resolve(process.env.NOYA_ACCEPTANCE_ROOT) : await mkdtemp(join(tmpdir(), "noya-ui-live-"));
+const app = new LocalApp({ config: { ...original, worksRoot }, modelRuntime: runtime });
+const server = await startLocalServer(app, { port: Number(process.env.NOYA_PORT || 4320) });
+console.log(JSON.stringify({ url: server.url, worksRoot, roles: original.roles }));
+void app.recover();
+for (const signal of ["SIGINT", "SIGTERM"] as const) process.once(signal, () => { void server.close().then(() => process.exit(0)); });
+export {};

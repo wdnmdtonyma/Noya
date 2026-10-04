@@ -480,6 +480,11 @@ function contract(schema: Json, advertised: Json = schema): ToolContract {
 }
 
 export const toolContracts = {
+  decision: contract({ type: "object", additionalProperties: false, required: ["question", "detail", "options"], properties: {
+    question: text("需要作者决定的问题"), detail: text("具体分歧或新方向，清楚说明与旧方向的变化"),
+    options: { type: "array", minItems: 2, maxItems: 4, items: text("简洁选项"), description: "供作者选择，也允许自由回答" },
+    draft_id: { type: "string", description: "如涉及已保存正文，明确引用的稿件 ID" },
+  } }),
   query: contract(querySchema, queryParameters),
   writeCanon: contract(writeCanonSchema),
   package: contract(packageSchema),

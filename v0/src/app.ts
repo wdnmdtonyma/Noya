@@ -28,7 +28,6 @@ export async function openWritingSession(options: {
       }
     }
     saveRegistry(existing.task, existing.registry);
-    if (!existing.registry.context_session_file) throw new Error("任务登记里没有 Context 会话文件");
   }
   const opened = existing ?? createTaskRecord(options.work);
   if (!existing) saveRegistry(opened.task, opened.registry);
@@ -41,7 +40,7 @@ export async function openWritingSession(options: {
     options.models,
     options.random,
   );
-  const sessionManager = existing
+  const sessionManager = existing?.registry.context_session_file
     ? SessionManager.open(existing.registry.context_session_file, opened.task.sessionDir, options.work.workDir)
     : SessionManager.create(options.work.workDir, opened.task.sessionDir);
   const runtimeHost = await createAgentSessionRuntime(

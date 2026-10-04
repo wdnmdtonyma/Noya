@@ -19,6 +19,7 @@ export const ROLE_TOOLS: Record<RoleName, string[]> = {
     "ls",
     "edit",
     "query_canon",
+    "ask_author",
     "write_canon",
     "save_package",
     "save_revision",

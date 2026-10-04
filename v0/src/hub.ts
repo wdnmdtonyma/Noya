@@ -102,6 +102,13 @@ export class TaskHub {
   readonly models: Record<RoleName, RoleBinding>;
   readonly random: () => number;
   contextSession?: AgentSession;
+  /** Installed by the local application; CLI retains its existing author gate. */
+  confirmPageWrite?: (kind: "canon" | "sync", args: Record<string, unknown>) => void;
+  requestPageDecision?: (args: Record<string, unknown>) => string;
+  private cancelled = false;
+  private notifications = 0;
+  private readonly runningPromises = new Set<Promise<unknown>>();
+  private pageDraftId?: string;
   private readonly sessions = new Map<string, AgentSession>();
   private readonly stopRequested = new Set<string>();
   private readonly failing = new Set<string>();
@@ -133,6 +140,41 @@ export class TaskHub {
     saveRegistry(this.task, this.registry);
   }
 
+  get isCancelled(): boolean { return this.cancelled; }
+  get hasPendingWork(): boolean {
+    return this.notifications > 0 || this.runningPromises.size > 0 || this.registry.subagents.some(agent => agent.status === "running");
+  }
+  beginAuthorTurn(): void { this.cancelled = false; }
+  askAuthor(args: Record<string, unknown>): string {
+    if (args.draft_id && !loadDraft(this.task, String(args.draft_id))) refuse("所引用的稿件不存在");
+    return this.requestPageDecision?.(args) ?? `${String(args.question)}\n${String(args.detail)}\n${(args.options as string[]).join(" / ")}\n等待作者回答，结束本轮。`;
+  }
+
+  selectPageDraft(draftId?: string): void {
+    this.pageDraftId = draftId;
+    if (!draftId) return;
+    const draft = loadDraft(this.task, draftId);
+    if (!draft) refuse(`初稿 ${draftId} 不存在`);
+    writeFileSync(join(this.task.taskDir, "revision.md"), draft.markdown);
+  }
+
+  async stopTask(): Promise<void> {
+    this.cancelled = true;
+    this.contextSession?.clearQueue();
+    const running = this.registry.subagents.filter(agent => agent.status === "running");
+    for (const agent of running) this.stopRequested.add(agent.id);
+    await Promise.all([this.contextSession?.abort(), ...running.map(agent => this.sessions.get(agent.id)?.abort())]);
+    await Promise.all([...this.runningPromises]);
+    for (const agent of running) await this.finishRound(agent.id);
+    this.contextSession?.clearQueue();
+  }
+
+  dispose(): void {
+    for (const session of this.sessions.values()) session.dispose();
+    this.contextSession?.dispose();
+    hubs.delete(this.taskId);
+  }
+
   attachContext(session: AgentSession): void {
     this.contextSession = session;
     const file = session.sessionFile ?? session.sessionManager.getSessionFile();
@@ -146,6 +188,7 @@ export class TaskHub {
   }
 
   editableFiles(): string[] {
+    if (this.pageDraftId) return [resolveToolPath(join(this.task.taskDir, "revision.md"), this.work.workDir)];
     const writer = this.activeWriter();
     if (!writer || writer.status === "running") return [];
     return ["plan.md", "draft.md"].map((name) => resolveToolPath(name, writer.workspaceDir));
@@ -228,6 +271,7 @@ export class TaskHub {
 
   writeCanon(args: Record<string, unknown>): Promise<string> {
     return withWriteLock(async () => {
+      this.confirmPageWrite?.("canon", args);
       const confirmation = authorConfirmationProblem(this.requireContext(), String(args.author_confirmation ?? ""));
       if (confirmation) refuse(confirmation);
       const changes = args.changes as Record<string, unknown>[];
@@ -268,6 +312,13 @@ export class TaskHub {
   }
 
   async saveRevision(): Promise<string> {
+    if (this.pageDraftId) {
+      const draft = loadDraft(this.task, this.pageDraftId);
+      if (!draft) refuse("所引用的初稿不存在");
+      const writer = this.agent(draft.meta.writer_id);
+      // A wording-only correction can use saved materials even after process restart.
+      return this.snapshotDraft({ ...writer, packageId: draft.meta.package_id }, join(this.task.taskDir, "revision.md"));
+    }
     const writer = this.activeWriter();
     if (!writer || !writer.packageId) refuse("没有活跃 Writer");
     if (writer.status === "running") refuse("Writer 仍在运行");
@@ -357,6 +408,7 @@ export class TaskHub {
       if (stale.length > 0) refuse(...stale);
       const needsConfirmation = selected.some((id) => verdicts.get(id) !== "supported");
       if (needsConfirmation) {
+        this.confirmPageWrite?.("sync", args);
         const problem = authorConfirmationProblem(this.requireContext(), typeof args.author_confirmation === "string" ? args.author_confirmation : undefined);
         if (problem) refuse(problem);
       }
@@ -376,6 +428,7 @@ export class TaskHub {
   }
 
   async spawnSubagent(args: Record<string, unknown>): Promise<string> {
+    if (this.cancelled) refuse("作者已停止任务，等待作者继续");
     const role = String(args.role) as SubagentRecord["role"];
     if (role === "writer") {
       const packageId = String(args.package_id ?? "");
@@ -412,7 +465,10 @@ export class TaskHub {
     }
     const pkg = agent.packageId ? loadPackage(this.task, agent.packageId) : undefined;
     if (!pkg) refuse("Writer 没有绑定 Package");
-    const text = `${String(args.message ?? "")}\n\n${briefBlock(pkg.brief)}`;
+    const selected = this.pageDraftId ? loadDraft(this.task, this.pageDraftId) : undefined;
+    if (selected && selected.meta.chapter_id !== pkg.brief.chapter_id) refuse("所读稿件与目标 Writer 不属于同一章节");
+    if (selected && agent.status !== "running") writeFileSync(join(agent.workspaceDir, "draft.md"), selected.markdown);
+    const text = `${String(args.message ?? "")}\n\n${briefBlock(pkg.brief)}${selected ? `\n\n# 作者指定的修改基准 ${this.pageDraftId}\n以这一版正文为准，不能使用另一版：\n${selected.markdown}` : ""}`;
     if (agent.status === "running") {
       await session.steer(text);
       return "消息将在 Writer 下一次模型调用前送达";
@@ -752,10 +808,11 @@ export class TaskHub {
   private launch(agent: SubagentRecord, prompt: string): void {
     const session = this.sessions.get(agent.id);
     if (!session) refuse(`${agent.id} 会话不存在`);
+    if (this.cancelled) { agent.status = "stopped"; this.save(); return; }
     agent.rounds.push({ startedAt: new Date().toISOString(), artifacts: [] });
     agent.status = "running";
     this.save();
-    void session.prompt(prompt).catch((error: unknown) => {
+    const running = session.prompt(prompt).catch((error: unknown) => {
       if (agent.status === "retired" || agent.status === "terminated" || this.stopRequested.has(agent.id)) {
         void this.finishRound(agent.id).catch(() => undefined);
         return;
@@ -764,6 +821,8 @@ export class TaskHub {
       this.failing.add(agent.id);
       void this.finishRound(agent.id).catch(() => undefined);
     });
+    this.runningPromises.add(running);
+    void running.finally(() => this.runningPromises.delete(running));
   }
 
   private async retireWriters(): Promise<void> {
@@ -804,7 +863,7 @@ export class TaskHub {
   }
 
   private requireSubmittable(agent: SubagentRecord): void {
-    if (this.stopRequested.has(agent.id) || agent.status === "retired" || agent.status === "terminated" || agent.status === "failed") {
+    if (this.cancelled || this.stopRequested.has(agent.id) || agent.status === "retired" || agent.status === "terminated" || agent.status === "failed") {
       refuse(`Writer 状态为${STATUS_LABEL[agent.status]}，不能提交`);
     }
   }
@@ -920,16 +979,18 @@ export class TaskHub {
   }
 
   private async notify(agent: SubagentRecord, artifacts: string[], outcome: string, note?: string): Promise<void> {
+    if (this.cancelled) return;
     let text: string;
     if (outcome === "failed") text = `[${agent.id} 失败] ${note ?? ""}`;
     else if (outcome === "stopped" || outcome === "retired") {
       text = artifacts.length > 0 ? `[${agent.id} 结束] 本轮提交：${artifacts.join("、")} ${note ?? ""}` : `[${agent.id} 结束，未提交产物] ${note ?? ""}`;
     } else if (artifacts.length > 0) text = `[${agent.id} 完成] 本轮提交：${artifacts.join("、")}`;
     else text = `[${agent.id} 结束，未提交产物] ${(this.sessions.get(agent.id)?.getLastAssistantText() ?? "").slice(0, 200)}`;
-    await this.contextSession?.sendCustomMessage(
+    this.notifications += 1;
+    try { await this.contextSession?.sendCustomMessage(
       { customType: "noya.notice", content: text.trim(), display: true },
       { triggerTurn: true, deliverAs: "followUp" },
-    );
+    ); } finally { this.notifications -= 1; }
   }
 }
 
@@ -946,4 +1007,3 @@ export function reloadHub(task: TaskLayout, config: NoyaConfig, runtime: ModelRu
   const registry = loadRegistry(task);
   return new TaskHub(task.work, task, registry, config, runtime, models, random);
 }
-
