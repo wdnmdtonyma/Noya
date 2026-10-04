@@ -1,0 +1,35 @@
+<!-- title: Noya · 写作任务 -->
+<!-- entry -->
+<!-- manifest
+state: workId, preview, run, works
+components: work-switcher, task-conversation, composer, reader, active-work-notice, dialogs
+-->
+<div id="app" class="app">
+  <header class="app-header">
+    <div class="brand"><span class="brand-mark">N</span><span>Noya</span></div>
+    <div class="header-divider"></div>
+    <div id="work-switcher" class="work-switcher" data-component="work-switcher"></div>
+    <div class="header-end"><span class="local-label"><i class="status-dot"></i>本机</span><button class="demo-label" data-action="about">演示原型</button></div>
+  </header>
+  <div id="active-work-notice" class="active-work-notice" data-component="active-work-notice" hidden></div>
+  <div class="workspace">
+    <main class="task-pane">
+      <div class="task-heading" id="task-heading"></div>
+      <div class="feed" id="feed" tabindex="0" aria-label="任务对话" data-component="task-conversation"><div id="messages" class="messages"></div></div>
+      <div class="composer-area" id="composer-area" data-component="composer">
+        <div id="reference" class="reference" hidden></div>
+        <form id="composer" class="composer">
+          <label class="sr-only" for="message">给 Noya 的要求</label>
+          <textarea id="message" rows="2" placeholder="聊聊想法，或告诉 Noya 接下来写什么…"></textarea>
+          <div class="composer-toolbar"><span id="composer-meta"></span><div class="composer-actions"><button type="button" class="quiet-button" data-action="stop" id="stop" hidden>停止</button><button type="submit" id="send" class="send-button" aria-label="发送消息"></button></div></div>
+        </form>
+        <div class="composer-foot"><span>Enter 发送 · Shift + Enter 换行</span><span id="save-hint">演示数据 · 未接入模型</span></div>
+      </div>
+    </main>
+    <aside id="reader" class="reader" data-component="reader" aria-label="正文阅读" hidden></aside>
+  </div>
+</div>
+<dialog id="dialog" data-component="dialogs"></dialog>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="/assets/demo-data.js"></script>
+<script src="/assets/task-ui.js"></script>
