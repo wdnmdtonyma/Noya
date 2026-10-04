@@ -11,6 +11,7 @@ import type { DecisionView, DraftView, MessageView, RunStatus } from "./local-co
 export interface PageRecord {
   status: RunStatus;
   sessionSaved?: boolean;
+  stoppedByAuthor?: boolean;
   error?: string;
   requests: Array<{ id: string; signature: string }>;
   messages: MessageView[];
@@ -71,14 +72,15 @@ export function readDrafts(task: TaskLayout, registry: TaskRegistry): DraftView[
     versions.set(draft.meta.chapter_id, version);
     const review = reviews.filter(r => r.draft_id === id).at(-1);
     const passed = review && Object.values(review.review.checks as Record<string, string>).every(v => v === "passed");
+    const conflicts = review && Object.values(review.review.checks as Record<string, string>).some(v => v === "failed");
     const feedback = (review?.review.feedback ?? []) as Array<{ kind: string; problem?: string; suggestion?: string; reason?: string }>;
     const last = registry.finalizations.filter(f => f.chapter_id === draft.meta.chapter_id).at(-1);
     const chapter = canon.chapters.get(draft.meta.chapter_id);
     return {
       draftId: id, chapterId: draft.meta.chapter_id, title: split.title, version,
       characters: [...split.content.replace(/\s/g, "")].length,
-      review: review ? passed ? "passed" : "issues" : "pending",
-      reviewText: review ? `${passed ? "四项内容检查通过" : "仍有冲突或待核实内容"}${feedback.length ? `\n${feedback.map(f => f.problem || f.reason || f.suggestion || JSON.stringify(f)).join("\n")}` : ""}` : "正文已保存，尚未完成检查。",
+      review: review ? passed ? "passed" : conflicts ? "issues" : "verification" : "pending",
+      reviewText: review ? `${passed ? "四项内容检查通过" : conflicts ? "本版检查记录发现内容冲突。" : "本版检查记录包含核实项；Context Agent 的核实结果见本版交稿说明。"}${feedback.length ? `\n${feedback.map(f => `${f.kind === "suggestion" ? "编辑建议" : f.kind === "needs_verification" ? "核实记录" : "内容冲突"}：${f.problem || f.reason || f.suggestion || "见交稿说明"}`).join("\n")}` : ""}` : "正文已保存，尚未完成检查。",
       finalized: last?.draft_id === id && chapter?.content === split.content,
       replaces: !!chapter,
       fingerprint: contentHash(JSON.stringify({ id, body: draft.markdown, chapter: chapter ?? null, finalization: last ?? null })),

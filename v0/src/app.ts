@@ -1,7 +1,7 @@
 import { createAgentSessionRuntime, type AgentSessionRuntime, type ModelRuntime, SessionManager } from "@earendil-works/pi-coding-agent";
 import type { NoyaConfig, RoleName } from "./config.ts";
 import { TaskHub } from "./hub.ts";
-import { createTaskRecord, latestTask, saveRegistry, type WorkLayout } from "./layout.ts";
+import { createTaskRecord, latestTask, markInterruptedAgents, saveRegistry, type WorkLayout } from "./layout.ts";
 import type { RoleBinding } from "./models.ts";
 import { createRoleSession } from "./session.ts";
 
@@ -15,18 +15,7 @@ export async function openWritingSession(options: {
 }): Promise<{ hub: TaskHub; runtimeHost: AgentSessionRuntime }> {
   const existing = options.resume ? latestTask(options.work) : undefined;
   if (existing) {
-    for (const agent of existing.registry.subagents) {
-      if (agent.status === "running" || agent.status === "idle") {
-        agent.status = "terminated";
-        agent.failureReason = "进程退出";
-        const round = agent.rounds.at(-1);
-        if (round && !round.endedAt) {
-          round.endedAt = new Date().toISOString();
-          round.outcome = "retired";
-          round.note = "进程退出";
-        }
-      }
-    }
+    markInterruptedAgents(existing.registry);
     saveRegistry(existing.task, existing.registry);
   }
   const opened = existing ?? createTaskRecord(options.work);

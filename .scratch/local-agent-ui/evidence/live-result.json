@@ -1,0 +1,105 @@
+{
+  "recordedAt": "2026-10-04T16:58:14.251807+00:00",
+  "provider": "openai",
+  "model": "gpt-6.1-sol",
+  "thinking": "xhigh",
+  "workId": "w2aa57b97",
+  "taskId": "t7b0fc1f2",
+  "secondWorkId": "wc67069e2",
+  "drafts": [
+    {
+      "id": "draft_1",
+      "sha256": "a3ef10b37cb4531eb1ff9019c64456a1139fc23e3de58958990d66e3b45debe1"
+    },
+    {
+      "id": "draft_2",
+      "sha256": "3e4e9b195ed5f7666e31757abfefc0e1d0bcb5a98c627705e0de57aec44cc149"
+    },
+    {
+      "id": "draft_3",
+      "sha256": "1bf673a45baaed2de0a8abe79072f254db7eeed08d3876ef8ea5ed481a611ed4"
+    }
+  ],
+  "exactWordingRevision": true,
+  "formalBodyMatchesDraft3": true,
+  "finalizations": [
+    {
+      "chapter_id": "chapter_1",
+      "draft_id": "draft_2",
+      "at": "2026-10-04T16:44:37.924Z"
+    },
+    {
+      "chapter_id": "chapter_1",
+      "draft_id": "draft_3",
+      "at": "2026-10-04T16:51:33.393Z"
+    }
+  ],
+  "pendingChapters": [],
+  "chapterSummary": "风雨之夜，沈姓旅人走岔路，看见灯光后进入路边旧驿站避雨。掌柜已摆好热汤，招呼他就坐，又称他为“沈先生”。旅人指出自己没有报姓，退至门边查看外面的风雨，合门后追问掌柜是否一直等候及自己若不进来会怎样。正文止于追问，人物来历、备汤与知姓的原因均未揭示。",
+  "keyCharacters": [
+    "char_shen_traveler",
+    "char_innkeeper"
+  ],
+  "outlineNodes": 1,
+  "agents": [
+    {
+      "id": "writer-1",
+      "role": "writer",
+      "status": "terminated",
+      "artifacts": [
+        "plan_1",
+        "draft_1",
+        "draft_2",
+        "draft_3"
+      ]
+    },
+    {
+      "id": "reviewer-1",
+      "role": "reviewer",
+      "status": "terminated",
+      "artifacts": [
+        "review_1"
+      ]
+    },
+    {
+      "id": "reviewer-2",
+      "role": "reviewer",
+      "status": "terminated",
+      "artifacts": [
+        "review_2"
+      ]
+    },
+    {
+      "id": "reviewer-3",
+      "role": "reviewer",
+      "status": "terminated",
+      "artifacts": [
+        "review_3"
+      ]
+    },
+    {
+      "id": "sync_checker-1",
+      "role": "sync_checker",
+      "status": "terminated",
+      "artifacts": [
+        "check_1"
+      ]
+    },
+    {
+      "id": "sync_checker-2",
+      "role": "sync_checker",
+      "status": "idle",
+      "artifacts": [
+        "check_2"
+      ]
+    }
+  ],
+  "startupNotices": [
+    "本机服务已重新启动。正文仍已定稿，正在从保存的材料继续未完成的资料同步。"
+  ],
+  "finalStates": {
+    "w2aa57b97": "stopped",
+    "wc67069e2": "stopped"
+  },
+  "active": null
+}

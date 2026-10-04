@@ -122,6 +122,16 @@ export interface TaskRegistry {
   finalizations: FinalizationRecord[];
 }
 
+export function markInterruptedAgents(registry: TaskRegistry): void {
+  for (const agent of registry.subagents) {
+    if (agent.status !== "running" && agent.status !== "idle") continue;
+    agent.status = "terminated";
+    agent.failureReason = "进程退出";
+    const round = agent.rounds.at(-1);
+    if (round && !round.endedAt) { round.endedAt = new Date().toISOString(); round.outcome = "retired"; round.note = "进程退出"; }
+  }
+}
+
 export function loadRegistry(task: TaskLayout): TaskRegistry {
   return JSON.parse(readFileSync(task.registryFile, "utf8")) as TaskRegistry;
 }

@@ -24,6 +24,7 @@ const messageNodes = new Map<string, HTMLElement>();
 const labels: Record<string, string> = { idle: "可以继续聊聊", running: "正在处理", stopping: "正在停止…", stopped: "已停止 · 记录已保留", interrupted: "上次执行已中断", failed: "本轮未完成" };
 const roles: Record<string, string> = { writer: "Writing Agent", reviewer: "正文检查员", sync_checker: "同步核对员" };
 const agentStates: Record<string, string> = { running: "正在处理", idle: "本轮完成", stopped: "已停止", retired: "已结束", terminated: "已中断", failed: "失败" };
+type CommandAction = { [K in PageCommand["kind"]]: Omit<Extract<PageCommand, { kind: K }>, keyof TaskRef | "requestId"> }[PageCommand["kind"]];
 
 function readStorage(key: string): string | null { try { return localStorage.getItem(key); } catch { return null; } }
 function writeStorage(key: string, value: string): void { try { localStorage.setItem(key, value); } catch { $("save-hint").textContent = "浏览器未允许保存输入"; } }
@@ -93,6 +94,7 @@ async function selectWork(id: string): Promise<void> {
   input.value = readStorage(`noya.input.${id}`) ?? "";
   reference = readStorage(`noya.reference.${id}`) || undefined;
   snapshot.task = null; renderedTask = ""; messageNodes.clear(); $("messages").replaceChildren();
+  for (const id of ["stream", "execution", "decision", "sync-notice", "task-error"]) $(id).hidden = true;
   $("task-title").textContent = "正在读取任务…"; $("work-name").textContent = name();
   updateComposer(); await refresh();
   const savedReader = readStorage(`noya.reader.${id}`);
@@ -122,7 +124,7 @@ function render(): void {
     if (message.role === "notice" && message.draftId) {
       const draft = task.drafts.find(d => d.draftId === message.draftId);
       if (draft) html = draftCard(draft);
-    } else html = `<div class="message-label">${message.role === "user" ? "你" : "CONTEXT AGENT"}${message.draftId ? ` · ${escape(task.drafts.find(d => d.draftId === message.draftId)?.title ?? "正文")} · 第 ${task.drafts.find(d => d.draftId === message.draftId)?.version ?? "?"} 版` : ""}</div><div class="message-body">${message.role === "user" ? escape(message.text) : rich(message.text)}</div>`;
+    } else html = `<div class="message-label">${message.role === "user" ? "你" : message.role === "notice" ? "本机服务" : "CONTEXT AGENT"}${message.draftId ? ` · ${escape(task.drafts.find(d => d.draftId === message.draftId)?.title ?? "正文")} · 第 ${task.drafts.find(d => d.draftId === message.draftId)?.version ?? "?"} 版` : ""}</div><div class="message-body">${message.role === "user" ? escape(message.text) : rich(message.text)}</div>`;
     if (node.innerHTML !== html) { node.innerHTML = html; changed = true; }
   }
   $("stream").hidden = !task.streaming;
@@ -146,15 +148,15 @@ function render(): void {
   if (changed) { if (atBottom) scrollBottom(); else $("new-content").hidden = false; }
 }
 function draftCard(draft: DraftView): string {
-  return `<button class="draft-card" data-draft="${escape(draft.draftId)}"><span class="draft-card-top">正文 · 第 ${draft.version} 版 <span class="badge ${draft.review === "passed" ? "" : "warn"}">${draft.finalized ? "已定稿" : draft.review === "pending" ? "已保存 · 待检查" : "初稿"}</span></span><h3>${escape(draft.title)}</h3><span class="draft-card-bottom"><span>${draft.characters.toLocaleString()} 字 · ${draft.review === "passed" ? "四项检查通过" : draft.review === "pending" ? "检查尚未完成" : "有待处理的问题"}</span><strong>阅读全文 ↗</strong></span></button>`;
+  return `<button class="draft-card" data-draft="${escape(draft.draftId)}"><span class="draft-card-top">正文 · 第 ${draft.version} 版 <span class="badge ${draft.review === "passed" ? "" : "warn"}">${draft.finalized ? "已定稿" : draft.review === "pending" ? "已保存 · 待检查" : "初稿"}</span></span><h3>${escape(draft.title)}</h3><span class="draft-card-bottom"><span>${draft.characters.toLocaleString()} 字 · ${draft.review === "passed" ? "四项检查通过" : draft.review === "pending" ? "检查尚未完成" : draft.review === "verification" ? "检查含核实记录" : "检查发现内容冲突"}</span><strong>阅读全文 ↗</strong></span></button>`;
 }
 function renderExecution(task: TaskView): void {
   $("execution").hidden = !task.agents.length && task.status !== "running" && task.status !== "stopping";
-  const open = $("execution").querySelector("details")?.open;
   const running = task.agents.filter(a => a.status === "running");
   const summary = task.status === "stopping" ? "正在停止全部执行，等待确认结束" : running.length ? running.map(a => `${roles[a.role]}正在处理`).join(" · ") : task.status === "running" ? task.activity ?? "Context Agent 正在处理" : `${task.agents.length} 条 Agent 工作记录`;
-  const html = `<details ${open ? "open" : ""}><summary>${task.status === "running" ? '<i class="pulse"></i>' : ""}${escape(summary)}</summary>${task.agents.map(a => `<div class="agent-row"><span>${escape(roles[a.role] ?? a.role)}</span><span>${escape(agentStates[a.status] ?? a.status)}</span><small>${escape(a.detail)}</small></div>`).join("")}</details>`;
-  setHTML("execution", html);
+  if (!$("execution").querySelector("details")) $("execution").innerHTML = '<details><summary id="execution-summary"></summary><div id="execution-rows"></div></details>';
+  setHTML("execution-summary", `${task.status === "running" ? '<i class="pulse"></i>' : ""}${escape(summary)}`);
+  setHTML("execution-rows", task.agents.map(a => `<div class="agent-row"><span>${escape(roles[a.role] ?? a.role)}</span><span>${escape(agentStates[a.status] ?? a.status)}</span><small>${escape(a.detail)}</small></div>`).join(""));
 }
 function updateComposer(): void {
   const task = snapshot.task;
@@ -169,7 +171,7 @@ function updateComposer(): void {
   if (reference) setHTML("reference", `<span>针对《${escape(draft?.title ?? "已保存正文")}》第 ${draft?.version ?? "?"} 版提出意见</span><button class="quiet-button" data-action="clear-reference" aria-label="取消稿件引用">×</button>`);
 }
 function scrollBottom(): void { feed.scrollTop = feed.scrollHeight; $("new-content").hidden = true; }
-async function send(action: Omit<PageCommand, "workId" | "taskId" | "requestId"> | Record<string, unknown>, target?: TaskRef): Promise<boolean> {
+async function send(action: CommandAction, target?: TaskRef): Promise<boolean> {
   const task = target ?? snapshot.task;
   if (!task || sending || !connected) return false;
   sending = true; updateComposer();
@@ -177,8 +179,14 @@ async function send(action: Omit<PageCommand, "workId" | "taskId" | "requestId">
   try { await api("/api/command", command); await refresh(); return true; }
   catch (error) {
     await refresh();
-    const actual = snapshot.task;
-    if (actual?.taskId === command.taskId && actual.messages.some(m => m.id === command.requestId)) { toast("请求已经收到，已恢复实际任务状态。"); return true; }
+    let actual = snapshot.task;
+    if (actual?.taskId !== command.taskId) {
+      try { actual = (await api<AppSnapshot>(`/api/state?work=${encodeURIComponent(command.workId)}`)).task; } catch { actual = null; }
+    }
+    const saved = action.kind === "finalize"
+      ? actual?.taskId === command.taskId && actual.drafts.some(d => d.draftId === action.draftId && d.finalized)
+      : actual?.taskId === command.taskId && actual.messages.some(m => m.id === command.requestId);
+    if (saved) { toast("已恢复实际保存结果。"); return true; }
     toast(error instanceof Error ? error.message : "请求结果未知，请查看实际任务状态后再决定。"); return false;
   }
   finally { sending = false; updateComposer(); }
@@ -188,10 +196,11 @@ async function submit(): Promise<void> {
   if (!text || $<HTMLButtonElement>("send").disabled) return;
   const sentWork = workId; const sentText = input.value;
   const decision = snapshot.task?.decision;
-  const action = decision && !snapshot.active ? { kind: "decide", decisionId: decision.id, answer: text } : { kind: "message", text, ...(reference ? { draftId: reference } : {}) };
+  const action: CommandAction = decision && !snapshot.active ? { kind: "decide", decisionId: decision.id, answer: text } : { kind: "message", text, ...(reference ? { draftId: reference } : {}) };
   if (await send(action)) {
     if (workId === sentWork && input.value === sentText) { input.value = ""; reference = undefined; persistInput(); autosize(); updateComposer(); }
-    scrollBottom(); input.focus();
+    else if (workId !== sentWork && readStorage(`noya.input.${sentWork}`) === sentText) { writeStorage(`noya.input.${sentWork}`, ""); writeStorage(`noya.reference.${sentWork}`, ""); }
+    if (workId === sentWork) { scrollBottom(); input.focus(); }
   }
 }
 function autosize(): void { input.style.height = "auto"; input.style.height = `${Math.min(180, input.scrollHeight)}px`; }
@@ -221,24 +230,26 @@ async function openDraft(id: string, focus = true): Promise<void> {
 function renderReader(): void {
   if (!reading) return;
   setHTML("reader-meta", `<span>${escape(name())}</span><span>第 ${reading.version} 版 · ${reading.characters.toLocaleString()} 字</span>${reading.finalized ? '<span class="badge">已定稿</span>' : ""}`);
-  $("review-label").textContent = reading.review === "passed" ? "✓ 四项内容检查通过 · 展开结论" : reading.review === "pending" ? "检查尚未完成" : "检查有待处理的问题 · 展开结论";
+  $("review-label").textContent = reading.review === "passed" ? "✓ 四项内容检查通过 · 展开结论" : reading.review === "pending" ? "检查尚未完成" : reading.review === "verification" ? "检查含核实记录 · 结合交稿说明阅读" : "检查发现内容冲突 · 展开结论";
   $("review-content").textContent = reading.reviewText;
   $<HTMLButtonElement>("finalize").disabled = !connected || !!snapshot.active || reading.finalized || sending;
   $("finalize").textContent = reading.finalized ? "本版已定稿" : "将这版定稿";
 }
 function closeReader(clear = true): void {
   reader.hidden = true; reading = undefined; $("task-pane").inert = false; $("app").querySelector<HTMLElement>(".app-header")!.inert = false;
+  $("active-notice").inert = false; $("connection-error").inert = false;
   reader.removeAttribute("role"); reader.removeAttribute("aria-modal"); if (clear && workId) writeStorage(`noya.reader.${workId}`, ""); readerOpener?.focus();
 }
 function responsiveReader(): void {
   const modal = !reader.hidden && matchMedia("(max-width: 780px)").matches;
   $("task-pane").inert = modal; $("app").querySelector<HTMLElement>(".app-header")!.inert = modal;
+  $("active-notice").inert = modal; $("connection-error").inert = modal;
   if (modal) { reader.setAttribute("role", "dialog"); reader.setAttribute("aria-modal", "true"); } else { reader.removeAttribute("role"); reader.removeAttribute("aria-modal"); }
 }
 function confirmFinalize(): void {
   const draft = reading; if (!draft || !snapshot.task) return;
   const target = { workId, taskId: snapshot.task.taskId };
-  showDialog(`<span class="eyebrow">将故事落定</span><h2 id="dialog-title">确认这一版正文</h2><p>${escape(name())}<br><strong>《${escape(draft.title)}》 · 第 ${draft.version} 版</strong><br>${draft.replaces ? "将替换该章已有的正式正文。旧稿仍可阅读。" : "这份正文将成为作品的正式内容。"}<br>${draft.review !== "passed" ? "本版检查仍未全部通过，请确认你已阅读相关结论。<br>" : ""}正文保存后，Noya 会继续整理资料。</p><div class="dialog-actions"><button class="secondary" data-action="close-dialog">再读一读</button><button id="confirm-finalize" class="primary">确认定稿</button></div>`);
+  showDialog(`<span class="eyebrow">将故事落定</span><h2 id="dialog-title">确认这一版正文</h2><p>${escape(name())}<br><strong>《${escape(draft.title)}》 · 第 ${draft.version} 版</strong><br>${draft.replaces ? "将替换该章已有的正式正文。旧稿仍可阅读。" : "这份正文将成为作品的正式内容。"}<br>${draft.review !== "passed" ? "请结合本版检查记录与交稿说明，确认你接受这份正文。<br>" : ""}正文保存后，Noya 会继续整理资料。</p><div class="dialog-actions"><button class="secondary" data-action="close-dialog">再读一读</button><button id="confirm-finalize" class="primary">确认定稿</button></div>`);
   $("confirm-finalize").onclick = async () => { $<HTMLButtonElement>("confirm-finalize").disabled = true; closeDialog(); if (await send({ kind: "finalize", draftId: draft.draftId, fingerprint: draft.fingerprint, confirmed: true }, target)) toast("正文已定稿，资料同步会继续进行。"); };
 }
 function confirmStop(): void {

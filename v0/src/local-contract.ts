@@ -5,7 +5,7 @@ export interface TaskRef { workId: string; taskId: string }
 export interface MessageView { id: string; role: "user" | "assistant" | "notice"; text: string; at: number; draftId?: string }
 export interface DraftView {
   draftId: string; chapterId: string; title: string; version: number; characters: number;
-  review: "pending" | "passed" | "issues"; reviewText: string; finalized: boolean;
+  review: "pending" | "passed" | "verification" | "issues"; reviewText: string; finalized: boolean;
   replaces: boolean; fingerprint: string;
 }
 export interface DecisionView { id: string; title: string; detail: string; options: string[] }

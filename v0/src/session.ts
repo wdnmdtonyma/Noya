@@ -35,6 +35,13 @@ export const ROLE_TOOLS: Record<RoleName, string[]> = {
   sync_checker: ["save_sync_check", "query_canon", "read", "grep"],
 };
 
+/** Record an actual author action without starting a model turn (e.g. explicit finalization). */
+export function recordAuthorMessage(session: AgentSession, text: string, timestamp = Date.now()): void {
+  const message = { role: "user" as const, content: text, timestamp };
+  session.sessionManager.appendMessage(message);
+  session.agent.state.messages = [...session.messages, message];
+}
+
 export async function createRoleSession(options: {
   role: RoleName;
   cwd: string;

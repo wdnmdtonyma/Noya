@@ -3,17 +3,18 @@ import { existsSync, lstatSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { openWritingSession } from "./app.ts";
 import { findById, loadCanon } from "./canon.ts";
-import { createWork, createTaskRecord, latestTask, listTasks, loadDraft, saveRegistry, workLayout, listArtifactIds, readJsonFile, type CheckArtifact, type ProposalArtifact, type WorkLayout, type TaskLayout, type TaskRegistry } from "./layout.ts";
+import { createWork, createTaskRecord, latestTask, listTasks, loadDraft, markInterruptedAgents, saveRegistry, workLayout, listArtifactIds, readJsonFile, type CheckArtifact, type ProposalArtifact, type WorkLayout, type TaskLayout, type TaskRegistry } from "./layout.ts";
 import type { NoyaConfig } from "./config.ts";
 import type { AppSnapshot, PageCommand, TaskRef } from "./local-contract.ts";
 import { contentHash, isId, refuse } from "./util.ts";
 import { resolveRoleModels } from "./models.ts";
 import { assistantFailure, messageText } from "./transcript.ts";
 import { pageRecord, readDrafts, readMessages, savePageRecord, type PageRecord } from "./local-records.ts";
+import { recordAuthorMessage } from "./session.ts";
 
 type Runtime = Awaited<ReturnType<typeof resolveRoleModels>>;
 type Opened = Awaited<ReturnType<typeof openWritingSession>>;
-type Entry = { task: TaskLayout; registry: TaskRegistry; page: PageRecord; opened?: Opened; opening?: Promise<Opened>; submitting: number; streaming?: string; activity?: string };
+type Entry = { task: TaskLayout; registry: TaskRegistry; page: PageRecord; opened?: Opened; opening?: Promise<Opened>; stopping?: Promise<void>; submitting: number; streaming?: string; activity?: string };
 
 export class AppError extends Error {
   status: number;
@@ -57,14 +58,10 @@ export class LocalApp {
     if (!entry) {
       const page = pageRecord(saved.task);
       if (page.status === "running" || page.status === "stopping") {
-        page.status = "interrupted";
-        page.error = "本机程序已退出，上次执行中断。已保存的对话和正文仍在。";
+        page.status = page.stoppedByAuthor ? "stopped" : "interrupted";
+        page.error = page.stoppedByAuthor ? undefined : "本机程序已退出，上次执行中断。已保存的对话和正文仍在。";
       }
-      for (const agent of saved.registry.subagents) if (agent.status === "running" || agent.status === "idle") {
-        agent.status = "terminated"; agent.failureReason = "进程退出，原 Agent 不再运行";
-        const round = agent.rounds.at(-1);
-        if (round && !round.endedAt) { round.endedAt = new Date().toISOString(); round.outcome = "retired"; round.note = agent.failureReason; }
-      }
+      markInterruptedAgents(saved.registry);
       saveRegistry(saved.task, saved.registry);
       savePageRecord(saved.task, page);
       entry = { ...saved, page, submitting: 0 };
@@ -83,7 +80,7 @@ export class LocalApp {
     const works: AppSnapshot["works"] = [];
     if (existsSync(this.config.worksRoot)) for (const dir of readdirSync(this.config.worksRoot, { withFileTypes: true })) {
       if (!dir.isDirectory() || !isId(dir.name) || !existsSync(join(this.config.worksRoot, dir.name, "canon", "sync.json"))) continue;
-      const item = { workId: dir.name, name: `未命名作品 · ${dir.name.slice(-4)}` };
+      const item = { workId: dir.name, name: `未命名作品 · ${dir.name}` };
       try { loadCanon(this.work(dir.name).workDir); works.push(item); }
       catch { works.push({ ...item, error: `作品 ${dir.name} 的资料记录损坏` }); }
     }
@@ -123,9 +120,7 @@ export class LocalApp {
       const opened = await openWritingSession({ work: entry.task.work, config: this.config, ...this.runtime, resume: true });
       entry.opened = opened;
       if (restoreAccepted) for (const accepted of entry.page.messages.filter(m => m.role === "user")) {
-        const author = { role: "user" as const, content: `[页面作者]\n${accepted.text}${accepted.draftId ? `\n作者引用的稿件：${accepted.draftId}` : ""}`, timestamp: accepted.at };
-        opened.runtimeHost.session.sessionManager.appendMessage(author);
-        opened.runtimeHost.session.agent.state.messages.push(author);
+        recordAuthorMessage(opened.runtimeHost.session, `[页面作者]\n${accepted.text}${accepted.draftId ? `\n作者引用的稿件：${accepted.draftId}` : ""}`, accepted.at);
       }
       opened.hub.confirmPageWrite = (kind, args) => this.confirmWrite(entry, kind, args);
       opened.hub.requestPageDecision = args => {
@@ -135,7 +130,13 @@ export class LocalApp {
       };
       opened.runtimeHost.session.subscribe(event => {
         if (event.type === "message_update" && event.message.role === "assistant") entry.streaming = messageText(event.message);
-        if (event.type === "message_end") { entry.streaming = undefined; entry.page.sessionSaved = existsSync(opened.hub.registry.context_session_file); }
+        if (event.type === "message_end") {
+          entry.streaming = undefined;
+          if (!entry.page.sessionSaved && existsSync(opened.hub.registry.context_session_file)) {
+            entry.page.sessionSaved = true;
+            try { savePageRecord(entry.task, entry.page); } catch (error) { entry.page.error = `保存任务记录失败：${errorText(error)}`; }
+          }
+        }
         if (event.type === "tool_execution_start") entry.activity = activityLabels[event.toolName] ?? "Context Agent 正在查阅写作材料";
       });
       await opened.runtimeHost.session.sendCustomMessage({ customType: "noya.page", display: false, content: "作者正在本机任务页面。正文从交稿卡片阅读，定稿由页面明确选择版本；不要让作者输入 /finalize 或寻找文件。普通讨论不开始写作。页面引用的稿件是修改的唯一基准，即使已有新稿；先读取指定稿件。原 Writer 已终止时必须告知作者并根据保存材料重新安排。写入资料时页面会把确切变更呈现给作者；工具说等待页面确认时结束本轮，不重复尝试。作者明确停止不自动恢复。" }, { triggerTurn: false });
@@ -179,8 +180,19 @@ export class LocalApp {
       if (work.error) continue;
       try {
         const entry = this.entry(work.workId);
-        if (entry.page.status !== "interrupted" || entry.page.decision || !loadCanon(entry.task.work.workDir).sync.pending_chapter_ids.length) continue;
-        await this.command({ kind: "continue", workId: work.workId, taskId: entry.task.taskId, requestId: randomUUID() });
+        if (entry.page.status !== "interrupted" || entry.page.stoppedByAuthor || entry.page.decision || !loadCanon(entry.task.work.workDir).sync.pending_chapter_ids.length) continue;
+        this.active = { workId: work.workId, taskId: entry.task.taskId };
+        entry.submitting += 1;
+        entry.page.status = "running"; entry.page.error = undefined;
+        const notice = "本机服务已重新启动。正文仍已定稿，正在从保存的材料继续未完成的资料同步。";
+        entry.page.messages.push({ id: randomUUID(), role: "notice", text: notice, at: Date.now() });
+        try {
+          savePageRecord(entry.task, entry.page);
+          const opened = await this.open(entry);
+          opened.hub.beginAuthorTurn();
+          this.run(entry, opened.runtimeHost.session.sendCustomMessage({ customType: "noya.resume", content: `${notice} 原子 Agent 已退出，请根据已保存的清单和结果安排后续步骤，不重新定稿、不越过作者决定。`, display: true }, { triggerTurn: true, deliverAs: "followUp" }));
+        } catch (error) { entry.page.error = errorText(error); }
+        finally { entry.submitting -= 1; this.settle(); }
         return;
       } catch { /* The affected task retains its failure; other works remain readable. */ }
     }
@@ -205,17 +217,16 @@ export class LocalApp {
     const entry = this.target(command);
     const signature = contentHash(JSON.stringify(command));
     const existing = entry.page.requests.find(r => r.id === command.requestId);
-    if (existing) { if (existing.signature !== signature) throw new AppError(409, "请求标识已用于另一个操作"); return { accepted: true }; }
+    if (existing) {
+      if (existing.signature !== signature) throw new AppError(409, "请求标识已用于另一个操作");
+      if (command.kind === "finalize" && !(await this.draft(command, command.draftId)).finalized) throw new AppError(409, "本次定稿未完成或正式版本已改变，请重新阅读并确认");
+      return { accepted: true };
+    }
     if (command.kind === "stop") {
-      if (this.active?.taskId !== command.taskId) throw new AppError(409, "该任务当前没有执行中的工作");
-      entry.page.status = "stopping"; savePageRecord(entry.task, entry.page);
-      try {
-        if (entry.opening) await entry.opening;
-        await entry.opened?.hub.stopTask();
-        entry.page.status = "stopped"; entry.streaming = undefined; entry.page.error = undefined;
-        entry.page.requests.push({ id: command.requestId, signature });
-        savePageRecord(entry.task, entry.page); this.active = null;
-      } catch (error) { entry.page.error = `停止未完成：${errorText(error)}`; savePageRecord(entry.task, entry.page); throw error; }
+      if (this.active?.taskId !== command.taskId && !entry.stopping) throw new AppError(409, "该任务当前没有执行中的工作");
+      entry.stopping ??= this.stop(entry);
+      try { await entry.stopping; } finally { entry.stopping = undefined; }
+      entry.page.requests.push({ id: command.requestId, signature }); savePageRecord(entry.task, entry.page);
       return { accepted: true };
     }
     if (this.active && (this.active.taskId !== command.taskId || command.kind !== "message" || entry.page.status === "stopping")) throw new AppError(409, "已有作者任务正在执行，请返回它或先停止");
@@ -236,11 +247,15 @@ export class LocalApp {
       const { hub, runtimeHost } = await this.open(entry);
       if (String(entry.page.status) === "stopping") throw new AppError(409, "任务正在停止，请稍后继续");
       hub.beginAuthorTurn();
+      entry.page.stoppedByAuthor = false;
       if (command.kind === "message") hub.selectPageDraft(command.draftId);
       const session = runtimeHost.session;
       if (command.kind === "decide") {
         const decision = entry.page.decision!;
-        if (decision.fingerprint !== this.confirmationFingerprint(entry, decision.args)) throw new AppError(409, "作品资料已变化，这次确认已过期。请重新说明要保存的内容。");
+        if (decision.fingerprint !== this.confirmationFingerprint(entry, decision.args)) {
+          delete entry.page.decision; delete entry.page.approved; savePageRecord(entry.task, entry.page);
+          throw new AppError(409, "作品资料已变化，这次确认已过期。请重新说明要保存的内容。");
+        }
         if (!decision.options.includes(command.answer) && !command.answer.trim()) throw new AppError(400, "请填写作者决定");
         text = `针对“${decision.title}”\n${decision.detail}\n作者决定：${command.answer}\n对应内容：${JSON.stringify(decision.args)}`;
         if (decision.kind !== "direction" && command.answer === decision.options[0]) entry.page.approved = { kind: decision.kind, fingerprint: decision.fingerprint };
@@ -253,8 +268,7 @@ export class LocalApp {
       let prompt = `[页面作者]\n${text}`;
       if (command.kind === "message" && command.draftId) prompt += `\n\n作者正在阅读并引用稿件 ${command.draftId}。必须以此版本为准，先读取 tasks/${command.taskId}/artifacts/${command.draftId}.md；不能替换成最新版。纯措辞修改请 edit tasks/${command.taskId}/revision.md（已复制所读版本），然后 save_revision；这条路径不需要恢复旧 Writer。涉及内容的修改仍交给 Writer。`;
       if (command.kind === "finalize") {
-        const author = { role: "user" as const, content: prompt, timestamp: Date.now() };
-        session.sessionManager.appendMessage(author); session.agent.state.messages = [...session.messages, author];
+        recordAuthorMessage(session, prompt);
         const notice = await hub.finalize(command.draftId);
         this.run(entry, session.sendCustomMessage({ customType: "noya.notice", content: notice, display: true }, { triggerTurn: true, deliverAs: "followUp" }));
       } else this.run(entry, session.prompt(prompt, { streamingBehavior: "steer" }));
@@ -268,6 +282,16 @@ export class LocalApp {
   private run(entry: Entry, promise: Promise<unknown>): void {
     entry.submitting += 1;
     void promise.catch(error => { entry.page.error = errorText(error); }).finally(() => { entry.submitting -= 1; this.settle(); });
+  }
+  private async stop(entry: Entry): Promise<void> {
+    entry.page.status = "stopping"; entry.page.stoppedByAuthor = true; savePageRecord(entry.task, entry.page);
+    try {
+      if (entry.opening) await entry.opening;
+      await entry.opened?.hub.stopTask();
+      entry.page.status = "stopped"; entry.streaming = undefined; entry.page.error = undefined;
+      savePageRecord(entry.task, entry.page);
+      if (this.active?.taskId === entry.task.taskId) this.active = null;
+    } catch (error) { entry.page.error = `停止未完成：${errorText(error)}`; savePageRecord(entry.task, entry.page); throw error; }
   }
   private settle(): void {
     if (this.closed || !this.active) return;
