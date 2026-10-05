@@ -30,7 +30,7 @@ description: 作者要写新的一章、重写已定稿的章节，或对正在�
 
 ## 3. 保存并派出写手
 
-`save_package` → `spawn_subagent({ role: "writer", package_id })`。因有待同步章节被拒 → 先按 `context-sync` 完成同步，再回来。派出后简短告诉作者，结束本轮等通知。
+`save_package` → `spawn_subagent({ role: "writer", package_id })`。因有待同步章节被拒 → 本任务负责的章节按 `context-sync` 处理；工具指向另一任务时，请作者返回该同步任务，不接管其决定或停止状态。同步完成后等作者回到本任务明确继续。派出后简短告诉作者，结束本轮等通知。
 
 ## 4. 检查方案
 

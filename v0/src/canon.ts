@@ -1,3 +1,5 @@
+import { relative } from "node:path";
+import { git } from "./util.ts";
 import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { checkSchema, validators } from "./schema.ts";
@@ -604,4 +606,21 @@ export function limitDepth(node: WorldNode, depth: number | undefined): WorldNod
   }
   copy.children = copy.children.map((child) => (isRef(child) ? child : limitDepth(child, depth - 1)));
   return copy;
+}
+
+export function commitCanon(workDir: string, files: string[], message: string): string {
+  if (files.length === 0) return "没有文件变化";
+  const paths = files.map((file) => relative(workDir, file));
+  const status = git(workDir, ["status", "--porcelain", "--untracked-files=all"]);
+  const ours = new Set(paths);
+  const others = status
+    .split("\n")
+    .map((line) => line.slice(3))
+    .map((path) => path.split(" -> ").at(-1) ?? path)
+    .filter((path) => path && !ours.has(path));
+  git(workDir, ["add", "-A", "--", ...paths]);
+  if (!git(workDir, ["diff", "--cached", "--name-only", "--", ...paths])) return "正文已接受，没有文件内容变化";
+  git(workDir, ["commit", "-m", message, "--", ...paths]);
+  const commit = git(workDir, ["rev-parse", "--short", "HEAD"]);
+  return `提交 ${commit}${others.length > 0 ? `\n正式区另有未提交修改：${others.join("、")}` : ""}`;
 }

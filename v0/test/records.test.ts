@@ -174,7 +174,7 @@ describe("记录不被写错", { concurrency: false }, () => {
     await turn(fx, "把旧清单写进去", [
       fauxAssistantMessage([fauxToolCall("apply_sync", { proposal_id: "proposal_1", change_ids: ["sum"] })]),
     ]);
-    assert.match(toolTexts(fx.session, "apply_sync").at(-1) ?? "", /\[拒绝\].*定稿正文已经和这份清单不一致/);
+    assert.match(toolTexts(fx.session, "apply_sync").at(-1) ?? "", /\[拒绝\].*旧同步清单已过期/);
     const chapter = JSON.parse(readFileSync(join(fx.work.workDir, "canon", "chapters", "ch1.json"), "utf8"));
     assert.equal(chapter.summary, "");
     assert.match(chapter.content, /什么都没找到/);

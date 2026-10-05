@@ -1,0 +1,34 @@
+### Result
+{"checks":["legacy explicit claim","cross-work busy input","exact stop from other work","third task returns stopped owner","work/task dialog focus and content"]}
+### Ran Playwright code
+```js
+await (async page => {
+  const check=(ok,msg)=>{if(!ok)throw new Error(msg);};
+  const work=await page.evaluate(()=>localStorage.getItem('noya.work'));
+  const state=await(await page.request.get(page.url()+`api/state?work=${work}`)).json();
+  const b=state.task.taskId,other=state.works.find(w=>w.workId!==work).workId;
+  await page.locator('[data-claim="legacy"]').click();
+  await page.waitForFunction(()=>document.querySelector('#sync-notice').textContent.includes('当前任务'));
+  await page.locator('[data-action="continue"]').click();
+  await page.locator('#stop').waitFor({state:'visible'});
+  await page.locator('#work-switcher').click();await page.locator(`[data-work="${other}"]`).click();
+  await page.locator('#active-notice').waitFor({state:'visible'});
+  await page.locator('#message').fill('另一部作品保留输入');check(await page.locator('#send').isDisabled(),'cross-work busy lock');
+  await page.locator('[data-action="stop-active"]').click();await page.locator('#confirm-stop').click();
+  await page.locator('#active-notice').waitFor({state:'hidden'});
+  check(await page.locator('#message').inputValue()==='另一部作品保留输入','stop cleared other work input');
+  await page.locator('#work-switcher').click();await page.locator(`[data-work="${work}"]`).click();
+  await page.locator('#new-task').click();await page.waitForFunction(()=>!document.querySelector('#new-task').disabled && !document.querySelector('#message').disabled);
+  await page.locator(`#sync-notice [data-task="${b}"]`).click();
+  await page.waitForFunction(()=>document.querySelector('#task-status').textContent.includes('已停止'));
+  check(await page.locator('#sync-notice').innerText()!== '','sync lost after return');
+  await page.locator('#task-switcher').click(); await page.keyboard.press('Escape');
+  await page.locator('#work-switcher').click(); await page.keyboard.press('Escape');
+  await page.locator('#task-switcher').click();
+  check(await page.locator('#dialog-title').innerText().then(t=>t.includes('写作任务')),'dialog cache mixed work and task pickers');
+  await page.screenshot({path:'.scratch/writing-tasks/evidence/legacy-sync-picker.png'});
+  await page.keyboard.press('Escape');
+  return {checks:['legacy explicit claim','cross-work busy input','exact stop from other work','third task returns stopped owner','work/task dialog focus and content']};
+}
+)(page);
+```

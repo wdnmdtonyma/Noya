@@ -51,6 +51,7 @@ export async function createRoleSession(options: {
   thinking: ThinkingLevel;
   sessionManager: SessionManager;
   taskId: string;
+  workDir: string;
   agentId?: string;
   skillsDir: string;
   promptFile: string;
@@ -60,7 +61,7 @@ export async function createRoleSession(options: {
     agentDir: options.agentDir,
     modelRuntime: options.modelRuntime,
     resourceLoaderOptions: {
-      extensionFactories: [createNoyaExtension(options.taskId, options.role, options.agentId)],
+      extensionFactories: [createNoyaExtension(options.taskId, options.role, options.workDir, options.agentId)],
       noExtensions: true,
       noSkills: true,
       noPromptTemplates: true,

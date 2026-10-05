@@ -26,10 +26,11 @@ export async function startLocalServer(app: LocalApp, options: { port?: number }
         let data;
         try { data = JSON.parse(body); } catch { throw new AppError(400, "请求不是有效 JSON"); }
         if (url.pathname === "/api/works") { res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify(await app.create())); return; }
+        if (url.pathname === "/api/tasks") { res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify(await app.createTask(data.workId, data.requestId))); return; }
         if (url.pathname === "/api/command") { res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify(await app.command(data))); return; }
       }
       if (req.method === "GET" && url.pathname === "/api/state") {
-        res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify(await app.snapshot(url.searchParams.get("work") ?? undefined))); return;
+        res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify(await app.snapshot(url.searchParams.get("work") ?? undefined, url.searchParams.get("task") ?? undefined))); return;
       }
       if (req.method === "GET" && url.pathname === "/api/draft") {
         res.setHeader("Content-Type", "application/json");

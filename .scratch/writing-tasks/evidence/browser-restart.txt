@@ -1,0 +1,6 @@
+### Result
+{"selected":"t652ad72c","restoredReader":"draft_2"}
+### Ran Playwright code
+```js
+await (async page => { await page.locator("#reader").waitFor({state:"visible"}); const selected=await page.evaluate(()=>sessionStorage.getItem("noya.task.w57682a0e")); if(selected!=="t652ad72c")throw new Error("restart selection changed: "+selected); if(!(await page.locator("#reader-meta").innerText()).includes("第 2 版"))throw new Error("reader version lost"); await page.locator("#close-reader").click(); await page.locator("#message").fill("服务重启后继续这个旧任务：只核对 ch1 的当前定稿与同步状态，简短回复，不修改任何内容、不新建稿件、不安排写手。"); await page.locator("#send").click(); return {selected,restoredReader:"draft_2"}; })(page);
+```

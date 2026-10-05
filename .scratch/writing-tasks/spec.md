@@ -1,6 +1,6 @@
 # 写作任务新建与切换
 
-Status: ready-for-agent
+Status: ready-for-human
 
 日期：2026-10-04。独立增量规格；基于已实现的本地 Agent 任务界面，保留原规格与已交付实现基线。用户已确认同作品新建任务、返回旧任务继续的范围，本轮先交付文档。
 
@@ -159,3 +159,7 @@ Status: ready-for-agent
 - 本增量替代旧版本“页面始终进入最近任务、没有历史任务入口”的局部范围限制，不改变 Context Agent 与 Writing Agent 分工、作者定稿及 Context 同步原则。
 - 遵守 ADR 0002 的正文立即定稿与后续同步，以及 ADR 0005 的现有运行时与工具门禁边界。新增同步定位元数据只解决多任务下找到正确工作，不把它扩成新的业务编排器。
 - `ready-for-agent` 表示规格可用于后续实现；本轮没有修改应用代码，也没有重新执行真实模型验收。
+
+## Implementation record
+
+2026-10-05：增量已实现；五张工单转为 `ready-for-human`。实现细节、故障回归、双轴审查和三类验收证据见 [validation.md](validation.md)。上文“本轮先交付文档”描述原规格交付阶段。

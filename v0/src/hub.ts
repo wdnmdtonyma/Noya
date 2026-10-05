@@ -1,8 +1,11 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { registerFinalization, completeFinalization, requireSyncOwner, chapterOwnership, readWorkState } from "./sync-ownership.ts";
+import { randomUUID } from "node:crypto";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { SessionManager, type AgentSession, type ModelRuntime } from "@earendil-works/pi-coding-agent";
 import {
   applyCanonChanges,
+  commitCanon as commitFiles,
   cloneCanon,
   findById,
   findWorld,
@@ -44,7 +47,7 @@ import { checkSchema, toolValidators, validators } from "./schema.ts";
 import { createRoleSession } from "./session.ts";
 import { styleProblems } from "./style-lint.ts";
 import { assistantFailure, authorConfirmationProblem } from "./transcript.ts";
-import { contentHash, createFileExclusive, git, isId, nonWhitespaceLength, refuse, verbatimIncludes, withWriteLock } from "./util.ts";
+import { contentHash, createFileExclusive, isId, nonWhitespaceLength, refuse, verbatimIncludes, withWriteLock } from "./util.ts";
 
 const hubs = new Map<string, TaskHub>();
 const STYLE_REFUSAL_LIMIT = 2;
@@ -58,14 +61,14 @@ const STATUS_LABEL: Record<SubagentStatus, string> = {
   failed: "失败",
 };
 
-export function getHub(taskId: string): TaskHub {
-  const hub = hubs.get(taskId);
+export function getHub(taskId: string, workDir: string): TaskHub {
+  const hub = hubs.get(join(workDir, taskId));
   if (!hub) throw new Error(`写作任务 ${taskId} 没有登记`);
   return hub;
 }
 
 export function registerHub(hub: TaskHub): void {
-  hubs.set(hub.taskId, hub);
+  hubs.set(join(hub.work.workDir, hub.taskId), hub);
 }
 
 function briefBlock(brief: unknown): string {
@@ -76,21 +79,6 @@ function hanCount(text: string): number {
   return [...text].filter((char) => /\p{Script=Han}/u.test(char)).length;
 }
 
-function commitFiles(workDir: string, files: string[], message: string): string {
-  if (files.length === 0) return "没有文件变化";
-  const paths = files.map((file) => relative(workDir, file));
-  const status = git(workDir, ["status", "--porcelain", "--untracked-files=all"]);
-  const ours = new Set(paths);
-  const others = status
-    .split("\n")
-    .map((line) => line.slice(3))
-    .map((path) => path.split(" -> ").at(-1) ?? path)
-    .filter((path) => path && !ours.has(path));
-  git(workDir, ["add", "-A", "--", ...paths]);
-  git(workDir, ["commit", "-m", message, "--", ...paths]);
-  const commit = git(workDir, ["rev-parse", "--short", "HEAD"]);
-  return `提交 ${commit}${others.length > 0 ? `\n正式区另有未提交修改：${others.join("、")}` : ""}`;
-}
 
 export class TaskHub {
   readonly taskId: string;
@@ -172,7 +160,7 @@ export class TaskHub {
   dispose(): void {
     for (const session of this.sessions.values()) session.dispose();
     this.contextSession?.dispose();
-    hubs.delete(this.taskId);
+    hubs.delete(join(this.work.workDir, this.taskId));
   }
 
   attachContext(session: AgentSession): void {
@@ -328,6 +316,7 @@ export class TaskHub {
   async saveSyncProposal(args: Record<string, unknown>): Promise<string> {
     const chapterId = String(args.chapter_id ?? "");
     const changes = (args.changes as Array<Record<string, unknown>>) ?? [];
+    const owner = requireSyncOwner(this.task, chapterId);
     const state = loadCanon(this.work.workDir);
     const errors: string[] = [];
     if (!state.sync.pending_chapter_ids.includes(chapterId)) errors.push(`章节 ${chapterId} 不在待同步列表中`);
@@ -363,6 +352,7 @@ export class TaskHub {
     if (errors.length > 0) refuse(...[...new Set(errors)]);
     const savedContent = chapter?.content ?? "";
     return withWriteLock(async () => {
+      requireSyncOwner(this.task, chapterId, owner.eventId);
       const fresh = loadCanon(this.work.workDir).chapters.get(chapterId);
       if (!fresh) refuse(`章节 ${chapterId} 不存在`);
       if (contentHash(fresh.content) !== contentHash(savedContent)) refuse("定稿正文在保存清单前发生了变化");
@@ -371,6 +361,7 @@ export class TaskHub {
         proposal_id: id,
         chapter_id: chapterId,
         chapter_content_sha256: contentHash(fresh.content),
+        finalization_event_id: owner.eventId,
         changes,
       };
       await createFileExclusive(join(this.task.artifactsDir, `${id}.json`), `${JSON.stringify(artifact, null, 2)}\n`);
@@ -384,6 +375,8 @@ export class TaskHub {
       if (!isArtifactId(proposalId, "proposal")) refuse(`产物 ID「${proposalId}」不符合 proposal_数字 的格式`);
       const proposal = this.loadProposal(proposalId);
       if (!proposal) refuse(`同步清单 ${proposalId} 不存在`);
+      const owner = requireSyncOwner(this.task, proposal.chapter_id, proposal.finalization_event_id);
+      if (!proposal.finalization_event_id && !owner.eventId.startsWith("legacy:")) refuse("旧同步清单没有当前定稿身份，请重新整理");
       const check = this.latestCheck(proposalId);
       if (!check) refuse(`同步清单 ${proposalId} 还没有核对结果`);
       const selected = args.change_ids as string[];
@@ -420,6 +413,13 @@ export class TaskHub {
       const chapter = trial.chapters.get(proposal.chapter_id);
       if (chapter && chapter.summary.trim()) {
         trial.sync.pending_chapter_ids = trial.sync.pending_chapter_ids.filter((id) => id !== proposal.chapter_id);
+      }
+      const finalization = this.registry.finalizations.find(f => f.event_id === owner.eventId);
+      if (finalization?.state === "prepared") {
+        // Commit the accepted event before sync metadata atomically replaces the chapter file again.
+        commitFiles(this.work.workDir, [join(this.work.workDir, "canon", "chapters", `${proposal.chapter_id}.json`), join(this.work.workDir, "canon", "sync.json")], `recover finalize ${proposal.chapter_id} (${this.taskId} / ${finalization.draft_id})`);
+        completeFinalization(this.work, proposal.chapter_id, owner);
+        finalization.state = "saved";
       }
       const written = await saveCanon(this.work.workDir, before, trial);
       const commit = commitFiles(this.work.workDir, written, `apply_sync ${proposalId} (${this.taskId} / ${proposalId})`);
@@ -633,10 +633,18 @@ export class TaskHub {
       if (!trial.sync.pending_chapter_ids.includes(chapterId)) trial.sync.pending_chapter_ids.push(chapterId);
       const problems = applyCanonChanges(trial, []);
       if (problems.length > 0) refuse(...problems);
-      const written = await saveCanon(this.work.workDir, before, trial);
+      const chapterFile = join(this.work.workDir, "canon", "chapters", `${chapterId}.json`);
+      const prepared = `${chapterFile}.${randomUUID()}.tmp`;
+      writeFileSync(prepared, `${JSON.stringify(trial.chapters.get(chapterId), null, 2)}\n`, { flag: "wx" });
+      const owner = registerFinalization(this.task, this.registry, chapterId, draftId, split, prepared);
+      // The rename is the commit point, including identical prose accepted in a new event.
+      renameSync(prepared, chapterFile);
+      const beforeRemaining = cloneCanon(before); beforeRemaining.chapters.set(chapterId, trial.chapters.get(chapterId)!);
+      const written = [chapterFile, ...await saveCanon(this.work.workDir, beforeRemaining, trial)];
       const commit = commitFiles(this.work.workDir, written, `finalize ${chapterId} (${this.taskId} / ${draftId})`);
-      this.registry.finalizations.push({ chapter_id: chapterId, draft_id: draftId, at: new Date().toISOString() });
-      this.save();
+      completeFinalization(this.work, chapterId, owner);
+      const registered = this.registry.finalizations.find(f => f.event_id === owner.eventId)!; registered.state = "saved";
+
       const notice = `${chapterId} 已定稿，请进行 Context 同步`;
       const extra = commit.includes("未提交修改") ? `\n${commit.slice(commit.indexOf("正式区"))}` : "";
       return `${notice}${extra}`;
@@ -795,6 +803,7 @@ export class TaskHub {
       thinking: binding.thinking,
       sessionManager: SessionManager.create(cwd, this.task.sessionDir),
       taskId: this.taskId,
+      workDir: this.work.workDir,
       agentId: agent.id,
       skillsDir: this.config.skillsDir,
       promptFile: this.config.prompts[agent.role],
@@ -854,6 +863,7 @@ export class TaskHub {
       thinking: binding.thinking,
       sessionManager: SessionManager.open(agent.sessionFile, this.task.sessionDir, agent.workspaceDir),
       taskId: this.taskId,
+      workDir: this.work.workDir,
       agentId: agent.id,
       skillsDir: this.config.skillsDir,
       promptFile: this.config.prompts.writer,
@@ -922,9 +932,13 @@ export class TaskHub {
   }
 
   private pendingProblem(): string | undefined {
-    const ids = loadCanon(this.work.workDir).sync.pending_chapter_ids;
+    const state = readWorkState(this.work);
+    const ids = [...new Set([...state.canon.sync.pending_chapter_ids, ...[...state.ownership].filter(([, owner]) => owner.needsRepair).map(([id]) => id)])];
     if (ids.length === 0) return undefined;
-    return `有待同步章节：${ids.join("、")}`;
+    return `有待同步章节：${ids.map(id => {
+      const state = chapterOwnership(this.work, id);
+      return `${id}${state.error ? `（${state.error}）` : state.owner ? `（返回同步任务 ${state.owner.taskId}）` : "（请作者明确承接同步）"}`;
+    }).join("、")}`;
   }
 
   private briefRules(brief: Record<string, unknown> | undefined, state: CanonState): string[] {

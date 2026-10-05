@@ -1,0 +1,6 @@
+### Result
+{"positions":{"reader":140,"feed":120},"restored":{"reader":140,"feed":120}}
+### Ran Playwright code
+```js
+await (async page => { await page.setViewportSize({width:1280,height:600}); await page.locator("#stop").waitFor({state:"hidden",timeout:60000}); await page.locator("[data-draft=\"draft_2\"]").click(); await page.locator("#review-details summary").click(); const positions=await page.evaluate(()=>{const r=document.querySelector(".reader-scroll"),f=document.querySelector("#feed");r.scrollTop=140;f.scrollTo({top:120,behavior:"instant"});return {reader:r.scrollTop,feed:f.scrollTop};}); await page.locator("#task-switcher").click(); await page.locator("[data-task=\"t0378cbc1\"]").click(); await page.locator("#task-switcher").click(); await page.locator("[data-task=\"t652ad72c\"]").click(); await page.locator("#reader").waitFor({state:"visible"}); const restored=await page.evaluate(()=>({reader:document.querySelector(".reader-scroll").scrollTop,feed:document.querySelector("#feed").scrollTop})); if(Math.abs(restored.reader-positions.reader)>2||Math.abs(restored.feed-positions.feed)>2)throw new Error(JSON.stringify({positions,restored})); await page.setViewportSize({width:1280,height:800}); return {positions,restored}; })(page);
+```

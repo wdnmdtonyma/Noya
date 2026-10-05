@@ -1,0 +1,36 @@
+async page => {
+  const check = (ok,msg) => { if (!ok) throw new Error(msg); };
+  const work = await page.evaluate(() => localStorage.getItem('noya.work'));
+  const state = await (await page.request.get(page.url() + `api/state?work=${work}`)).json();
+  const [a,b] = state.tasks.filter(t=>!t.error);
+  const select = async id => { if (await page.locator('#dialog').isVisible()) await page.keyboard.press('Escape'); await page.locator('#task-switcher').click(); await page.locator(`[data-task="${id}"]`).click(); await page.waitForFunction(()=>!document.querySelector('#message').disabled); };
+  await select(a.taskId); await page.locator('#message').fill('保留原输入');
+  let release; let ready; const gate = new Promise(r=>release=r); const saved = new Promise(r=>ready=r);
+  await page.route('**/api/tasks', async route=>{ const response = await route.fetch(); ready(); await gate; await route.fulfill({response}); });
+  await page.locator('#new-task').click(); await saved;
+  await select(b.taskId); await page.locator('#message').fill('切换后的新输入'); release();
+  await page.waitForFunction(()=>!document.querySelector('#new-task').disabled);
+  check(await page.locator('#message').inputValue()==='切换后的新输入','late create cleared B');
+  check(await page.evaluate(work=>sessionStorage.getItem(`noya.task.${work}`),work)===b.taskId,'late create switched back');
+  await page.unroute('**/api/tasks');
+  const count = (await (await page.request.get(page.url() + `api/state?work=${work}`)).json()).tasks.length;
+  await page.route('**/api/tasks',async route=>{await route.fetch();await route.abort('failed');});
+  await page.locator('#new-task').click(); await page.waitForFunction(()=>!document.querySelector('#new-task').disabled);
+  check(await page.locator('#message').inputValue()==='切换后的新输入','lost response cleared input');
+  await page.unroute('**/api/tasks'); await page.locator('#new-task').click();
+  await page.waitForFunction(()=>!document.querySelector('#new-task').disabled && !document.querySelector('#message').disabled);
+  const after = (await (await page.request.get(page.url() + `api/state?work=${work}`)).json()).tasks.length;
+  check(after===count+1,'retry created duplicate');
+  await page.evaluate(({work})=>{ localStorage.removeItem(`noya.migrated.${work}`);localStorage.setItem(`noya.input.${work}`,'升级前的输入需要确认'); },{work});
+  await page.reload(); await page.locator('#legacy-notice').waitFor({state:'visible'});
+  check(await page.locator('#message').inputValue()==='','ambiguous legacy input guessed owner');
+  await page.locator('[data-action="migrate"]').click();
+  check(await page.locator('#message').inputValue()==='升级前的输入需要确认','legacy adoption failed');
+  await page.locator('#new-task').click(); await page.waitForFunction(()=>!document.querySelector('#new-task').disabled && !document.querySelector('#message').disabled);
+  check(await page.locator('#message').inputValue()==='','legacy copied twice');
+  await page.evaluate(work=>{sessionStorage.setItem(`noya.task.${work}`,'missing-task');},work);
+  await page.reload(); await page.locator('#task-error').waitFor({state:'visible'});
+  check(await page.locator('#task-error').innerText()!=='','invalid selection lacks error');
+  await select(a.taskId); check(await page.locator('#message').inputValue()==='保留原输入','healthy task unavailable');
+  return {checks:['late create ownership','response lost retry exactly once','legacy ambiguity preserved','explicit one-time migration','invalid selection recovery']};
+}

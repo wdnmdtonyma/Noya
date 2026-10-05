@@ -1,0 +1,58 @@
+### Result
+{"checks":["task input isolation","non-latest refresh","same-work busy gate","exact return","late send","independent tabs","create preserves old input","Escape focus","390px viewport","reduced motion","no page errors"],"errors":[]}
+### Ran Playwright code
+```js
+await (async page => {
+  const errors = []; page.on('pageerror', e => errors.push(e.message));
+  const check = (ok, msg) => { if (!ok) throw new Error(msg); };
+  const work = await page.evaluate(() => localStorage.getItem('noya.work'));
+  const initial = await (await page.request.get(page.url() + `api/state?work=${work}`)).json();
+  const a = initial.tasks.at(-1).taskId, b = initial.tasks.at(-2).taskId;
+  const select = async (p, id) => {
+    if (!await p.locator('#dialog').isVisible()) await p.locator('#task-switcher').click();
+    await p.locator(`[data-task="${id}"]`).click();
+    await p.waitForFunction(id => sessionStorage.getItem('noya.task.' + localStorage.getItem('noya.work')) === id && !document.querySelector('#message').disabled, id);
+  };
+  await select(page, a);
+  await page.locator('#message').fill('A 的未发送想法');
+  await select(page, b); check(await page.locator('#message').inputValue() === '', 'B should start blank');
+  await page.locator('#message').fill('B 的未发送想法');
+  await select(page, a); check(await page.locator('#message').inputValue() === 'A 的未发送想法', 'A input lost');
+  await page.reload(); await page.waitForFunction(() => !document.querySelector('#message').disabled);
+  check(await page.locator('#message').inputValue() === 'A 的未发送想法', 'A refresh restore');
+  const other = await page.context().newPage(); await other.goto(page.url());
+  await other.waitForFunction(() => !document.querySelector('#message').disabled);
+  await select(other, b);
+  await page.locator('#message').fill('雨夜来客，只讨论，不写稿'); await page.locator('#send').click();
+  await other.locator('#active-notice').waitFor({ state: 'visible' });
+  check(await other.locator('#send').isDisabled(), 'Other task must be blocked');
+  check(await other.locator('#message').inputValue() === 'B 的未发送想法', 'B input changed by late send');
+  await other.locator('[data-action="return-active"]').click();
+  await other.waitForFunction(({work,a}) => sessionStorage.getItem('noya.task.' + work) === a, {work,a});
+  await select(other, b);
+  await page.locator('#stop').waitFor({ state: 'hidden' });
+  await other.locator('#new-task').click(); await other.waitForFunction(() => Number(document.querySelector('#task-count').textContent.split(' ')[0]) >= 3);
+  check(await page.evaluate(work => sessionStorage.getItem('noya.task.'+work),work) === a, 'Other tab forced a task switch');
+  await select(other, b); check(await other.locator('#message').inputValue() === 'B 的未发送想法', 'B input lost after create');
+  await page.locator('#task-switcher').click(); await page.keyboard.press('Escape');
+  check(await page.locator('#task-switcher').evaluate(el => document.activeElement === el), 'Escape focus return');
+  await page.setViewportSize({width:390,height:844});
+  await page.locator('#task-switcher').click();
+  await page.screenshot({path:'.scratch/writing-tasks/evidence/task-picker-mobile.png'});
+  check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Mobile overflow');
+  await page.keyboard.press('Escape'); await page.emulateMedia({reducedMotion:'reduce'});
+  check(await page.locator('#feed').evaluate(el => getComputedStyle(el).scrollBehavior) === 'auto','Reduced motion');
+  await page.screenshot({path:'.scratch/writing-tasks/evidence/writing-mobile.png'});
+  await page.setViewportSize({width:1280,height:800});
+  await page.screenshot({path:'.scratch/writing-tasks/evidence/writing-desktop.png'});
+  check(errors.length === 0, JSON.stringify(errors));
+  return { checks: ['task input isolation','non-latest refresh','same-work busy gate','exact return','late send','independent tabs','create preserves old input','Escape focus','390px viewport','reduced motion','no page errors'], errors };
+}
+)(page);
+```
+### Open tabs
+- 0: (current) [Noya · 写作任务](http://127.0.0.1:60747/)
+- 1: [Noya · 写作任务](http://127.0.0.1:60747/)
+### Page
+- Page URL: http://127.0.0.1:60747/
+- Page Title: Noya · 写作任务

@@ -1,11 +1,12 @@
+import { chapterOwnership, claimSync, repairFinalizations, readWorkState, type WorkReadState } from "./sync-ownership.ts";
 import { randomUUID } from "node:crypto";
 import { existsSync, lstatSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { openWritingSession } from "./app.ts";
 import { findById, loadCanon } from "./canon.ts";
-import { createWork, createTaskRecord, latestTask, listTasks, loadDraft, markInterruptedAgents, saveRegistry, workLayout, listArtifactIds, readJsonFile, type CheckArtifact, type ProposalArtifact, type WorkLayout, type TaskLayout, type TaskRegistry } from "./layout.ts";
+import { createWork, createTaskRecord, discoverTasks, loadRegistry, taskLayout, loadDraft, markInterruptedAgents, saveRegistry, workLayout, listArtifactIds, readJsonFile, type CheckArtifact, type ProposalArtifact, type WorkLayout, type TaskLayout, type TaskRegistry } from "./layout.ts";
 import type { NoyaConfig } from "./config.ts";
-import type { AppSnapshot, PageCommand, TaskRef } from "./local-contract.ts";
+import type { AppSnapshot, PageCommand, TaskRef, TaskSummary } from "./local-contract.ts";
 import { contentHash, isId, refuse } from "./util.ts";
 import { resolveRoleModels } from "./models.ts";
 import { assistantFailure, messageText } from "./transcript.ts";
@@ -14,7 +15,7 @@ import { recordAuthorMessage } from "./session.ts";
 
 type Runtime = Awaited<ReturnType<typeof resolveRoleModels>>;
 type Opened = Awaited<ReturnType<typeof openWritingSession>>;
-type Entry = { task: TaskLayout; registry: TaskRegistry; page: PageRecord; opened?: Opened; opening?: Promise<Opened>; stopping?: Promise<void>; submitting: number; streaming?: string; activity?: string };
+type Entry = { task: TaskLayout; registry: TaskRegistry; page: PageRecord; opened?: Opened; opening?: Promise<Opened>; stopping?: Promise<void>; submitting: number; claiming?: boolean; streaming?: string; activity?: string };
 
 export class AppError extends Error {
   status: number;
@@ -45,29 +46,53 @@ export class LocalApp {
     if (!existsSync(work.workDir) || lstatSync(work.workDir).isSymbolicLink() || !existsSync(join(work.workDir, "canon", "sync.json"))) throw new AppError(404, `找不到作品 ${id}`);
     return work;
   }
-  private entry(workId: string): Entry {
+  private entry(workId: string, taskId: string): Entry {
     const work = this.work(workId);
-    const tasksDir = join(work.workDir, "tasks");
-    if (existsSync(tasksDir)) for (const dir of readdirSync(tasksDir, { withFileTypes: true })) {
-      if (dir.isDirectory() && isId(dir.name) && !existsSync(join(tasksDir, dir.name, "registry.json"))) throw new AppError(409, `作品 ${workId} 的任务 ${dir.name} 缺少登记记录，请保留文件后修复`);
+    if (!isId(taskId)) throw new AppError(404, "任务标识无效");
+    const key = `${workId}/${taskId}`;
+    const cached = this.entries.get(key);
+    if (cached) return cached;
+    const task = taskLayout(work, taskId);
+    let registry: TaskRegistry;
+    try { registry = loadRegistry(task); }
+    catch { throw new AppError(409, `任务 ${taskId} 的登记记录缺失或归属损坏，请选择其他任务`); }
+    const page = pageRecord(task);
+    // This is the first observation in this process, never a reconnect of a live runtime.
+    if (page.status === "running" || page.status === "stopping") {
+      page.status = page.stoppedByAuthor ? "stopped" : "interrupted";
+      page.error = page.stoppedByAuthor ? undefined : "本机程序已退出，上次执行中断。已保存的对话和正文仍在。";
     }
-    if (!listTasks(work).length) { const fresh = createTaskRecord(work); saveRegistry(fresh.task, fresh.registry); }
-    const saved = latestTask(work);
-    if (saved.registry.work_id !== workId || !isId(saved.task.taskId)) throw new AppError(409, `作品 ${workId} 的任务归属损坏`);
-    let entry = this.entries.get(saved.task.taskId);
-    if (!entry) {
-      const page = pageRecord(saved.task);
-      if (page.status === "running" || page.status === "stopping") {
-        page.status = page.stoppedByAuthor ? "stopped" : "interrupted";
-        page.error = page.stoppedByAuthor ? undefined : "本机程序已退出，上次执行中断。已保存的对话和正文仍在。";
-      }
-      markInterruptedAgents(saved.registry);
-      saveRegistry(saved.task, saved.registry);
-      savePageRecord(saved.task, page);
-      entry = { ...saved, page, submitting: 0 };
-      this.entries.set(saved.task.taskId, entry);
-    }
+    markInterruptedAgents(registry);
+    saveRegistry(task, registry); savePageRecord(task, page);
+    const entry = { task, registry, page, submitting: 0 };
+    this.entries.set(key, entry);
     return entry;
+  }
+  async createTask(workId: string, requestId: string): Promise<TaskRef> {
+    if (this.closed) throw new AppError(503, "本机服务正在退出");
+    if (typeof requestId !== "string" || !/^[\w-]{8,80}$/.test(requestId)) throw new AppError(400, "新建任务缺少有效请求身份");
+    const work = this.work(workId);
+    const existing = discoverTasks(work).find(t => t.registry?.creation_request_id === requestId);
+    if (existing) return { workId, taskId: existing.task.taskId };
+    // Synchronous registration is the commit point; no concurrent request can pass it.
+    const fresh = createTaskRecord(work);
+    fresh.registry.creation_request_id = requestId;
+    savePageRecord(fresh.task, pageRecord(fresh.task));
+    saveRegistry(fresh.task, fresh.registry);
+    return { workId, taskId: fresh.task.taskId };
+  }
+  private summaries(workId: string, workState: WorkReadState = readWorkState(this.work(workId))): TaskSummary[] {
+    return discoverTasks(this.work(workId)).map(item => {
+      const base: TaskSummary = { workId, taskId: item.task.taskId, name: `新任务 · ${item.task.taskId.slice(-6)}`, createdAt: item.registry?.created_at ?? "", status: "failed", needsDecision: false };
+      try {
+        if (item.error) throw new Error(item.error);
+        const entry = this.entry(workId, item.task.taskId);
+        const registry = entry.opened?.hub.registry ?? entry.registry;
+        const first = readMessages(entry.task, registry, entry.page).find(m => m.role === "user");
+        readDrafts(entry.task, registry, workState);
+        return { ...base, name: first ? [...first.text.replace(/\s+/g, " ").trim()].slice(0, 28).join("") : base.name, status: entry.page.status, needsDecision: !!entry.page.decision };
+      } catch (error) { return { ...base, error: errorText(error) }; }
+    }).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.taskId.localeCompare(a.taskId));
   }
   async create(): Promise<{ workId: string }> {
     const work = await createWork(this.config.worksRoot, join(this.config.worksRoot, ".noya", "agent"));
@@ -75,8 +100,8 @@ export class LocalApp {
     saveRegistry(opened.task, opened.registry);
     return { workId: work.workId };
   }
-  async snapshot(workId?: string): Promise<AppSnapshot> {
-    if (!this.configValue) return { works: [], task: null, active: null, configurationError: this.configurationError ?? "请检查 NOYA_CONFIG 指向的配置文件" };
+  async snapshot(workId?: string, taskId?: string): Promise<AppSnapshot> {
+    if (!this.configValue) return { works: [], tasks: [], task: null, active: null, configurationError: this.configurationError ?? "请检查 NOYA_CONFIG 指向的配置文件" };
     const works: AppSnapshot["works"] = [];
     if (existsSync(this.config.worksRoot)) for (const dir of readdirSync(this.config.worksRoot, { withFileTypes: true })) {
       if (!dir.isDirectory() || !isId(dir.name) || !existsSync(join(this.config.worksRoot, dir.name, "canon", "sync.json"))) continue;
@@ -85,31 +110,62 @@ export class LocalApp {
       catch { works.push({ ...item, error: `作品 ${dir.name} 的资料记录损坏` }); }
     }
     works.sort((a, b) => a.workId.localeCompare(b.workId));
-    if (!workId) return { works, task: null, active: this.active };
-    const entry = this.entry(workId);
+    const activeEntry = this.active ? this.entries.get(`${this.active.workId}/${this.active.taskId}`) : undefined;
+    const activeName = activeEntry?.page.messages.find(m => m.role === "user")?.text.replace(/\s+/g, " ").slice(0, 28) ?? this.active?.taskId;
+    if (!workId) return { works, tasks: [], task: null, active: this.active, activeName };
+    let workState = readWorkState(this.work(workId));
+    if ([...workState.ownership.values()].some(o => o.needsRepair)) {
+      try { await repairFinalizations(this.work(workId)); this.refreshFinalizations(workId); workState = readWorkState(this.work(workId)); }
+      catch { /* The derived pending entry below remains a visible writing gate. */ }
+    }
+    const pendingChapters = [...new Set([...workState.canon.sync.pending_chapter_ids, ...[...workState.ownership].filter(([, owner]) => owner.needsRepair).map(([id]) => id)])];
+    let tasks = this.summaries(workId, workState);
+    if (!tasks.length && !taskId) { await this.createTask(workId, "initial-task"); tasks = this.summaries(workId, workState); }
+    const selected = taskId ? tasks.find(t => t.taskId === taskId) : tasks.find(t => !t.error);
+    if (!selected || selected.error) {
+      return { works, tasks, active: this.active, activeName, task: null, selectionError: selected?.error ?? (taskId ? `任务 ${taskId} 不存在，请重新选择` : "没有可读取的任务，请保留损坏记录后修复，或明确新建任务") };
+    }
+    const entry = this.entry(workId, selected.taskId);
     const { task, page } = entry;
     const registry = entry.opened?.hub.registry ?? entry.registry;
-    return { works, active: this.active, task: {
+    return { works, tasks, active: this.active, activeName, task: {
+      name: selected.name, createdAt: selected.createdAt,
       workId, taskId: task.taskId, status: page.status, error: page.error,
-      messages: readMessages(task, registry, page), drafts: readDrafts(task, registry),
+      messages: readMessages(task, registry, page), drafts: readDrafts(task, registry, workState),
       agents: registry.subagents.map(a => ({ id: a.id, role: a.role, status: a.status, detail: a.failureReason || (a.artifacts.length ? `已保存 ${a.artifacts.length} 份工作记录` : "尚未提交产物") })),
-      pendingChapters: loadCanon(task.work.workDir).sync.pending_chapter_ids,
+      pendingChapters,
+      pendingSync: pendingChapters.map(chapterId => {
+        const ownership = workState.ownership.get(chapterId) ?? { version: "", error: "章节正文缺失" };
+        return { chapterId, title: workState.canon.chapters.get(chapterId)?.title ?? chapterId, version: ownership.version,
+          ...(ownership.owner ? { owner: { workId, taskId: ownership.owner.taskId }, ownerName: tasks.find(t => t.taskId === ownership.owner!.taskId)?.name } : {}), ...(ownership.error ? { error: ownership.error } : ownership.needsRepair ? { error: "正文已保存，待同步状态尚未完整保存；请检查存储后重试" } : {}) };
+      }),
       ...(page.decision ? { decision: { id: page.decision.id, title: page.decision.title, detail: page.decision.detail, options: page.decision.options } } : {}),
       ...(entry.streaming ? { streaming: entry.streaming } : {}),
       ...(entry.activity ? { activity: entry.activity } : {}),
     } };
   }
-  async draft(ref: TaskRef, draftId: string) {
+  async draft(ref: TaskRef, draftId: string) { return this.draftView(ref, draftId); }
+  private draftView(ref: TaskRef, draftId: string) {
     const entry = this.target(ref);
     const view = readDrafts(entry.task, entry.opened?.hub.registry ?? entry.registry).find(d => d.draftId === draftId);
     const draft = loadDraft(entry.task, draftId);
     if (!view || !draft) throw new AppError(404, "这份稿件不存在或未完整保存");
     return { ...view, markdown: draft.markdown };
   }
+  private refreshFinalizations(workId: string): void {
+    for (const entry of this.entries.values()) {
+      if (entry.task.work.workId !== workId) continue;
+      let saved: TaskRegistry;
+      try { saved = loadRegistry(entry.task); } catch { continue; }
+      for (const registry of [entry.registry, entry.opened?.hub.registry].filter(r => !!r)) {
+        for (const record of registry.finalizations) {
+          if (saved.finalizations.some(f => f.event_id === record.event_id && f.state === "saved")) record.state = "saved";
+        }
+      }
+    }
+  }
   private target(ref: TaskRef): Entry {
-    const entry = this.entry(ref.workId);
-    if (entry.task.taskId !== ref.taskId) throw new AppError(409, "任务已改变，请刷新后操作原任务");
-    return entry;
+    return this.entry(ref.workId, ref.taskId);
   }
   private async open(entry: Entry): Promise<Opened> {
     if (entry.opened) return entry.opened;
@@ -117,7 +173,7 @@ export class LocalApp {
     entry.opening = (async () => {
       this.runtime ??= await resolveRoleModels(this.config, join(this.config.worksRoot, ".noya", "agent"));
       const restoreAccepted = !existsSync(entry.registry.context_session_file) && !entry.page.sessionSaved;
-      const opened = await openWritingSession({ work: entry.task.work, config: this.config, ...this.runtime, resume: true });
+      const opened = await openWritingSession({ work: entry.task.work, config: this.config, ...this.runtime, taskId: entry.task.taskId });
       entry.opened = opened;
       if (restoreAccepted) for (const accepted of entry.page.messages.filter(m => m.role === "user")) {
         recordAuthorMessage(opened.runtimeHost.session, `[页面作者]\n${accepted.text}${accepted.draftId ? `\n作者引用的稿件：${accepted.draftId}` : ""}`, accepted.at);
@@ -139,7 +195,7 @@ export class LocalApp {
         }
         if (event.type === "tool_execution_start") entry.activity = activityLabels[event.toolName] ?? "Context Agent 正在查阅写作材料";
       });
-      await opened.runtimeHost.session.sendCustomMessage({ customType: "noya.page", display: false, content: "作者正在本机任务页面。正文从交稿卡片阅读，定稿由页面明确选择版本；不要让作者输入 /finalize 或寻找文件。普通讨论不开始写作。页面引用的稿件是修改的唯一基准，即使已有新稿；先读取指定稿件。原 Writer 已终止时必须告知作者并根据保存材料重新安排。写入资料时页面会把确切变更呈现给作者；工具说等待页面确认时结束本轮，不重复尝试。作者明确停止不自动恢复。" }, { triggerTurn: false });
+      await opened.runtimeHost.session.sendCustomMessage({ customType: "noya.page", display: false, content: "作者正在本机任务页面。正文从交稿卡片阅读，定稿由页面明确选择版本；不要让作者输入 /finalize 或寻找文件。普通讨论不开始写作。文件读取与搜索仅允许 canon/、当前 tasks/任务身份/ 和流程技能目录，不要从作品根递归搜索。其他任务负责的待同步章节只能提示作者返回该任务，不要尝试接管。页面引用的稿件是修改的唯一基准，即使已有新稿；先读取指定稿件。原 Writer 已终止时必须告知作者并根据保存材料重新安排。写入资料时页面会把确切变更呈现给作者；工具说等待页面确认时结束本轮，不重复尝试。作者明确停止不自动恢复。" }, { triggerTurn: false });
       return opened;
     })();
     try { return await entry.opening; } finally { entry.opening = undefined; }
@@ -170,7 +226,8 @@ export class LocalApp {
     return `${describeChanges(proposal.changes)}${conflicts.length ? `\n\n与以下既有资料有分歧：\n${conflicts.join("\n\n")}` : ""}`;
   }
   private confirmationFingerprint(entry: Entry, args: Record<string, unknown>): string {
-    return contentHash(JSON.stringify({ args, canon: loadCanon(entry.task.work.workDir) }, (_key, value) => value instanceof Map ? Object.fromEntries(value) : value));
+    const canon = loadCanon(entry.task.work.workDir);
+    return contentHash(JSON.stringify({ args, canon, versions: [...canon.chapters.keys()].map(id => chapterOwnership(entry.task.work, id)) }, (_key, value) => value instanceof Map ? Object.fromEntries(value) : value));
   }
   /** Called once at service startup, never from a view or work switch. */
   async recover(): Promise<void> {
@@ -178,25 +235,35 @@ export class LocalApp {
     const { works } = await this.snapshot();
     for (const work of works) {
       if (work.error) continue;
-      try {
-        const entry = this.entry(work.workId);
-        if (entry.page.status !== "interrupted" || entry.page.stoppedByAuthor || entry.page.decision || !loadCanon(entry.task.work.workDir).sync.pending_chapter_ids.length) continue;
-        this.active = { workId: work.workId, taskId: entry.task.taskId };
-        entry.submitting += 1;
-        entry.page.status = "running"; entry.page.error = undefined;
-        const notice = "本机服务已重新启动。正文仍已定稿，正在从保存的材料继续未完成的资料同步。";
-        entry.page.messages.push({ id: randomUUID(), role: "notice", text: notice, at: Date.now() });
+      try { await repairFinalizations(this.work(work.workId)); } catch { /* Keep uncertain records visible and never guess an owner. */ }
+      for (const summary of this.summaries(work.workId)) {
+        if (this.active) return;
+        if (summary.error) continue;
         try {
-          savePageRecord(entry.task, entry.page);
-          const opened = await this.open(entry);
-          opened.hub.beginAuthorTurn();
-          this.run(entry, opened.runtimeHost.session.sendCustomMessage({ customType: "noya.resume", content: `${notice} 原子 Agent 已退出，请根据已保存的清单和结果安排后续步骤，不重新定稿、不越过作者决定。`, display: true }, { triggerTurn: true, deliverAs: "followUp" }));
-        } catch (error) { entry.page.error = errorText(error); }
-        finally { entry.submitting -= 1; this.settle(); }
-        return;
-      } catch { /* The affected task retains its failure; other works remain readable. */ }
+          const entry = this.entry(work.workId, summary.taskId);
+          const pending = loadCanon(entry.task.work.workDir).sync.pending_chapter_ids.filter(id => {
+            const state = chapterOwnership(entry.task.work, id);
+            return !state.error && state.owner?.taskId === entry.task.taskId;
+          });
+          if (entry.page.status !== "interrupted" || entry.page.stoppedByAuthor || entry.page.decision || !pending.length) continue;
+          this.active = { workId: work.workId, taskId: entry.task.taskId };
+          entry.submitting += 1;
+          entry.page.status = "running"; entry.page.error = undefined;
+          const notice = "本机服务已重新启动。正文仍已定稿，正在从保存的材料继续未完成的资料同步。";
+          entry.page.messages.push({ id: randomUUID(), role: "notice", text: notice, at: Date.now() });
+          try {
+            savePageRecord(entry.task, entry.page);
+            const opened = await this.open(entry);
+            opened.hub.beginAuthorTurn();
+            this.run(entry, opened.runtimeHost.session.sendCustomMessage({ customType: "noya.resume", content: `${notice} 本任务负责章节：${pending.join("、")}。原子 Agent 已退出，请根据已保存的清单和结果安排后续步骤，不重新定稿、不越过作者决定。`, display: true }, { triggerTurn: true, deliverAs: "followUp" }));
+          } catch (error) { entry.page.error = errorText(error); }
+          finally { entry.submitting -= 1; this.settle(); }
+          return;
+        } catch { /* Keep a damaged task isolated; do not redirect its work. */ }
+      }
     }
   }
+
   command(command: PageCommand): Promise<{ accepted: true }> {
     validateCommand(command);
     const key = `${command.workId}/${command.taskId}/${command.requestId}`;
@@ -219,33 +286,43 @@ export class LocalApp {
     const existing = entry.page.requests.find(r => r.id === command.requestId);
     if (existing) {
       if (existing.signature !== signature) throw new AppError(409, "请求标识已用于另一个操作");
-      if (command.kind === "finalize" && !(await this.draft(command, command.draftId)).finalized) throw new AppError(409, "本次定稿未完成或正式版本已改变，请重新阅读并确认");
+      if (command.kind === "finalize" && !this.draftView(command, command.draftId).finalized) throw new AppError(409, "本次定稿未完成或正式版本已改变，请重新阅读并确认");
       return { accepted: true };
     }
+    if (entry.claiming) throw new AppError(409, "任务正在承接同步，请稍后继续");
     if (command.kind === "stop") {
-      if (this.active?.taskId !== command.taskId && !entry.stopping) throw new AppError(409, "该任务当前没有执行中的工作");
+      if (!sameTask(this.active, command) && !entry.stopping) throw new AppError(409, "该任务当前没有执行中的工作");
       entry.stopping ??= this.stop(entry);
       try { await entry.stopping; } finally { entry.stopping = undefined; }
       entry.page.requests.push({ id: command.requestId, signature }); savePageRecord(entry.task, entry.page);
       return { accepted: true };
     }
-    if (this.active && (this.active.taskId !== command.taskId || command.kind !== "message" || entry.page.status === "stopping")) throw new AppError(409, "已有作者任务正在执行，请返回它或先停止");
-    if (command.kind === "message" && command.draftId) await this.draft(command, command.draftId);
+    if (this.active && (!sameTask(this.active, command) || command.kind !== "message" || entry.page.status === "stopping")) throw new AppError(409, "已有作者任务正在执行，请返回它或先停止");
+    if (command.kind === "claim-sync") {
+      this.active = { workId: command.workId, taskId: command.taskId }; entry.submitting += 1; entry.claiming = true;
+      try {
+        await claimSync(entry.task, command.chapterId, command.version);
+        entry.page.requests.push({ id: command.requestId, signature }); savePageRecord(entry.task, entry.page);
+        return { accepted: true };
+      } finally { entry.submitting -= 1; entry.claiming = false; this.active = null; }
+    }
+    if (command.kind === "message" && command.draftId) this.draftView(command, command.draftId);
     if (command.kind === "decide" && entry.page.decision?.id !== command.decisionId) throw new AppError(409, "此决定已经处理或已过期，请刷新");
     let text = command.kind === "message" ? command.text.trim() : "继续处理已保存的工作；如果有待同步章节，先继续 Context 同步。原 Agent 不可恢复时请明确说明并重新安排。";
     if (command.kind === "finalize") {
-      const draft = await this.draft(command, command.draftId);
+      const draft = this.draftView(command, command.draftId);
       if (draft.fingerprint !== command.fingerprint) throw new AppError(409, "正文或定稿状态已变化，请重新阅读并确认");
       if (draft.finalized) return { accepted: true };
       text = `确认将《${draft.title}》第 ${draft.version} 版（${command.draftId}）定稿${draft.replaces ? "，替换已有正式正文" : ""}。`;
     }
     // Reserve before the first asynchronous session/model initialization.
-    if (this.active && (this.active.taskId !== command.taskId || command.kind !== "message")) throw new AppError(409, "已有作者任务正在执行");
+    if (this.active && (!sameTask(this.active, command) || command.kind !== "message")) throw new AppError(409, "已有作者任务正在执行");
     this.active = { workId: command.workId, taskId: command.taskId };
-    entry.submitting += 1; entry.page.status = "running"; entry.page.error = undefined;
+    entry.submitting += 1; entry.page.status = "running"; entry.page.error = undefined; entry.page.stoppedByAuthor = false;
     try {
+      await repairFinalizations(entry.task.work); this.refreshFinalizations(command.workId);
       const { hub, runtimeHost } = await this.open(entry);
-      if (String(entry.page.status) === "stopping") throw new AppError(409, "任务正在停止，请稍后继续");
+      if (entry.stopping || entry.page.stoppedByAuthor || String(entry.page.status) === "stopping") throw new AppError(409, "任务正在停止，请稍后继续");
       hub.beginAuthorTurn();
       entry.page.stoppedByAuthor = false;
       if (command.kind === "message") hub.selectPageDraft(command.draftId);
@@ -274,7 +351,7 @@ export class LocalApp {
       } else this.run(entry, session.prompt(prompt, { streamingBehavior: "steer" }));
       return { accepted: true };
     } catch (error) {
-      entry.page.error = errorText(error); if (String(entry.page.status) !== "stopping") entry.page.status = "failed";
+      if (!entry.page.stoppedByAuthor) { entry.page.error = errorText(error); entry.page.status = "failed"; }
       savePageRecord(entry.task, entry.page);
       throw error;
     } finally { entry.submitting -= 1; }
@@ -290,12 +367,12 @@ export class LocalApp {
       await entry.opened?.hub.stopTask();
       entry.page.status = "stopped"; entry.streaming = undefined; entry.page.error = undefined;
       savePageRecord(entry.task, entry.page);
-      if (this.active?.taskId === entry.task.taskId) this.active = null;
+      if (sameTask(this.active, { workId: entry.task.work.workId, taskId: entry.task.taskId })) this.active = null;
     } catch (error) { entry.page.error = `停止未完成：${errorText(error)}`; savePageRecord(entry.task, entry.page); throw error; }
   }
   private settle(): void {
     if (this.closed || !this.active) return;
-    const entry = this.entries.get(this.active.taskId);
+    const entry = this.entries.get(`${this.active.workId}/${this.active.taskId}`);
     if (!entry || entry.submitting || entry.opening || entry.page.status === "stopping") return;
     const opened = entry.opened;
     if (opened && (!opened.runtimeHost.session.isIdle || opened.hub.hasPendingWork)) return;
@@ -343,8 +420,11 @@ function describeValue(value: unknown): string {
 }
 function validateCommand(value: PageCommand): void {
   if (!value || typeof value !== "object" || typeof value.workId !== "string" || typeof value.taskId !== "string" || !isId(value.taskId) || typeof value.requestId !== "string" || !/^[\w-]{8,80}$/.test(value.requestId)) throw new AppError(400, "操作缺少有效作品、任务或请求身份");
-  if (!["message", "decide", "finalize", "continue", "stop"].includes(value.kind)) throw new AppError(400, "未知操作");
+  if (!["message", "decide", "finalize", "continue", "stop", "claim-sync"].includes(value.kind)) throw new AppError(400, "未知操作");
+  if (value.kind === "claim-sync" && (typeof value.chapterId !== "string" || !isId(value.chapterId) || typeof value.version !== "string" || !value.version)) throw new AppError(400, "承接同步需要明确章节版本");
   if (value.kind === "message" && (typeof value.text !== "string" || !value.text.trim() || value.text.length > 30_000 || (value.draftId !== undefined && typeof value.draftId !== "string"))) throw new AppError(400, "请填写有效消息（最多 30000 字）");
   if (value.kind === "finalize" && (value.confirmed !== true || typeof value.draftId !== "string" || typeof value.fingerprint !== "string")) throw new AppError(400, "定稿需要明确稿件和作者确认");
   if (value.kind === "decide" && (typeof value.answer !== "string" || value.answer.length > 30_000 || typeof value.decisionId !== "string")) throw new AppError(400, "作者决定无效");
 }
+
+function sameTask(a: TaskRef | null, b: TaskRef): boolean { return !!a && a.workId === b.workId && a.taskId === b.taskId; }

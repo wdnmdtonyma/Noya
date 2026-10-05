@@ -1,7 +1,7 @@
+import { readWorkState, type WorkReadState } from "./sync-ownership.ts";
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { loadCanon } from "./canon.ts";
 import { listArtifactIds, loadDraft, loadPackage, loadReview, type TaskLayout, type TaskRegistry } from "./layout.ts";
 import { splitDraft } from "./review.ts";
 import { messageText } from "./transcript.ts";
@@ -59,8 +59,8 @@ export function readMessages(task: TaskLayout, registry: TaskRegistry, page: Pag
   return messages.sort((a, b) => a.at - b.at);
 }
 
-export function readDrafts(task: TaskLayout, registry: TaskRegistry): DraftView[] {
-  const canon = loadCanon(task.work.workDir);
+export function readDrafts(task: TaskLayout, registry: TaskRegistry, workState: WorkReadState = readWorkState(task.work)): DraftView[] {
+  const { canon, ownership: chapterOwners } = workState;
   const reviews = listArtifactIds(task, "review").map(id => loadReview(task, id)).filter(r => !!r);
   const versions = new Map<string, number>();
   return listArtifactIds(task, "draft").map(id => {
@@ -76,14 +76,16 @@ export function readDrafts(task: TaskLayout, registry: TaskRegistry): DraftView[
     const feedback = (review?.review.feedback ?? []) as Array<{ kind: string; problem?: string; suggestion?: string; reason?: string }>;
     const last = registry.finalizations.filter(f => f.chapter_id === draft.meta.chapter_id).at(-1);
     const chapter = canon.chapters.get(draft.meta.chapter_id);
+    const ownership = chapterOwners.get(draft.meta.chapter_id);
     return {
       draftId: id, chapterId: draft.meta.chapter_id, title: split.title, version,
       characters: [...split.content.replace(/\s/g, "")].length,
       review: review ? passed ? "passed" : conflicts ? "issues" : "verification" : "pending",
       reviewText: review ? `${passed ? "四项内容检查通过" : conflicts ? "本版检查记录发现内容冲突。" : "本版检查记录包含核实项；Context Agent 的核实结果见本版交稿说明。"}${feedback.length ? `\n${feedback.map(f => `${f.kind === "suggestion" ? "编辑建议" : f.kind === "needs_verification" ? "核实记录" : "内容冲突"}：${f.problem || f.reason || f.suggestion || "见交稿说明"}`).join("\n")}` : ""}` : "正文已保存，尚未完成检查。",
-      finalized: last?.draft_id === id && chapter?.content === split.content,
+      finalized: !ownership?.error && ownership?.owner?.taskId === task.taskId && ownership.owner.draftId === id && chapter?.content === split.content,
+      superseded: !!ownership?.owner && registry.finalizations.some(f => f.draft_id === id) && (ownership.owner.taskId !== task.taskId || ownership.owner.draftId !== id),
       replaces: !!chapter,
-      fingerprint: contentHash(JSON.stringify({ id, body: draft.markdown, chapter: chapter ?? null, finalization: last ?? null })),
+      fingerprint: contentHash(JSON.stringify({ id, body: draft.markdown, chapter: chapter ?? null, finalization: last ?? null, version: ownership?.version, ownershipError: ownership?.error })),
     };
   });
 }

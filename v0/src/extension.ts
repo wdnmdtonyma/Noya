@@ -9,9 +9,9 @@ import { refusal } from "./util.ts";
 export const SWITCH_HINT = "退出后用 noya 命令开始新任务或继续任务";
 export const STATUS_MARKER = "【子代理状态】";
 
-export function createNoyaExtension(taskId: string, role: RoleName, agentId?: string): ExtensionFactory {
+export function createNoyaExtension(taskId: string, role: RoleName, workDir: string, agentId?: string): ExtensionFactory {
   return (pi) => {
-    const hub = getHub(taskId);
+    const hub = getHub(taskId, workDir);
     registerRoleTools(pi, hub, role, agentId);
     if (role === "context") registerFindTool(pi);
     pi.on("tool_call", (event) => {
@@ -30,7 +30,7 @@ export function createNoyaExtension(taskId: string, role: RoleName, agentId?: st
         role === "context" && (event.toolName === "edit" || event.toolName === "write")
           ? contextEditZones(hub.editableFiles(), hub.work)
           : role === "context"
-            ? contextReadZones(hub.work, hub.config.skillsDir)
+            ? contextReadZones(hub.work, hub.config.skillsDir, hub.task)
             : directoryZones(cwd, hub.work);
       const problem = guardDecision(target, zones);
       if (problem) return { block: true, reason: refusal(problem) };
@@ -52,7 +52,7 @@ export function createNoyaExtension(taskId: string, role: RoleName, agentId?: st
           {
             role: "custom" as const,
             customType: "noya.status",
-            content: `${STATUS_MARKER}${hub.statusLine()}`,
+            content: `当前写作任务：${hub.work.workId}/${hub.taskId}\n本任务产物目录：${hub.task.artifactsDir}\n正式资料目录：${hub.work.workDir}/canon\n读取方案、初稿和检查时使用上述产物目录中的实际文件路径；不能读取其他任务或从作品根递归搜索。\n${STATUS_MARKER}${hub.statusLine()}`,
             display: false,
             timestamp: Date.now(),
           },

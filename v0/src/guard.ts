@@ -2,7 +2,7 @@ import { existsSync, readdirSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { SubagentRecord, WorkLayout } from "./layout.ts";
+import type { SubagentRecord, TaskLayout, WorkLayout } from "./layout.ts";
 
 const UNICODE_SPACES = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g;
 
@@ -61,9 +61,9 @@ export function forbiddenZones(work: WorkLayout): string[] {
   return zones.map((zone) => (existsSync(zone) ? realpathSync(zone) : zone));
 }
 
-export function contextReadZones(work: WorkLayout, skillsDir: string): GuardZones {
+export function contextReadZones(work: WorkLayout, skillsDir: string, task?: TaskLayout): GuardZones {
   return {
-    allow: [realpathSync(work.workDir), realpathSync(skillsDir)].filter((zone, index, all) => all.indexOf(zone) === index),
+    allow: [realpathSync(join(work.workDir, "canon")), ...(task ? [realpathSync(task.taskDir)] : []), realpathSync(skillsDir)],
     forbid: forbiddenZones(work),
   };
 }

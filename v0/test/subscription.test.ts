@@ -194,8 +194,8 @@ for (const failure of ["incomplete", "disconnected", "unfinished", "failed", "us
     const fx = await openFixture({ provider: "openai" });
     try {
       await authorize(fx);
-      await writeFile(join(fx.work.workDir, "visible.md"), "KEEP_EXISTING_ARTIFACT\n");
-      const events = completed([call("read", { path: "visible.md" })]).slice(0, -1);
+      await writeFile(join(fx.hub.task.taskDir, "visible.md"), "KEEP_EXISTING_ARTIFACT\n");
+      const events = completed([call("read", { path: `tasks/${fx.hub.taskId}/visible.md` })]).slice(0, -1);
       if (failure === "unfinished") {
         events.splice(1, 1);
         events.push({ type: "response.completed", response: { status: "completed", output: [] } });
@@ -209,7 +209,7 @@ for (const failure of ["incomplete", "disconnected", "unfinished", "failed", "us
       assert.equal(last?.stopReason, "error");
       assert.match(String(last?.errorMessage), failure === "incomplete" ? /incomplete/ : failure === "disconnected" ? /terminal/ : failure === "unfinished" ? /unfinished tool/ : failure === "failed" ? /server_error/ : /subscription_sharing_usage/);
       assert.equal(toolTexts(fx.session, "read").length, 0);
-      assert.equal(await readFile(join(fx.work.workDir, "visible.md"), "utf8"), "KEEP_EXISTING_ARTIFACT\n");
+      assert.equal(await readFile(join(fx.hub.task.taskDir, "visible.md"), "utf8"), "KEEP_EXISTING_ARTIFACT\n");
     } finally { await fx.cleanup(); }
   });
 }
@@ -245,8 +245,8 @@ test("订阅声明使用稳定 namespace，真实工具执行后 call ID 和 nam
   const fx = await openFixture({ provider: "openai" });
   try {
     await authorize(fx);
-    await writeFile(join(fx.work.workDir, "visible.md"), "TOOL_RESULT_SENTINEL\n");
-    const requests = mockResponses(t, [completed([call("read", { path: "visible.md" })]), completed(), completed()]);
+    await writeFile(join(fx.hub.task.taskDir, "visible.md"), "TOOL_RESULT_SENTINEL\n");
+    const requests = mockResponses(t, [completed([call("read", { path: `tasks/${fx.hub.taskId}/visible.md` })]), completed(), completed()]);
     await fx.session.prompt("读 visible.md，AUTHOR_HISTORY_SENTINEL");
     assert.match(toolTexts(fx.session, "read").at(-1) ?? "", /TOOL_RESULT_SENTINEL/);
     assert.deepEqual((requests[0].tools as Item[]).map((tool) => tool.type), ["namespace"]);

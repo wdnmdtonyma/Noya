@@ -1,7 +1,8 @@
 import { createAgentSessionRuntime, type AgentSessionRuntime, type ModelRuntime, SessionManager } from "@earendil-works/pi-coding-agent";
 import type { NoyaConfig, RoleName } from "./config.ts";
 import { TaskHub } from "./hub.ts";
-import { createTaskRecord, latestTask, markInterruptedAgents, saveRegistry, type WorkLayout } from "./layout.ts";
+import { createTaskRecord, latestTask, loadRegistry, markInterruptedAgents, saveRegistry, taskLayout, type WorkLayout } from "./layout.ts";
+import { isId } from "./util.ts";
 import type { RoleBinding } from "./models.ts";
 import { createRoleSession } from "./session.ts";
 
@@ -11,9 +12,12 @@ export async function openWritingSession(options: {
   runtime: ModelRuntime;
   models: Record<RoleName, RoleBinding>;
   resume?: boolean;
+  taskId?: string;
   random?: () => number;
 }): Promise<{ hub: TaskHub; runtimeHost: AgentSessionRuntime }> {
-  const existing = options.resume ? latestTask(options.work) : undefined;
+  if (options.taskId && !isId(options.taskId)) throw new Error("任务标识无效");
+  const task = options.taskId ? taskLayout(options.work, options.taskId) : undefined;
+  const existing = task ? { task, registry: loadRegistry(task) } : options.resume ? latestTask(options.work) : undefined;
   if (existing) {
     markInterruptedAgents(existing.registry);
     saveRegistry(existing.task, existing.registry);
@@ -43,6 +47,7 @@ export async function openWritingSession(options: {
         thinking: options.models.context.thinking,
         sessionManager: manager,
         taskId: hub.taskId,
+        workDir: options.work.workDir,
         skillsDir: options.config.skillsDir,
         promptFile: options.config.prompts.context,
       });

@@ -63,9 +63,9 @@ test("Context 的工具是规格里的名单，没有 bash 和 write", () => {
 });
 
 test("find 用本地文件系统匹配文件，不需要下载", async () => {
-  writeFileSync(join(fx.work.workDir, "visible.md"), "hello\n");
+  writeFileSync(join(fx.hub.task.taskDir, "visible.md"), "hello\n");
   fx.faux.context.setResponses([
-    fauxAssistantMessage([fauxToolCall("find", { pattern: "*.md", path: "." })]),
+    fauxAssistantMessage([fauxToolCall("find", { pattern: "*.md", path: `tasks/${fx.hub.taskId}` })]),
     fauxAssistantMessage("找到了"),
   ]);
   await fx.session.prompt("找一下 markdown");

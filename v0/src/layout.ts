@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { writeInitialCanon } from "./canon.ts";
@@ -110,6 +110,10 @@ export interface FinalizationRecord {
   chapter_id: string;
   draft_id: string;
   at: string;
+  event_id?: string;
+  chapter_fingerprint?: string;
+  chapter_file_identity?: string;
+  state?: "prepared" | "saved";
 }
 
 export interface TaskRegistry {
@@ -118,6 +122,7 @@ export interface TaskRegistry {
   work_id: string;
   context_session_file: string;
   created_at: string;
+  creation_request_id?: string;
   subagents: SubagentRecord[];
   finalizations: FinalizationRecord[];
 }
@@ -133,7 +138,12 @@ export function markInterruptedAgents(registry: TaskRegistry): void {
 }
 
 export function loadRegistry(task: TaskLayout): TaskRegistry {
-  return JSON.parse(readFileSync(task.registryFile, "utf8")) as TaskRegistry;
+  if (lstatSync(task.taskDir).isSymbolicLink()) throw new Error(`任务 ${task.taskId} 的目录无效`);
+  const registry = JSON.parse(readFileSync(task.registryFile, "utf8")) as TaskRegistry;
+  if (registry.schema_version !== 1 || registry.work_id !== task.work.workId || registry.task_id !== task.taskId ||
+      !Number.isFinite(Date.parse(registry.created_at)) || typeof registry.context_session_file !== "string" ||
+      !Array.isArray(registry.subagents) || !Array.isArray(registry.finalizations)) throw new Error(`任务 ${task.taskId} 的登记或归属损坏`);
+  return registry;
 }
 
 export function saveRegistry(task: TaskLayout, registry: TaskRegistry): void {
@@ -161,15 +171,18 @@ export function createTaskRecord(work: WorkLayout): { task: TaskLayout; registry
 }
 
 export function listTasks(work: WorkLayout): TaskRegistry[] {
+  return discoverTasks(work).flatMap(item => item.registry ? [item.registry] : []).sort((a, b) => a.created_at.localeCompare(b.created_at) || a.task_id.localeCompare(b.task_id));
+}
+
+/** Keep broken registrations visible without hiding the healthy tasks beside them. */
+export function discoverTasks(work: WorkLayout): Array<{ task: TaskLayout; registry?: TaskRegistry; error?: string }> {
   const root = join(work.workDir, "tasks");
   if (!existsSync(root)) return [];
-  const registries: TaskRegistry[] = [];
-  for (const name of readdirSync(root)) {
-    const file = join(root, name, "registry.json");
-    if (!existsSync(file)) continue;
-    registries.push(JSON.parse(readFileSync(file, "utf8")) as TaskRegistry);
-  }
-  return registries.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  return readdirSync(root, { withFileTypes: true }).filter(d => isId(d.name) && (d.isDirectory() || d.isSymbolicLink())).map(d => {
+    const task = taskLayout(work, d.name);
+    try { return { task, registry: loadRegistry(task) }; }
+    catch { return { task, error: `任务 ${d.name} 的登记记录缺失或损坏，请保留文件后修复` }; }
+  });
 }
 
 export function latestTask(work: WorkLayout): { task: TaskLayout; registry: TaskRegistry } {
@@ -221,6 +234,7 @@ export interface ProposalArtifact {
   proposal_id: string;
   chapter_id: string;
   chapter_content_sha256: string;
+  finalization_event_id?: string;
   changes: Array<Record<string, unknown>>;
 }
 
