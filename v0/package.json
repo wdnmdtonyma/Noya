@@ -7,7 +7,7 @@
     "node": ">=22.19.0"
   },
   "bin": {
-    "noya": "./src/cli.ts"
+    "noya": "./bin/noya.mjs"
   },
   "scripts": {
     "noya": "node --disable-warning=ExperimentalWarning src/cli.ts",

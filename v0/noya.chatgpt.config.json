@@ -1,10 +1,10 @@
 {
   "worksRoot": "./works",
   "roles": {
-    "context": { "provider": "openai", "model": "gpt-6.1-sol", "thinking": "low" },
-    "writer": { "provider": "openai", "model": "gpt-6.1-sol", "thinking": "low" },
-    "reviewer": { "provider": "openai", "model": "gpt-6.1-sol", "thinking": "low" },
-    "sync_checker": { "provider": "openai", "model": "gpt-6.1-sol", "thinking": "low" }
+    "context": { "provider": "openai", "model": "gpt-6.1-sol", "thinking": "xhigh" },
+    "writer": { "provider": "openai", "model": "gpt-6.1-sol", "thinking": "xhigh" },
+    "reviewer": { "provider": "openai", "model": "gpt-6.1-sol", "thinking": "xhigh" },
+    "sync_checker": { "provider": "openai", "model": "gpt-6.1-sol", "thinking": "xhigh" }
   },
   "prompts": {
     "context": "./prompts/sp/context.md",
