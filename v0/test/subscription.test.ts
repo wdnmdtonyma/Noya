@@ -141,7 +141,7 @@ test("四角色共用订阅完成方案、短稿、独立检查、作者定稿�
     };
     await turn("AUTHOR_REJECTED_DIRECTION_SENTINEL 已废弃，只采用 brief 的方向", "save_package", { brief, pack });
     assert.equal(toolTexts(fx.session, "save_package").at(-1), "package_1");
-    await turn("先提出方案", "spawn_subagent", { role: "writer", package_id: "package_1" });
+    await turn("先提出方案", "spawn_subagent", { role: "writer", package_id: "package_1" , task: "完成本次安排"});
     await finished("writer-1");
     assert.match(JSON.stringify(seen.writer[0].input), /Writing Brief/);
     assert.doesNotMatch(JSON.stringify(seen.writer[0].input), /AUTHOR_REJECTED_DIRECTION_SENTINEL/);
@@ -149,14 +149,14 @@ test("四角色共用订阅完成方案、短稿、独立检查、作者定稿�
     scripts.writer.push(completed([call("write", { path: "draft.md", content: body })]), completed([call("submit_draft", {})]), completed());
     await turn("按方案写短稿", "send_message", { agent_id: "writer-1", message: "方案符合要求，请写正文" });
     await finished("writer-1");
-    await turn("独立检查", "spawn_subagent", { role: "reviewer", draft_id: "draft_1" });
+    await turn("独立检查", "spawn_subagent", { role: "reviewer", draft_id: "draft_1" , task: "完成本次安排"});
     await finished("reviewer-1");
     assert.doesNotMatch(JSON.stringify(seen.reviewer[0].input), /AUTHOR_REJECTED_DIRECTION_SENTINEL/);
     assert.equal(loadRegistry(fx.hub.task).finalizations.length, 0);
     await turn("/finalize draft_1");
     const proposal = { chapter_id: "ch1", changes: [{ id: "sum", change: { type: "chapter_meta", chapter_id: "ch1", summary: "林凡停在矿洞口。", key_characters: [] }, evidence: ["林凡停在矿洞口"], rationale: "正文依据" }] };
     await turn("根据定稿同步", "save_sync_proposal", proposal);
-    await turn("核对依据", "spawn_subagent", { role: "sync_checker", proposal_id: "proposal_1" });
+    await turn("核对依据", "spawn_subagent", { role: "sync_checker", proposal_id: "proposal_1" , task: "完成本次安排"});
     await finished("sync_checker-1");
     assert.match(JSON.stringify(seen.sync_checker[0].input), /定稿正文/);
     await turn("写入通过核对的摘要", "apply_sync", { proposal_id: "proposal_1", change_ids: ["sum"] });

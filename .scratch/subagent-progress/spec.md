@@ -267,7 +267,7 @@ interface SubRunView {
 - 设计依据、走查结论和两轮审查记录在 `docs/prd/subagent-progress/` 下：`prd.md`、`design-validation.md`、`capability-baseline.md`、`discussion.md`。原型地址后加 `?scenario=failed|no-result|interrupted|offline|empty` 可以查看各个异常状态。
 - 原型中的 research-1 和 custom_probe 是验证"陌生身份、陌生工具也能通用呈现"的假设样例，当前业务没有这两种能力。测试中应保留同类的未知工具样例。
 - 需要实现时核实的一点：
-  - Pi 的工具中间输出事件能否稳定关联到父调用，用于"当前动作"和执行中输出。
+  - Pi 的工具中间输出事件能否稳定关联到父调用，用于"当前动作"和执行中输出。已核实，见文末 Comments。
 - 适合拆成以下垂直切片，各自可独立验收：
   1. 过程记录与契约；
   2. 派发与执行关联及卡片；
@@ -276,3 +276,7 @@ interface SubRunView {
   5. 成果阅读、提意见与定稿；
   6. 断线、重启与旧记录；
   7. Context Agent 每轮收尾回复。
+
+## Comments
+
+2026-10-06：Pi 的 `tool_execution_update` 带 `toolCallId`，嵌套调用另带 `parentToolCallId`。中间输出按调用身份记到对应工具上；有父调用时同时写到父调用，供当前动作和执行中输出使用。Noya 自己的工具要等执行结束才返回，所以中间输出只在底层工具发出更新时出现。关联是稳定的，不需要另建事件存储。

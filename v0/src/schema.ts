@@ -289,29 +289,31 @@ const packageSchema = {
   },
 };
 
+const taskField = { type: "string", minLength: 1, maxLength: 120, description: "给作者看的一句话：这次要做什么。不复述材料，也不会交给 Subagent" };
+
 const spawnSchema = {
   type: "object",
-  required: ["role"],
-  properties: { role: { type: "string" } },
+  required: ["role", "task"],
+  properties: { role: { type: "string" }, task: taskField },
   discriminator: { propertyName: "role" },
   oneOf: [
     {
       type: "object",
       additionalProperties: false,
-      required: ["role", "package_id"],
-      properties: { role: { const: "writer" }, package_id: { type: "string", minLength: 1 } },
+      required: ["role", "task", "package_id"],
+      properties: { role: { const: "writer" }, task: taskField, package_id: { type: "string", minLength: 1 } },
     },
     {
       type: "object",
       additionalProperties: false,
-      required: ["role", "draft_id"],
-      properties: { role: { const: "reviewer" }, draft_id: { type: "string", minLength: 1 } },
+      required: ["role", "task", "draft_id"],
+      properties: { role: { const: "reviewer" }, task: taskField, draft_id: { type: "string", minLength: 1 } },
     },
     {
       type: "object",
       additionalProperties: false,
-      required: ["role", "proposal_id"],
-      properties: { role: { const: "sync_checker" }, proposal_id: { type: "string", minLength: 1 } },
+      required: ["role", "task", "proposal_id"],
+      properties: { role: { const: "sync_checker" }, task: taskField, proposal_id: { type: "string", minLength: 1 } },
     },
   ],
 };
@@ -319,13 +321,14 @@ const spawnSchema = {
 const spawnParameters = {
   type: "object",
   additionalProperties: false,
-  required: ["role"],
+  required: ["role", "task"],
   properties: {
     role: {
       type: "string",
       enum: ["writer", "reviewer", "sync_checker"],
       description: "writer 需 package_id；reviewer 需 draft_id；sync_checker 需 proposal_id",
     },
+    task: taskField,
     package_id: { type: "string", minLength: 1, description: "writer：save_package 返回的 ID，例如 package_1" },
     draft_id: { type: "string", minLength: 1, description: "reviewer：要检查的初稿 ID，例如 draft_1" },
     proposal_id: { type: "string", minLength: 1, description: "sync_checker：save_sync_proposal 返回的 ID，例如 proposal_1" },
@@ -518,6 +521,7 @@ function describe(error: ErrorObject): string | undefined {
   const params = error.params as Json;
   switch (error.keyword) {
     case "required":
+      if (params.missingProperty === "task") return `${at} 缺少字段 task。请用作者能读懂的一句话重写这次要做什么，不要复述材料。`;
       return `${at} 缺少字段 ${String(params.missingProperty)}`;
     case "additionalProperties":
       return `${at} 不允许字段 ${String(params.additionalProperty)}`;
@@ -525,6 +529,12 @@ function describe(error: ErrorObject): string | undefined {
       return `${at} 必须是 ${quote(params.allowedValue)}`;
     case "enum":
       return `${at} 必须是以下之一：${(params.allowedValues as unknown[]).map(quote).join("、")}`;
+    case "minLength":
+      if (error.instancePath === "/task" || error.instancePath.endsWith("/task")) return `${at} 为空。请用作者能读懂的一句话重写这次要做什么，不要复述材料。`;
+      return `${at} ${error.message ?? "过短"}`;
+    case "maxLength":
+      if (error.instancePath === "/task" || error.instancePath.endsWith("/task")) return `${at} 过长。请缩短成一句作者能读懂的话，不要复述材料。`;
+      return `${at} ${error.message ?? "过长"}`;
     case "type":
       return `${at} 类型应为 ${String(params.type)}，收到 ${Array.isArray(error.data) ? "array" : error.data === null ? "null" : typeof error.data}`;
     case "discriminator": {

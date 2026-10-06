@@ -51,9 +51,9 @@ test("真实工具交稿、措辞修改保留旧版，指定旧版定稿后同�
     fx.faux.reviewer.setResponses([fauxAssistantMessage([fauxToolCall("save_review", { review })]), fauxAssistantMessage("四项检查通过。")]);
     fx.faux.context.setResponses([
       fauxAssistantMessage([fauxToolCall("save_package", { brief, pack: "## 尚未确定\n来源：无\n人物的来历尚未知。" })]),
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_1" })]), fauxAssistantMessage("正在准备章节方案。"),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_1" , task: "完成本次安排"})]), fauxAssistantMessage("正在准备章节方案。"),
       fauxAssistantMessage([fauxToolCall("send_message", { agent_id: "writer-1", message: "方案通过，写正文。" })]), fauxAssistantMessage("正在写正文。"),
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_1" })]), fauxAssistantMessage("正在检查。"),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_1" , task: "完成本次安排"})]), fauxAssistantMessage("正在检查。"),
       fauxAssistantMessage("初稿已交付，四项检查通过，可以阅读全文。"),
     ]);
     await command({ kind: "message", text: "请写一章旅人推开木门的故事" });
@@ -64,7 +64,7 @@ test("真实工具交稿、措辞修改保留旧版，指定旧版定稿后同�
     fx.faux.context.setResponses([
       fauxAssistantMessage([fauxToolCall("edit", { path: `tasks/${task.taskId}/revision.md`, edits: [{ oldText: "轻轻叹息", newText: "低声叹息" }] })]),
       fauxAssistantMessage([fauxToolCall("save_revision", {})]),
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_2" })]), fauxAssistantMessage("措辞已改，正在复查。"),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_2" , task: "完成本次安排"})]), fauxAssistantMessage("措辞已改，正在复查。"),
       fauxAssistantMessage("新稿已交付。"),
     ]);
     fx.faux.reviewer.setResponses([fauxAssistantMessage([fauxToolCall("save_review", { review })]), fauxAssistantMessage("复查通过。")]);
@@ -81,7 +81,7 @@ test("真实工具交稿、措辞修改保留旧版，指定旧版定稿后同�
     fx.faux.context.setResponses([
       fauxAssistantMessage([fauxToolCall("edit", { path: `tasks/${task.taskId}/revision.md`, edits: [{ oldText: "轻轻叹息", newText: "轻微叹息" }] })]),
       fauxAssistantMessage([fauxToolCall("save_revision", {})]),
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_3" })]), fauxAssistantMessage("原写手已结束，我直接修改所读版本的措辞并安排新检查。"), fauxAssistantMessage("第三版交付。"),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_3" , task: "完成本次安排"})]), fauxAssistantMessage("原写手已结束，我直接修改所读版本的措辞并安排新检查。"), fauxAssistantMessage("第三版交付。"),
     ]);
     fx.faux.reviewer.setResponses([fauxAssistantMessage([fauxToolCall("save_review", { review })]), fauxAssistantMessage("复查通过。")]);
     await command({ kind: "message", text: "针对第一版，把轻轻叹息改成轻微叹息。", draftId: "draft_1" });
@@ -111,7 +111,7 @@ test("真实工具交稿、措辞修改保留旧版，指定旧版定稿后同�
     fx.faux.sync_checker.setResponses([fauxAssistantMessage([fauxToolCall("save_sync_check", { verdicts: [{ change_id: "summary", verdict: "supported", reason: "正文明确写出推门", conflicting_ids: [] }] })]), fauxAssistantMessage("核对通过。")]);
     fx.faux.context.setResponses([
       fauxAssistantMessage([fauxToolCall("save_sync_proposal", { chapter_id: "ch1", changes })]),
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "sync_checker", proposal_id: "proposal_1" })]), fauxAssistantMessage("继续核对。"),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "sync_checker", proposal_id: "proposal_1" , task: "完成本次安排"})]), fauxAssistantMessage("继续核对。"),
       fauxAssistantMessage([fauxToolCall("apply_sync", { proposal_id: "proposal_1", change_ids: ["summary"] })]), fauxAssistantMessage("资料已同步。"),
     ]);
     await command({ kind: "continue" }); await waitFor(() => !app.active, "资料同步结束");
@@ -204,8 +204,8 @@ for (const heldRole of ["writer", "reviewer", "sync_checker"] as const) {
       fx.faux.reviewer.setResponses([hold]); fx.faux.sync_checker.setResponses([hold]);
       fx.faux.context.setResponses([
         fauxAssistantMessage([fauxToolCall("save_package", { brief, pack: "## 未知\n来源：无\n人物来历未知。" })]),
-        fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_1" })]), fauxAssistantMessage("等待写手。"),
-        ...(heldRole === "reviewer" ? [fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_1" })]), fauxAssistantMessage("等待检查。")]: [fauxAssistantMessage("正文已保存，检查未完成。")]),
+        fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_1" , task: "完成本次安排"})]), fauxAssistantMessage("等待写手。"),
+        ...(heldRole === "reviewer" ? [fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_1" , task: "完成本次安排"})]), fauxAssistantMessage("等待检查。")]: [fauxAssistantMessage("正文已保存，检查未完成。")]),
       ]);
       await send({ kind: "message", text: "写一个开门的短章" });
       if (heldRole === "sync_checker") {
@@ -213,7 +213,7 @@ for (const heldRole of ["writer", "reviewer", "sync_checker"] as const) {
         const draft = (await app.snapshot(task.workId)).task!.drafts[0]!;
         fx.faux.context.setResponses([
           fauxAssistantMessage([fauxToolCall("save_sync_proposal", { chapter_id: "ch1", changes: [{ id: "summary", change: { type: "chapter_meta", chapter_id: "ch1", summary: "旅人推开木门。", key_characters: [] }, evidence: ["旅人推开木门"], rationale: "关键行动" }] })]),
-          fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "sync_checker", proposal_id: "proposal_1" })]), fauxAssistantMessage("等待核对。"),
+          fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "sync_checker", proposal_id: "proposal_1" , task: "完成本次安排"})]), fauxAssistantMessage("等待核对。"),
         ]);
         await send({ kind: "finalize", draftId: draft.draftId, fingerprint: draft.fingerprint, confirmed: true });
       }
@@ -273,7 +273,7 @@ test("启动恢复未完成同步使用服务通知，保留定稿且不伪造�
     ]);
     fx.faux.context.setResponses([
       fauxAssistantMessage([fauxToolCall("save_package", { brief: { schema_version: 1, id: "b1", chapter_id: "ch1", mode: "write_chapter", intent: "旅人推开木门", requirements: [], constraints: [], ending: null, creative_scope: [], leave_open: [] }, pack: "## 未知\n来源：无\n人物来历未知。" })]),
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_1" })]), fauxAssistantMessage("等待写手。"), fauxAssistantMessage("已交稿，尚未检查。"),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_1" , task: "完成本次安排"})]), fauxAssistantMessage("等待写手。"), fauxAssistantMessage("已交稿，尚未检查。"),
     ]);
     await send({ kind: "message", text: "写旅人推门" }); await waitFor(() => !app.active, "交稿");
     const draft = (await app.snapshot(task.workId)).task!.drafts[0]!;
@@ -285,7 +285,7 @@ test("启动恢复未完成同步使用服务通知，保留定稿且不伪造�
     fx.faux.sync_checker.setResponses([fauxAssistantMessage([fauxToolCall("save_sync_check", { verdicts: [{ change_id: "summary", verdict: "supported", reason: "正文中的行动", conflicting_ids: [] }] })]), fauxAssistantMessage("核对通过。")]);
     fx.faux.context.setResponses([
       fauxAssistantMessage([fauxToolCall("save_sync_proposal", { chapter_id: "ch1", changes: [{ id: "summary", change: { type: "chapter_meta", chapter_id: "ch1", summary: "旅人推开木门。", key_characters: [] }, evidence: ["旅人推开木门"], rationale: "关键行动" }] })]),
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "sync_checker", proposal_id: "proposal_1" })]), fauxAssistantMessage("等待核对。"),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "sync_checker", proposal_id: "proposal_1" , task: "完成本次安排"})]), fauxAssistantMessage("等待核对。"),
       fauxAssistantMessage([fauxToolCall("apply_sync", { proposal_id: "proposal_1", change_ids: ["summary"] })]), fauxAssistantMessage("同步完成。"),
     ]);
     await app.recover(); await waitFor(() => !app.active, "启动后完成同步");
@@ -315,11 +315,11 @@ test("连续两轮保留同一冲突后交稿，旧稿与遗留问题不会被�
       fauxAssistantMessage([fauxToolCall("save_review", { review })]), fauxAssistantMessage("同一要求冲突仍未解决。"),
     ]);
     fx.faux.context.setResponses([
-      fauxAssistantMessage([fauxToolCall("save_package", { brief, pack: "## 未知\n来源：无\n人物来历未知。" })]), fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_1" })]), fauxAssistantMessage("等待方案。"),
+      fauxAssistantMessage([fauxToolCall("save_package", { brief, pack: "## 未知\n来源：无\n人物来历未知。" })]), fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_1" , task: "完成本次安排"})]), fauxAssistantMessage("等待方案。"),
       fauxAssistantMessage([fauxToolCall("send_message", { agent_id: "writer-1", message: "方案通过，写正文。" })]), fauxAssistantMessage("等待正文。"),
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_1" })]), fauxAssistantMessage("等待首轮检查。"),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_1" , task: "完成本次安排"})]), fauxAssistantMessage("等待首轮检查。"),
       fauxAssistantMessage([fauxToolCall("send_message", { agent_id: "writer-1", message: "没有进屋违反 b1 的推门要求，请写出推门行动。" })]), fauxAssistantMessage("等待返修。"),
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_2" })]), fauxAssistantMessage("等待复查。"),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_2" , task: "完成本次安排"})]), fauxAssistantMessage("等待复查。"),
       fauxAssistantMessage("同一冲突连续两轮未解决，数量未下降，停止自动返修并交稿。遗留问题：未落实推门要求。尚未定稿。"),
     ]);
     await app.command({ ...task, kind: "message", requestId: randomUUID(), text: "写一章，旅人必须推开木门" });
@@ -347,10 +347,10 @@ test("原方向修改复用写手，改变方向必须经过页面决定且保�
     ];
     const review = { schema_version: 1, chapter_id: "ch1", checks: { requirements: "passed", character_motivation: "passed", possessions_and_abilities: "passed", ability_rules: "passed" }, feedback: [] };
     const check = () => fx.faux.reviewer.setResponses([fauxAssistantMessage([fauxToolCall("save_review", { review })]), fauxAssistantMessage("检查完成。")]);
-    const contextTail = (id: string) => [fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: id })]), fauxAssistantMessage("正在检查。"), fauxAssistantMessage("本版已交付。")];
+    const contextTail = (id: string) => [fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: id , task: "完成本次安排"})]), fauxAssistantMessage("正在检查。"), fauxAssistantMessage("本版已交付。")];
     check(); fx.faux.writer.setResponses(writer("旅人推开木门。"));
     fx.faux.context.setResponses([
-      fauxAssistantMessage([fauxToolCall("save_package", { brief, pack })]), fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_1" })]), fauxAssistantMessage("等待写手。"), ...contextTail("draft_1"),
+      fauxAssistantMessage([fauxToolCall("save_package", { brief, pack })]), fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_1" , task: "完成本次安排"})]), fauxAssistantMessage("等待写手。"), ...contextTail("draft_1"),
     ]);
     await send({ kind: "message", text: "写旅人推门" }); await waitFor(() => !app.active, "原稿交付");
     check(); fx.faux.writer.setResponses([
@@ -371,7 +371,7 @@ test("原方向修改复用写手，改变方向必须经过页面决定且保�
     check(); fx.faux.writer.setResponses(writer("旅人没有推门，转身走入雨中。"));
     fx.faux.context.setResponses([
       fauxAssistantMessage([fauxToolCall("save_package", { brief: { ...brief, id: "b3", intent: "旅人放弃推门，转身离开" }, pack })]),
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_3" })]), fauxAssistantMessage("按确认的新方向重新安排写手。"), ...contextTail("draft_3"),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_3" , task: "完成本次安排"})]), fauxAssistantMessage("按确认的新方向重新安排写手。"), ...contextTail("draft_3"),
     ]);
     await send({ kind: "decide", decisionId: state.decision!.id, answer: "确认重写" }); await waitFor(() => !app.active, "新方向交稿");
     state = (await app.snapshot(task.workId)).task!;
@@ -400,7 +400,7 @@ for (const answer of ["以定稿正文为准", "保留原设定"]) {
         fauxAssistantMessage([fauxToolCall("write", { path: "plan.md", content: "# 方案\n掌柜等候。" })]), fauxAssistantMessage([fauxToolCall("submit_plan", {})]),
         fauxAssistantMessage([fauxToolCall("write", { path: "draft.md", content: "# 等候\n\n掌柜一直在驿站等他。" })]), fauxAssistantMessage([fauxToolCall("submit_draft", {})]), fauxAssistantMessage("已保存正文。"),
       ]);
-      fx.faux.context.setResponses([fauxAssistantMessage([fauxToolCall("save_package", { brief, pack: "## 驿站\n来源：inn\n驿站无人守候。" })]), fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_1" })]), fauxAssistantMessage("正在写。"), fauxAssistantMessage("正文保存，尚未检查。")]);
+      fx.faux.context.setResponses([fauxAssistantMessage([fauxToolCall("save_package", { brief, pack: "## 驿站\n来源：inn\n驿站无人守候。" })]), fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_1" , task: "完成本次安排"})]), fauxAssistantMessage("正在写。"), fauxAssistantMessage("正文保存，尚未检查。")]);
       await send({ kind: "message", text: "写掌柜等人的一段" }); await waitFor(() => !app.active, "初稿保存");
       const proposal: Parameters<typeof fauxToolCall>[1] = { chapter_id: "ch1", changes: [
         { id: "summary", change: { type: "chapter_meta", chapter_id: "ch1", summary: "掌柜在驿站等候旅人。", key_characters: [] }, evidence: ["掌柜一直在驿站等他"], rationale: "正文的行动" },
@@ -411,7 +411,7 @@ for (const answer of ["以定稿正文为准", "保留原设定"]) {
         { change_id: "inn-change", verdict: "conflict", reason: "正文有人等候，既有资料无人守候。", conflicting_ids: ["inn"] },
       ] })]), fauxAssistantMessage("有一项冲突。")]);
       fx.faux.context.setResponses([
-        fauxAssistantMessage([fauxToolCall("save_sync_proposal", proposal)]), fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "sync_checker", proposal_id: "proposal_1" })]), fauxAssistantMessage("正在核对。"),
+        fauxAssistantMessage([fauxToolCall("save_sync_proposal", proposal)]), fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "sync_checker", proposal_id: "proposal_1" , task: "完成本次安排"})]), fauxAssistantMessage("正在核对。"),
         fauxAssistantMessage([fauxToolCall("apply_sync", { proposal_id: "proposal_1", change_ids: ["summary", "inn-change"] })]), fauxAssistantMessage("请决定冲突。"),
       ]);
       const draft = (await app.snapshot(task.workId)).task!.drafts[0]!;

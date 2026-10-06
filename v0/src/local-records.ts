@@ -12,7 +12,9 @@ export interface PageRecord {
   status: RunStatus;
   sessionSaved?: boolean;
   stoppedByAuthor?: boolean;
+  stoppedAt?: string;
   error?: string;
+  marks?: Array<{ id: string; event: "stopped" | "failed" | "interrupted"; text: string; at: number }>;
   requests: Array<{ id: string; signature: string }>;
   messages: MessageView[];
   decision?: DecisionView & { kind: "canon" | "sync" | "direction"; args: Record<string, unknown>; fingerprint: string };
@@ -41,13 +43,10 @@ export function readMessages(task: TaskLayout, registry: TaskRegistry, page: Pag
   for (const id of listArtifactIds(task, "draft")) {
     messages.push({ id: `artifact-${id}`, role: "notice", text: "已保存正文", draftId: id, at: statSync(join(task.artifactsDir, `${id}.json`)).mtimeMs });
   }
-  if (!registry.context_session_file) return messages;
-  // Pi allocates a session filename before writing its first message.
-  if (!existsSync(registry.context_session_file)) {
-    if (!page.sessionSaved && !registry.subagents.length && !registry.finalizations.length) return messages;
-    throw new Error(`任务 ${task.taskId} 的对话文件丢失`);
-  }
-  const manager = SessionManager.open(registry.context_session_file, task.sessionDir, task.work.workDir);
+  if (!registry.context_session_file || !existsSync(registry.context_session_file)) return messages.sort((a, b) => a.at - b.at);
+  let manager;
+  try { manager = SessionManager.open(registry.context_session_file, task.sessionDir, task.work.workDir); }
+  catch { return messages.sort((a, b) => a.at - b.at); }
   for (const entry of manager.getBranch()) {
     if (entry.type !== "message") continue;
     const m = entry.message;
@@ -60,10 +59,16 @@ export function readMessages(task: TaskLayout, registry: TaskRegistry, page: Pag
 }
 
 export function readDrafts(task: TaskLayout, registry: TaskRegistry, workState: WorkReadState = readWorkState(task.work)): DraftView[] {
-  const { canon, ownership: chapterOwners } = workState;
   const reviews = listArtifactIds(task, "review").map(id => loadReview(task, id)).filter(r => !!r);
   const versions = new Map<string, number>();
-  return listArtifactIds(task, "draft").map(id => {
+  return listArtifactIds(task, "draft").flatMap(id => {
+    try { return [draftView(task, registry, id, versions, reviews, workState)]; }
+    catch { return [{ draftId: id, chapterId: "", title: id, version: 0, characters: 0, review: "pending" as const, reviewText: "暂时无法读取", finalized: false, superseded: false, replaces: false, fingerprint: "" }]; }
+  });
+}
+
+function draftView(task: TaskLayout, registry: TaskRegistry, id: string, versions: Map<string, number>, reviews: Array<NonNullable<ReturnType<typeof loadReview>>>, workState: WorkReadState): DraftView {
+    const { canon, ownership: chapterOwners } = workState;
     const draft = loadDraft(task, id)!;
     if (draft.meta.draft_id !== id || !loadPackage(task, draft.meta.package_id)) throw new Error(`稿件 ${id} 的身份或写作材料不完整`);
     const split = splitDraft(draft.markdown);
@@ -87,5 +92,4 @@ export function readDrafts(task: TaskLayout, registry: TaskRegistry, workState: 
       replaces: !!chapter,
       fingerprint: contentHash(JSON.stringify({ id, body: draft.markdown, chapter: chapter ?? null, finalization: last ?? null, version: ownership?.version, ownershipError: ownership?.error })),
     };
-  });
 }

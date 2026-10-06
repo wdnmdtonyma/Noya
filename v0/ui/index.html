@@ -24,14 +24,16 @@
         <div id="task-error" class="task-error" role="alert" hidden></div>
         <div id="sync-notice" class="sync-notice" hidden></div>
       </div>
-      <button id="new-content" class="new-content" hidden>↓ 查看新内容</button>
+      <button id="new-content" class="new-content" hidden>查看最新</button>
       <div id="composer-area" class="composer-area">
+        <div id="subtask-anchor" class="subtask-anchor" hidden><button type="button" id="subtask-entry" class="subtask-entry" aria-expanded="false" aria-controls="subtask-list"><span>子任务</span></button><div id="subtask-list" class="subtask-list" hidden></div></div>
         <div id="reference" class="reference" hidden></div>
         <form id="composer" class="composer"><label class="sr-only" for="message">给 Noya 的要求</label><textarea id="message" rows="2" maxlength="30000" placeholder="聊聊想法，或告诉 Noya 接下来写什么…"></textarea><div class="composer-toolbar"><span id="composer-meta">与你一起，把故事写下去</span><div class="composer-actions"><button type="button" id="resume-task" class="quiet-button" hidden>继续任务</button><button type="button" id="stop" class="quiet-button" hidden>停止</button><button id="send" class="send-button" type="submit" aria-label="发送消息"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button></div></div></form>
         <div class="composer-foot"><span>Enter 发送 <b>·</b> Shift + Enter 换行</span><span id="save-hint">输入仅保存在本机</span></div>
       </div>
     </main>
-    <aside id="reader" class="reader" aria-label="正文阅读" hidden><header class="reader-bar"><span class="eyebrow">正文阅读 <span class="readonly">只读</span></span><button id="close-reader" class="icon-button" aria-label="关闭正文阅读">×</button></header><div class="reader-scroll"><div id="reader-meta" class="reader-meta"></div><article id="reader-content" class="reader-content"></article><details id="review-details" class="review-details"><summary id="review-label"></summary><div id="review-content"></div></details><div class="reader-end">— 本版结束 —</div></div><footer class="reader-footer"><button id="revise" class="secondary">对这版提意见</button><button id="finalize" class="primary">将这版定稿</button></footer></aside>
+    <aside id="panel" class="panel" aria-label="子任务详情" hidden><header class="panel-bar"><div><strong id="panel-title"></strong><span id="panel-meta"></span></div><button id="panel-close" type="button" class="icon-button" aria-label="关闭子任务">×</button></header><div id="panel-scroll" class="panel-scroll"><div id="panel-body"></div></div></aside>
+    <aside id="reader" class="reader" aria-label="正文阅读" hidden><header class="reader-bar"><span class="eyebrow">正文阅读 <span class="readonly">只读</span></span><button id="close-reader" class="icon-button" aria-label="关闭正文阅读">×</button></header><div class="reader-scroll"><div id="reader-meta" class="reader-meta"></div><article id="reader-content" class="reader-content"></article><details id="review-details" class="review-details"><summary id="review-label"></summary><div id="review-content"></div></details><div class="reader-end">— 本版结束 —</div></div><footer class="reader-footer"><button id="return-subtask" class="secondary" hidden>返回子任务</button><button id="revise" class="secondary">对这版提意见</button><button id="finalize" class="primary">将这版定稿</button></footer></aside>
   </div>
 </div>
 <dialog id="dialog" aria-labelledby="dialog-title"><div id="dialog-body"></div></dialog>

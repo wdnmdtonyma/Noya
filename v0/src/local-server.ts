@@ -9,6 +9,8 @@ export async function startLocalServer(app: LocalApp, options: { port?: number }
     ["/app.css", ["../ui/app.css", "text/css"]],
     ["/tokens.css", ["../ui/tokens.css", "text/css"]],
     ["/app.js", ["../dist/ui/app.js", "text/javascript"]],
+    ["/feed.js", ["../dist/ui/feed.js", "text/javascript"]],
+    ["/markup.js", ["../dist/ui/markup.js", "text/javascript"]],
   ]);
   const server = createServer(async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -31,6 +33,10 @@ export async function startLocalServer(app: LocalApp, options: { port?: number }
       }
       if (req.method === "GET" && url.pathname === "/api/state") {
         res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify(await app.snapshot(url.searchParams.get("work") ?? undefined, url.searchParams.get("task") ?? undefined))); return;
+      }
+      if (req.method === "GET" && url.pathname === "/api/artifact") {
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify(await app.artifact({ workId: url.searchParams.get("work") ?? "", taskId: url.searchParams.get("task") ?? "" }, url.searchParams.get("id") ?? ""))); return;
       }
       if (req.method === "GET" && url.pathname === "/api/draft") {
         res.setHeader("Content-Type", "application/json");

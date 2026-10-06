@@ -91,7 +91,7 @@ async function writeDraft(fx: Awaited<ReturnType<typeof openFixture>>, app: Loca
   ]);
   fx.faux.context.setResponses([
     fauxAssistantMessage([fauxToolCall("save_package", { brief: { schema_version: 1, id: "b1", chapter_id: "ch1", mode: "write_chapter", intent: "推开木门", requirements: [], constraints: [], ending: null, creative_scope: [], leave_open: [] }, pack: "## 未知\n来源：无\n人物来历未知。" })]),
-    fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_1" })]), fauxAssistantMessage("等待写手。"), fauxAssistantMessage("交稿。"),
+    fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_1" , task: "完成本次安排"})]), fauxAssistantMessage("等待写手。"), fauxAssistantMessage("交稿。"),
   ]);
   await app.command({ ...ref, kind: "message", text: "写雨夜开门", requestId: randomUUID() }); await waitFor(() => !app.active, "保存初稿");
 }
@@ -314,7 +314,7 @@ for (const sameText of [true,false]) test(`归属保存失败后不重启直接�
     await waitFor(()=>!app.active,"定稿失败释放占用");
     const version=(await app.snapshot(b.workId,b.taskId)).task!.pendingSync[0]!.version;
     fx.faux.sync_checker.setResponses([fauxAssistantMessage([fauxToolCall("save_sync_check",{verdicts:[{change_id:"summary",verdict:"supported",reason:"正文行动",conflicting_ids:[]}]})]),fauxAssistantMessage("核对完成。")]);
-    fx.faux.context.setResponses([fauxAssistantMessage([fauxToolCall("save_sync_proposal",summaryProposal)]),fauxAssistantMessage([fauxToolCall("spawn_subagent",{role:"sync_checker",proposal_id:"proposal_1"})]),fauxAssistantMessage("等待核对。"),fauxAssistantMessage([fauxToolCall("apply_sync",{proposal_id:"proposal_1",change_ids:["summary"]})]),fauxAssistantMessage("同步完成。")]);
+    fx.faux.context.setResponses([fauxAssistantMessage([fauxToolCall("save_sync_proposal",summaryProposal)]),fauxAssistantMessage([fauxToolCall("spawn_subagent",{role:"sync_checker",proposal_id:"proposal_1", task: "完成本次安排"})]),fauxAssistantMessage("等待核对。"),fauxAssistantMessage([fauxToolCall("apply_sync",{proposal_id:"proposal_1",change_ids:["summary"]})]),fauxAssistantMessage("同步完成。")]);
     await app.command({...b,kind:"continue",requestId:randomUUID()});await waitFor(()=>!app.active,"不重启完成同步");
     const result=(await app.snapshot(b.workId,b.taskId)).task!;
     assert.deepEqual(result.pendingSync,[]);assert.equal(result.drafts[0]!.finalized,true);assert.equal((await app.draft(a,"draft_1")).finalized,false);

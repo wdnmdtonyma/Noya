@@ -1,4 +1,6 @@
 import type { AppSnapshot, DraftView, PageCommand, TaskRef, TaskView } from "../src/local-contract.js";
+import { elapsedClock, subtaskEntryLabel } from "./feed.js";
+import { renderFeed, renderPanel, renderSubtaskList } from "./markup.js";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const input = $<HTMLTextAreaElement>("message");
@@ -8,7 +10,7 @@ const reader = $("reader");
 let snapshot: AppSnapshot = { works: [], tasks: [], active: null, task: null };
 let workId = readTab("noya.work") ?? readStorage("noya.work") ?? "";
 let taskId = readTab(`noya.task.${workId}`) ?? readStorage(`noya.task.${workId}`) ?? "";
-type Preferences = { input?: string; reference?: string; reader?: string; readerScroll?: number; feedScroll?: number };
+type Preferences = { input?: string; reference?: string; reader?: string; readerScroll?: number; feedScroll?: number; turns?: string[]; groups?: string[]; events?: string[]; panelAgent?: string; panelScroll?: number; readerFrom?: "feed" | "panel"; artifact?: string };
 let preferences: Preferences = {};
 let loadingSelection = true;
 let creatingTask = false;
@@ -28,10 +30,16 @@ let decisionId = "";
 let selectionResolved = false;
 let taskReadError = false;
 class ResponseError extends Error { status: number; constructor(status: number, text: string) { super(text); this.status = status; } }
-const messageNodes = new Map<string, HTMLElement>();
+let expandedTurns = new Set<string>();
+let expandedGroups = new Set<string>();
+let expandedEvents = new Set<string>();
+let panelAgent = "";
+let panelReturn = "";
+let listOpen = false;
+let runningVisible = false;
+let readerFrom: "feed" | "panel" = "feed";
+let textReader: { id: string; title: string; text: string } | undefined;
 const labels: Record<string, string> = { idle: "可以继续聊聊", running: "正在处理", stopping: "正在停止…", stopped: "已停止 · 记录已保留", interrupted: "上次执行已中断", failed: "本轮未完成" };
-const roles: Record<string, string> = { writer: "Writing Agent", reviewer: "正文检查员", sync_checker: "同步核对员" };
-const agentStates: Record<string, string> = { running: "正在处理", idle: "本轮完成", stopped: "已停止", retired: "已结束", terminated: "已中断", failed: "失败" };
 type CommandAction = { [K in PageCommand["kind"]]: Omit<Extract<PageCommand, { kind: K }>, keyof TaskRef | "requestId"> }[PageCommand["kind"]];
 
 function readTab(key: string): string | null { try { return sessionStorage.getItem(key); } catch { return null; } }
@@ -39,7 +47,10 @@ function writeTab(key: string, value: string): void { try { sessionStorage.setIt
 function preferenceKey(work = workId, task = taskId): string { return `noya.task-state.${work}.${task}`; }
 function loadPreferences(): void {
   try { preferences = JSON.parse(readStorage(preferenceKey()) ?? "{}"); } catch { preferences = {}; }
-  input.value = preferences.input ?? ""; reference = preferences.reference || undefined; autosize();
+  input.value = preferences.input ?? ""; reference = preferences.reference || undefined;
+  expandedTurns = new Set(preferences.turns ?? []); expandedGroups = new Set(preferences.groups ?? []); expandedEvents = new Set(preferences.events ?? []);
+  panelAgent = preferences.panelAgent ?? ""; readerFrom = preferences.readerFrom ?? "feed"; panelReturn = readerFrom === "panel" ? panelAgent : "";
+  autosize();
 }
 function readStorage(key: string): string | null { try { return localStorage.getItem(key); } catch { return null; } }
 function writeStorage(key: string, value: string): void { try { localStorage.setItem(key, value); } catch { $("save-hint").textContent = "浏览器未允许保存输入"; } }
@@ -72,12 +83,14 @@ async function api<T>(path: string, data?: unknown): Promise<T> {
   return result as T;
 }
 function connection(ok: boolean, error?: string): void {
+  const changed = connected !== ok;
   connected = ok;
   $("connection").classList.toggle("offline", !ok);
   $("connection").querySelector("span")!.textContent = ok ? "本机已连接" : "连接中断";
   $("connection-error").hidden = ok;
   if (!ok) $("connection-error").textContent = `无法连接本机服务。${error ?? "请确认 Noya 仍在运行。"} 页面会自动重连，已有输入仍保留。`;
   updateComposer();
+  if (changed && snapshot.task) render();
 }
 async function refresh(): Promise<void> {
   const current = generation; const sequence = ++refreshSequence;
@@ -97,6 +110,7 @@ async function refresh(): Promise<void> {
       loadingSelection = false;
       feed.scrollTo({ top: preferences.feedScroll ?? feed.scrollHeight, behavior: "instant" });
       if (preferences.reader && next.task.drafts.some(d => d.draftId === preferences.reader)) await openDraft(preferences.reader, false);
+      else if (preferences.artifact) await openText(preferences.artifact);
     }
   } catch (error) {
     if (current !== generation || sequence !== refreshSequence) return;
@@ -116,8 +130,12 @@ async function refresh(): Promise<void> {
 async function poll(): Promise<void> { await refresh(); setTimeout(() => void poll(), document.hidden ? 1500 : 650); }
 function persistInput(): void {
   if (!workId || !taskId || loadingSelection) return;
+  const panelScroll = $("panel-scroll");
   preferences = { ...preferences, input: input.value, reference: reference ?? "", feedScroll: feed.scrollTop,
-    ...(!reader.hidden ? { reader: reading?.draftId, readerScroll: reader.querySelector(".reader-scroll")!.scrollTop } : {}) };
+    turns: [...expandedTurns], groups: [...expandedGroups], events: [...expandedEvents], panelAgent, readerFrom,
+    ...(panelAgent && panelScroll ? { panelScroll: panelScroll.scrollTop } : {}),
+    ...(!reader.hidden && reading ? { reader: reading.draftId, readerScroll: reader.querySelector(".reader-scroll")!.scrollTop } : {}),
+    ...(!reader.hidden && textReader ? { artifact: textReader.id, readerScroll: reader.querySelector(".reader-scroll")!.scrollTop } : {}) };
   writeStorage(preferenceKey(), JSON.stringify(preferences));
 }
 function rememberSelection(): void {
@@ -125,11 +143,11 @@ function rememberSelection(): void {
   writeStorage(`noya.task.${workId}`, taskId); writeTab(`noya.task.${workId}`, taskId);
 }
 async function selectWork(id: string, selected?: string): Promise<void> {
-  persistInput(); closeReader(false); generation += 1; workId = id;
+  persistInput(); readerFrom = "feed"; panelReturn = ""; closeReader(false); generation += 1; workId = id;
   taskId = selected ?? readTab(`noya.task.${id}`) ?? readStorage(`noya.task.${id}`) ?? "";
   rememberSelection(); loadingSelection = true; taskReadError = false;
   input.value = ""; reference = undefined; preferences = {};
-  snapshot.task = null; snapshot.tasks = []; snapshot.selectionError = undefined; renderedTask = ""; messageNodes.clear(); $("messages").replaceChildren();
+  snapshot.task = null; snapshot.tasks = []; snapshot.selectionError = undefined; renderedTask = ""; panelAgent = ""; panelReturn = ""; listOpen = false; readerFrom = "feed"; textReader = undefined; $("messages").replaceChildren(); $("messages").dataset.rendered = ""; $("panel").hidden = true;
   for (const id of ["stream", "execution", "decision", "sync-notice", "task-error", "legacy-notice", "new-content"]) $(id).hidden = true;
   $("task-title").textContent = "正在读取任务…"; $("work-name").textContent = name();
   updateComposer(); await refresh();
@@ -161,9 +179,10 @@ function render(): void {
   $("create-first").hidden = !!task || snapshot.works.length > 0;
   $<HTMLButtonElement>("create-first").disabled = !!snapshot.configurationError;
   if (snapshot.configurationError) { $("connection-error").hidden = false; $("connection-error").textContent = snapshot.configurationError; }
-  $("empty").hidden = !!task?.messages.length;
+  const started = !!task?.messages.some(message => message.role === "user") || !!task?.process.some(item => item.kind === "message");
+  $("empty").hidden = started;
   $("composer-area").hidden = !task;
-  $("empty-hint").innerHTML = task ? "一个人物、一场相遇，或还没想清楚的念头。<br>和 Noya 聊聊，让故事慢慢有形。" : snapshot.works.length ? "选择一部作品，接着上次的想法继续。" : "一个人物、一场相遇，或还没想清楚的念头。<br>不必准备完美，先为它留下一页。";
+  $("empty-hint").innerHTML = task ? "告诉 Main 这一章想怎么写" : snapshot.works.length ? "选择一部作品，接着上次的想法继续。" : "一个人物、一场相遇，或还没想清楚的念头。<br>不必准备完美，先为它留下一页。";
   $("active-notice").hidden = !busyElsewhere();
   if (busyElsewhere()) setHTML("active-notice", `<span><i class="pulse"></i> ${escape(name(snapshot.active!.workId))} · ${escape(snapshot.activeName ?? snapshot.active!.taskId)} 仍在执行。你可以继续阅读。</span><button class="quiet-button" data-action="return-active">返回任务 ↗</button><button class="quiet-button" data-action="stop-active">停止该任务</button>`);
   if (!task) {
@@ -174,23 +193,16 @@ function render(): void {
   }
   $("task-title").textContent = task.name;
   $("task-title").title = task.name;
-  $("task-status").textContent = busyElsewhere() ? "仅查看 · 输入会保留" : task.decision && task.status === "idle" ? "等待你的决定" : labels[task.status]!;
-  if (renderedTask !== `${workId}/${task.taskId}`) { renderedTask = `${workId}/${task.taskId}`; messageNodes.clear(); $("messages").replaceChildren(); decisionId = ""; }
+  $("task-status").textContent = busyElsewhere() ? "仅查看 · 输入会保留" : task.status === "running" ? "" : task.decision && task.status === "idle" ? "等待你的决定" : labels[task.status]!;
+  if (renderedTask !== `${workId}/${task.taskId}`) { renderedTask = `${workId}/${task.taskId}`; $("messages").replaceChildren(); $("messages").dataset.rendered = ""; decisionId = ""; listOpen = false; if (panelAgent && !task.runs.some(run => run.agentId === panelAgent)) panelAgent = ""; }
   const atBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 100;
-  let changed = false;
-  for (const message of task.messages) {
-    let node = messageNodes.get(message.id);
-    if (!node) { node = document.createElement("section"); node.className = `message ${message.role}`; messageNodes.set(message.id, node); $("messages").append(node); changed = true; }
-    let html = "";
-    if (message.role === "notice" && message.draftId) {
-      const draft = task.drafts.find(d => d.draftId === message.draftId);
-      if (draft) html = draftCard(draft);
-    } else html = `<div class="message-label">${message.role === "user" ? "你" : message.role === "notice" ? "本机服务" : "CONTEXT AGENT"}${message.draftId ? ` · ${escape(task.drafts.find(d => d.draftId === message.draftId)?.title ?? "正文")} · 第 ${task.drafts.find(d => d.draftId === message.draftId)?.version ?? "?"} 版` : ""}</div><div class="message-body">${message.role === "user" ? escape(message.text) : rich(message.text)}</div>`;
-    if (node.innerHTML !== html) { node.innerHTML = html; changed = true; }
-  }
-  $("stream").hidden = !task.streaming;
-  if ($("stream").textContent !== (task.streaming ?? "")) { $("stream").textContent = task.streaming ?? ""; changed = true; }
-  renderExecution(task);
+  const feedHtml = renderFeed(task.process, task.runs, task.status, connected, expandedTurns, new Set([...expandedGroups, ...expandedEvents]), rich);
+  const changed = $("messages").dataset.rendered !== feedHtml;
+  if (changed) { $("messages").innerHTML = feedHtml; $("messages").dataset.rendered = feedHtml; }
+  $("stream").hidden = true;
+  $("execution").hidden = true;
+  paintEntry(task);
+  paintPanel(task);
   $("task-error").hidden = !task.error;
   $("task-error").textContent = task.error ?? "";
   $("sync-notice").hidden = !task.pendingChapters.length;
@@ -208,27 +220,63 @@ function render(): void {
   updateComposer();
   if (changed) { if (atBottom) scrollBottom(); else $("new-content").hidden = false; }
 }
-function draftCard(draft: DraftView): string {
-  return `<button class="draft-card" data-draft="${escape(draft.draftId)}"><span class="draft-card-top">正文 · 第 ${draft.version} 版 <span class="badge ${draft.review === "passed" ? "" : "warn"}">${draft.finalized ? "已定稿" : draft.superseded ? "已有后续定稿" : draft.review === "pending" ? "已保存 · 待检查" : "初稿"}</span></span><h3>${escape(draft.title)}</h3><span class="draft-card-bottom"><span>${draft.characters.toLocaleString()} 字 · ${draft.review === "passed" ? "四项检查通过" : draft.review === "pending" ? "检查尚未完成" : draft.review === "verification" ? "检查含核实记录" : "检查发现内容冲突"}</span><strong>阅读全文 ↗</strong></span></button>`;
+function paintEntry(task: TaskView): void {
+  const anchor = $("subtask-anchor");
+  if (!task.runs.length) { anchor.hidden = true; listOpen = false; return; }
+  anchor.hidden = false;
+  const label = subtaskEntryLabel(task.runs, { runningCardsVisible: runningVisible, connected });
+  $("subtask-entry").innerHTML = `<span>${escape(label)}</span>`;
+  $("subtask-entry").setAttribute("aria-expanded", String(listOpen));
+  $("subtask-list").hidden = !listOpen;
+  if (listOpen) setHTML("subtask-list", renderSubtaskList(task.runs));
+  const cards = [...document.querySelectorAll<HTMLElement>(`.task-card[data-running="1"]`)];
+  const box = feed.getBoundingClientRect();
+  const visible = cards.some(card => { const rect = card.getBoundingClientRect(); return rect.bottom > box.top + 8 && rect.top < box.bottom - 8; });
+  if (visible !== runningVisible) { runningVisible = visible; $("subtask-entry").innerHTML = `<span>${escape(subtaskEntryLabel(task.runs, { runningCardsVisible: runningVisible, connected }))}</span>`; }
 }
-function renderExecution(task: TaskView): void {
-  $("execution").hidden = !task.agents.length && task.status !== "running" && task.status !== "stopping";
-  const running = task.agents.filter(a => a.status === "running");
-  const summary = task.status === "stopping" ? "正在停止全部执行，等待确认结束" : running.length ? running.map(a => `${roles[a.role]}正在处理`).join(" · ") : task.status === "running" ? task.activity ?? "Context Agent 正在处理" : `${task.agents.length} 条 Agent 工作记录`;
-  if (!$("execution").querySelector("details")) $("execution").innerHTML = '<details><summary id="execution-summary"></summary><div id="execution-rows"></div></details>';
-  setHTML("execution-summary", `${task.status === "running" ? '<i class="pulse"></i>' : ""}${escape(summary)}`);
-  setHTML("execution-rows", task.agents.map(a => `<div class="agent-row"><span>${escape(roles[a.role] ?? a.role)}</span><span>${escape(agentStates[a.status] ?? a.status)}</span><small>${escape(a.detail)}</small></div>`).join(""));
+function paintPanel(task: TaskView): void {
+  const panel = $("panel");
+  if (!panelAgent || !reader.hidden) {
+    panel.hidden = true;
+    if (reader.hidden) { $("task-pane").inert = false; $("app").querySelector<HTMLElement>(".app-header")!.inert = false; $("active-notice").inert = false; $("connection-error").inert = false; }
+    return;
+  }
+  if (!task.runs.some(run => run.agentId === panelAgent)) { panelAgent = ""; panel.hidden = true; return; }
+  panel.hidden = false;
+  const view = renderPanel(panelAgent, task.runs, task.status, connected, new Set([...expandedGroups, ...expandedEvents]), rich);
+  $("panel-title").textContent = view.title;
+  $("panel-meta").textContent = view.meta;
+  const scroll = $("panel-scroll");
+  const top = scroll.scrollTop;
+  setHTML("panel-body", view.body);
+  if (!top && preferences.panelScroll) scroll.scrollTop = preferences.panelScroll;
+  else scroll.scrollTop = top;
+  const narrow = matchMedia("(max-width: 780px)").matches;
+  $("task-pane").inert = narrow;
+  $("app").querySelector<HTMLElement>(".app-header")!.inert = narrow;
+  $("active-notice").inert = narrow;
+  $("connection-error").inert = narrow;
+  if (narrow) { panel.setAttribute("role", "dialog"); panel.setAttribute("aria-modal", "true"); }
+  else { panel.setAttribute("role", "complementary"); panel.removeAttribute("aria-modal"); }
 }
 function updateComposer(): void {
   const task = snapshot.task;
   const locked = !connected || taskReadError || !task || sending || busyElsewhere() || task.status === "stopping";
-  $<HTMLButtonElement>("send").disabled = locked || !input.value.trim();
+  const stopping = !!task && !!snapshot.active && snapshot.active.workId === workId && snapshot.active.taskId === task.taskId && task.status === "running" && !input.value.trim();
+  const button = $<HTMLButtonElement>("send");
+  if (!button.dataset.sendIcon) button.dataset.sendIcon = button.innerHTML;
+  button.disabled = stopping ? !connected || sending : locked || !input.value.trim();
+  button.setAttribute("aria-label", stopping ? "停止" : "发送消息");
+  button.classList.toggle("is-stop", stopping);
+  button.innerHTML = stopping ? `<span class="stop-mark" aria-hidden="true"></span>` : button.dataset.sendIcon;
   input.disabled = !task;
-  $("stop").hidden = !snapshot.active || (snapshot.active.workId !== workId || snapshot.active.taskId !== taskId);
-  $<HTMLButtonElement>("stop").disabled = sending || task?.status === "stopping" || !connected;
+  $("stop").hidden = true;
   $("resume-task").hidden = !task || !["stopped", "interrupted", "failed"].includes(task.status) || !!task.pendingChapters.length;
   $<HTMLButtonElement>("resume-task").disabled = locked || !!snapshot.active;
-  $("composer-meta").textContent = busyElsewhere() ? "另一条任务正在执行；输入会为你保留" : task?.status === "running" ? "可以补充意见，Noya 会在当前任务中处理" : "与你一起，把故事写下去";
+  const elsewhere = busyElsewhere() ? snapshot.tasks.find(item => item.taskId === snapshot.active?.taskId)?.name ?? snapshot.activeName ?? "另一条任务" : "";
+  $("composer-meta").textContent = !connected ? "连接断开，输入会保留，恢复后可发送" : elsewhere ? `「${elsewhere}」还在执行，结束后可以在这里发送` : task?.status === "stopping" ? "正在停止，结束后可以继续发送" : task?.status === "running" ? "可以补充要求，Main 会在当前执行中处理" : "";
+  const started = !!task?.messages.some(message => message.role === "user");
+  input.placeholder = task?.status === "stopping" ? "正在停止…" : !started ? "告诉 Main 这一章想怎么写" : panelAgent && reader.hidden ? `回复 Main（${panelAgent} 不会直接收到）` : task?.status === "running" ? "补充要求，Main 会在当前执行中处理" : "回复 Main";
   $("reference").hidden = !reference;
   const draft = task?.drafts.find(d => d.draftId === reference);
   if (reference) setHTML("reference", `<span>针对《${escape(draft?.title ?? "已保存正文")}》第 ${draft?.version ?? "?"} 版提出意见</span><button class="quiet-button" data-action="clear-reference" aria-label="取消稿件引用">×</button>`);
@@ -255,6 +303,11 @@ async function send(action: CommandAction, target?: TaskRef): Promise<boolean> {
   finally { sending = false; updateComposer(); }
 }
 async function submit(): Promise<void> {
+  if ($("send").classList.contains("is-stop")) {
+    const target = snapshot.active;
+    if (target) await send({ kind: "stop" }, target);
+    return;
+  }
   const text = input.value.trim();
   if (!text || $<HTMLButtonElement>("send").disabled) return;
   const sentWork = workId; const sentTask = taskId; const sentText = input.value; const sentReference = reference;
@@ -321,7 +374,7 @@ async function openDraft(id: string, focus = true): Promise<void> {
   try {
     const draft = await api<DraftView & { markdown: string }>(`/api/draft?work=${encodeURIComponent(task.workId)}&task=${encodeURIComponent(task.taskId)}&draft=${encodeURIComponent(id)}`);
     if (current !== generation || request !== draftSequence) return;
-    readerOpener = document.activeElement as HTMLElement; reading = draft; reader.hidden = false;
+    readerOpener = document.activeElement as HTMLElement; reading = draft; textReader = undefined; reader.hidden = false; $("panel").hidden = true; $("return-subtask").hidden = readerFrom !== "panel"; $("revise").hidden = false; $("finalize").hidden = false;
     const top = preferences.reader === id ? preferences.readerScroll ?? 0 : 0;
     preferences.reader = id; preferences.readerScroll = top; $("reader-content").innerHTML = rich(draft.markdown);
     reader.querySelector(".reader-scroll")!.scrollTo({ top, behavior: "instant" }); persistInput();
@@ -329,6 +382,15 @@ async function openDraft(id: string, focus = true): Promise<void> {
   } catch (error) { toast(error instanceof Error ? error.message : "无法读取正文"); }
 }
 function renderReader(): void {
+  if (textReader && !reading) {
+    setHTML("reader-meta", `<span>${escape(textReader.title)}</span><span class="badge">只读</span>`);
+    $("review-details").hidden = true;
+    $("reader-content").innerHTML = rich(textReader.text);
+    $("return-subtask").hidden = readerFrom !== "panel";
+    $("revise").hidden = true; $("finalize").hidden = true;
+    return;
+  }
+  $("review-details").hidden = false; $("revise").hidden = false; $("finalize").hidden = false;
   if (!reading) return;
   setHTML("reader-meta", `<span>${escape(name())}</span><span>第 ${reading.version} 版 · ${reading.characters.toLocaleString()} 字</span>${reading.finalized ? '<span class="badge">当前正式版本</span>' : reading.superseded ? '<span class="badge warn">已被后续定稿替换 · 本版保留</span>' : ""}`);
   $("review-label").textContent = reading.review === "passed" ? "✓ 四项内容检查通过 · 展开结论" : reading.review === "pending" ? "检查尚未完成" : reading.review === "verification" ? "检查含核实记录 · 结合交稿说明阅读" : "检查发现内容冲突 · 展开结论";
@@ -338,9 +400,12 @@ function renderReader(): void {
 }
 function closeReader(clear = true): void {
   if (!clear) persistInput();
-  draftSequence += 1; reader.hidden = true; reading = undefined; $("task-pane").inert = false; $("app").querySelector<HTMLElement>(".app-header")!.inert = false;
+  const back = readerFrom === "panel" ? panelReturn || panelAgent : "";
+  draftSequence += 1; reader.hidden = true; reading = undefined; textReader = undefined; $("task-pane").inert = false; $("app").querySelector<HTMLElement>(".app-header")!.inert = false;
   $("active-notice").inert = false; $("connection-error").inert = false;
-  reader.removeAttribute("role"); reader.removeAttribute("aria-modal"); if (clear && taskId) { preferences.reader = ""; preferences.readerScroll = 0; persistInput(); } readerOpener?.focus();
+  reader.removeAttribute("role"); reader.removeAttribute("aria-modal"); if (clear && taskId) { preferences.reader = ""; preferences.readerScroll = 0; readerFrom = back ? "panel" : "feed"; persistInput(); }
+  if (back) { panelAgent = back; readerFrom = "panel"; render(); $("panel-close").focus(); }
+  else readerOpener?.focus();
 }
 function responsiveReader(): void {
   const modal = !reader.hidden && matchMedia("(max-width: 780px)").matches;
@@ -360,12 +425,35 @@ function confirmStop(): void {
   $("confirm-stop").onclick = async () => { closeDialog(); await send({ kind: "stop" }, target); };
 }
 
+async function openText(id: string): Promise<void> {
+  const task = snapshot.task; if (!task) return;
+  try {
+    const artifact = await api<{ id: string; title: string; text: string }>(`/api/artifact?work=${encodeURIComponent(task.workId)}&task=${encodeURIComponent(task.taskId)}&id=${encodeURIComponent(id)}`);
+    textReader = artifact; reading = undefined; reader.hidden = false; $("panel").hidden = true; preferences.artifact = artifact.id;
+    $("reader-content").innerHTML = rich(artifact.text);
+    renderReader(); responsiveReader(); $("close-reader").focus();
+  } catch (error) { toast(error instanceof Error ? error.message : "暂时无法读取"); }
+}
+function toggleTurn(id: string): void { if (expandedTurns.has(id)) expandedTurns.delete(id); else expandedTurns.add(id); persistInput(); render(); }
+function toggleGroup(id: string): void { if (expandedGroups.has(id)) expandedGroups.delete(id); else expandedGroups.add(id); persistInput(); render(); }
+function toggleEvent(id: string): void { if (expandedEvents.has(id)) expandedEvents.delete(id); else expandedEvents.add(id); persistInput(); render(); }
+function openSubtask(id: string): void {
+  listOpen = false; panelAgent = id; panelReturn = id; textReader = undefined;
+  if (!reader.hidden) closeReader(false);
+  persistInput(); render(); $("panel-close").focus();
+}
+function closePanel(): void {
+  const id = panelAgent; panelAgent = ""; panelReturn = ""; listOpen = false; persistInput(); render();
+  document.querySelector<HTMLElement>(`[data-action="open-subtask"][data-agent="${CSS.escape(id)}"]`)?.focus();
+}
 $("composer").addEventListener("submit", event => { event.preventDefault(); void submit(); });
 input.addEventListener("input", () => { persistInput(); autosize(); updateComposer(); });
 input.addEventListener("keydown", event => { if (event.key === "Enter" && !event.shiftKey && !event.isComposing) { event.preventDefault(); void submit(); } });
 $("task-switcher").onclick = chooseTask; $("new-task").onclick = () => void createTask();
 $("work-switcher").onclick = chooseWork; $("create-first").onclick = () => void create();
-$("close-reader").onclick = () => closeReader(); $("stop").onclick = confirmStop; $("finalize").onclick = confirmFinalize;
+$("close-reader").onclick = () => closeReader(); $("panel-close").onclick = () => closePanel(); $("return-subtask").onclick = () => closeReader();
+$("subtask-entry").onclick = () => { listOpen = !listOpen; render(); if (listOpen) $("subtask-list").querySelector("button")?.focus(); };
+$("stop").onclick = confirmStop; $("finalize").onclick = confirmFinalize;
 $("revise").onclick = () => { if (!reading) return; reference = reading.draftId; persistInput(); closeReader(); updateComposer(); input.focus(); };
 $("resume-task").onclick = () => void send({ kind: "continue" });
 $("new-content").onclick = scrollBottom;
@@ -380,7 +468,20 @@ document.addEventListener("click", event => {
     const pending = snapshot.task?.pendingSync.find(p => p.chapterId === button.dataset.claim);
     if (pending) void send({ kind: "claim-sync", chapterId: pending.chapterId, version: pending.version });
   }
-  if (button.dataset.draft) void openDraft(button.dataset.draft);
+  if (button.dataset.draft) { readerFrom = "feed"; panelAgent = ""; void openDraft(button.dataset.draft); }
+  if (button.dataset.action === "open-result" && button.dataset.result) {
+    const fromPanel = !!button.closest("#panel, #panel-body");
+    readerFrom = fromPanel ? "panel" : "feed";
+    if (fromPanel) panelReturn = panelAgent; else { panelAgent = ""; panelReturn = ""; }
+    const id = button.dataset.result;
+    if (id.startsWith("draft_")) void openDraft(id); else void openText(id);
+  }
+  if (button.dataset.action === "retry-result") void refresh();
+  if (button.dataset.action === "toggle-turn" && button.dataset.turn) toggleTurn(button.dataset.turn);
+  if (button.dataset.action === "toggle-group" && button.dataset.group) toggleGroup(button.dataset.group);
+  if (button.dataset.action === "toggle-event" && button.dataset.event) toggleEvent(button.dataset.event);
+  if (button.dataset.action === "open-subtask" && button.dataset.agent) openSubtask(button.dataset.agent);
+  if (button.dataset.action === "close-subtasks") { listOpen = false; render(); $("subtask-entry").focus(); }
   if (button.dataset.decision !== undefined && snapshot.task?.decision) { const d = snapshot.task.decision; void send({ kind: "decide", decisionId: d.id, answer: d.options[Number(button.dataset.decision)] }); }
   const action = button.dataset.action;
   if (action === "close-dialog") closeDialog();
@@ -393,7 +494,14 @@ document.addEventListener("click", event => {
   if (action === "stop-active") confirmStop();
 });
 document.addEventListener("keydown", event => {
-  if (event.key === "Escape" && !dialog.open && !reader.hidden) { event.preventDefault(); closeReader(); }
+  if (event.key === "Escape" && !dialog.open && listOpen) { event.preventDefault(); listOpen = false; render(); $("subtask-entry").focus(); }
+  else if (event.key === "Escape" && !dialog.open && !reader.hidden) { event.preventDefault(); closeReader(); }
+  else if (event.key === "Escape" && !dialog.open && panelAgent && reader.hidden) { event.preventDefault(); closePanel(); }
+  if (event.key === "Tab" && !$("panel").hidden && reader.hidden && matchMedia("(max-width: 780px)").matches && !dialog.open) {
+    const items = [...$("panel").querySelectorAll<HTMLElement>("button:not(:disabled), summary, [tabindex='0']")];
+    if (items.length && event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items.at(-1)?.focus(); }
+    if (items.length && !event.shiftKey && document.activeElement === items.at(-1)) { event.preventDefault(); items[0]?.focus(); }
+  }
   if (event.key === "Tab" && !reader.hidden && matchMedia("(max-width: 780px)").matches && !dialog.open) {
     const items = [...reader.querySelectorAll<HTMLElement>('button:not(:disabled),summary,[tabindex="0"]')];
     if (event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items.at(-1)?.focus(); }
@@ -403,4 +511,16 @@ document.addEventListener("keydown", event => {
 window.addEventListener("resize", responsiveReader);
 window.addEventListener("online", () => void refresh());
 window.addEventListener("pagehide", persistInput);
+document.addEventListener("click", event => {
+  const target = event.target as HTMLElement;
+  if (!listOpen || $("subtask-anchor").contains(target)) return;
+  listOpen = false; render();
+});
+setInterval(() => {
+  if (!connected) return;
+  document.querySelectorAll<HTMLTimeElement>("time[data-start]").forEach(node => {
+    const start = Number(node.dataset.start);
+    if (Number.isFinite(start)) node.textContent = elapsedClock(Math.max(0, Date.now() - start));
+  });
+}, 1000);
 void (async () => { await refresh(); setTimeout(() => void poll(), 650); })();

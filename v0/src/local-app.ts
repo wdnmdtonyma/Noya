@@ -1,6 +1,6 @@
 import { chapterOwnership, claimSync, repairFinalizations, readWorkState, type WorkReadState } from "./sync-ownership.ts";
 import { randomUUID } from "node:crypto";
-import { existsSync, lstatSync, readdirSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { openWritingSession } from "./app.ts";
 import { findById, loadCanon } from "./canon.ts";
@@ -11,11 +11,13 @@ import { contentHash, isId, refuse } from "./util.ts";
 import { resolveRoleModels } from "./models.ts";
 import { assistantFailure, messageText } from "./transcript.ts";
 import { pageRecord, readDrafts, readMessages, savePageRecord, type PageRecord } from "./local-records.ts";
+import { partialText, readContextProcess, type LiveCall } from "./process.ts";
+import { buildRuns } from "./runs.ts";
 import { recordAuthorMessage } from "./session.ts";
 
 type Runtime = Awaited<ReturnType<typeof resolveRoleModels>>;
 type Opened = Awaited<ReturnType<typeof openWritingSession>>;
-type Entry = { task: TaskLayout; registry: TaskRegistry; page: PageRecord; opened?: Opened; opening?: Promise<Opened>; stopping?: Promise<void>; submitting: number; claiming?: boolean; streaming?: string; activity?: string };
+type Entry = { task: TaskLayout; registry: TaskRegistry; page: PageRecord; opened?: Opened; opening?: Promise<Opened>; stopping?: Promise<void>; submitting: number; claiming?: boolean; streaming?: string; activity?: string; liveText: Map<string, string>; liveCalls: Map<string, LiveCall>; watched: WeakSet<object> };
 
 export class AppError extends Error {
   status: number;
@@ -61,10 +63,12 @@ export class LocalApp {
     if (page.status === "running" || page.status === "stopping") {
       page.status = page.stoppedByAuthor ? "stopped" : "interrupted";
       page.error = page.stoppedByAuthor ? undefined : "本机程序已退出，上次执行中断。已保存的对话和正文仍在。";
+      if (page.stoppedByAuthor) rememberEnd(page, "stopped", "已停止");
+      else rememberEnd(page, "interrupted", "执行中断");
     }
     markInterruptedAgents(registry);
     saveRegistry(task, registry); savePageRecord(task, page);
-    const entry = { task, registry, page, submitting: 0 };
+    const entry = { task, registry, page, submitting: 0, liveText: new Map<string, string>(), liveCalls: new Map<string, LiveCall>(), watched: new WeakSet<object>() };
     this.entries.set(key, entry);
     return entry;
   }
@@ -128,10 +132,13 @@ export class LocalApp {
     const entry = this.entry(workId, selected.taskId);
     const { task, page } = entry;
     const registry = entry.opened?.hub.registry ?? entry.registry;
+    const drafts = readDrafts(task, registry, workState);
+    const processView = readContextProcess(task, registry, page, [...entry.liveCalls.values()], entry.liveText.get("context"));
+    const runs = buildRuns(task, registry, page.status, processView.items, drafts, [...entry.liveCalls.values()], entry.liveText);
     return { works, tasks, active: this.active, activeName, task: {
       name: selected.name, createdAt: selected.createdAt,
       workId, taskId: task.taskId, status: page.status, error: page.error,
-      messages: readMessages(task, registry, page), drafts: readDrafts(task, registry, workState),
+      messages: readMessages(task, registry, page), drafts, process: processView.items, runs, ...(processView.gap ? { gap: processView.gap } : {}),
       agents: registry.subagents.map(a => ({ id: a.id, role: a.role, status: a.status, detail: a.failureReason || (a.artifacts.length ? `已保存 ${a.artifacts.length} 份工作记录` : "尚未提交产物") })),
       pendingChapters,
       pendingSync: pendingChapters.map(chapterId => {
@@ -145,6 +152,18 @@ export class LocalApp {
     } };
   }
   async draft(ref: TaskRef, draftId: string) { return this.draftView(ref, draftId); }
+  async artifact(ref: TaskRef, id: string): Promise<{ id: string; title: string; text: string }> {
+    if (!/^(plan|review|check|proposal)_\d+$/.test(id)) throw new AppError(404, "这份成果不存在");
+    const entry = this.target(ref);
+    const file = join(entry.task.artifactsDir, `${id}.${id.startsWith("plan_") ? "md" : "json"}`);
+    if (!existsSync(file)) throw new AppError(404, "暂时无法读取");
+    try {
+      const text = readFileSync(file, "utf8");
+      if (!text.trim()) throw new Error("empty");
+      const title = id.startsWith("plan_") ? text.split("\n").find(line => line.startsWith("# "))?.slice(2).trim() || "章节方案" : id.startsWith("review_") ? "检查报告" : id.startsWith("check_") ? "核对结论" : "资料变更";
+      return { id, title, text };
+    } catch (error) { if (error instanceof AppError) throw error; throw new AppError(404, "暂时无法读取"); }
+  }
   private draftView(ref: TaskRef, draftId: string) {
     const entry = this.target(ref);
     const view = readDrafts(entry.task, entry.opened?.hub.registry ?? entry.registry).find(d => d.draftId === draftId);
@@ -184,17 +203,19 @@ export class LocalApp {
         savePageRecord(entry.task, entry.page);
         return "具体问题已显示在作者页面，请结束本轮等待作者回答。";
       };
-      opened.runtimeHost.session.subscribe(event => {
-        if (event.type === "message_update" && event.message.role === "assistant") entry.streaming = messageText(event.message);
-        if (event.type === "message_end") {
-          entry.streaming = undefined;
-          if (!entry.page.sessionSaved && existsSync(opened.hub.registry.context_session_file)) {
+      const follow = (agentId: string, session: Opened["runtimeHost"]["session"]) => {
+        if (entry.watched.has(session)) return;
+        entry.watched.add(session);
+        session.subscribe(event => {
+          observeSession(entry, agentId, event);
+          if (agentId === "context" && event.type === "message_end" && !entry.page.sessionSaved && existsSync(opened.hub.registry.context_session_file)) {
             entry.page.sessionSaved = true;
             try { savePageRecord(entry.task, entry.page); } catch (error) { entry.page.error = `保存任务记录失败：${errorText(error)}`; }
           }
-        }
-        if (event.type === "tool_execution_start") entry.activity = activityLabels[event.toolName] ?? "Context Agent 正在查阅写作材料";
-      });
+        });
+      };
+      follow("context", opened.runtimeHost.session);
+      opened.hub.watchAgent(follow);
       await opened.runtimeHost.session.sendCustomMessage({ customType: "noya.page", display: false, content: "作者正在本机任务页面。正文从交稿卡片阅读，定稿由页面明确选择版本；不要让作者输入 /finalize 或寻找文件。普通讨论不开始写作。文件读取与搜索仅允许 canon/、当前 tasks/任务身份/ 和流程技能目录，不要从作品根递归搜索。其他任务负责的待同步章节只能提示作者返回该任务，不要尝试接管。页面引用的稿件是修改的唯一基准，即使已有新稿；先读取指定稿件。原 Writer 已终止时必须告知作者并根据保存材料重新安排。写入资料时页面会把确切变更呈现给作者；工具说等待页面确认时结束本轮，不重复尝试。作者明确停止不自动恢复。" }, { triggerTurn: false });
       return opened;
     })();
@@ -365,7 +386,7 @@ export class LocalApp {
     try {
       if (entry.opening) await entry.opening;
       await entry.opened?.hub.stopTask();
-      entry.page.status = "stopped"; entry.streaming = undefined; entry.page.error = undefined;
+      entry.page.status = "stopped"; entry.page.stoppedAt = new Date().toISOString(); rememberEnd(entry.page, "stopped", "已停止"); entry.streaming = undefined; entry.liveText.clear(); entry.page.error = undefined;
       savePageRecord(entry.task, entry.page);
       if (sameTask(this.active, { workId: entry.task.work.workId, taskId: entry.task.taskId })) this.active = null;
     } catch (error) { entry.page.error = `停止未完成：${errorText(error)}`; savePageRecord(entry.task, entry.page); throw error; }
@@ -378,6 +399,7 @@ export class LocalApp {
     if (opened && (!opened.runtimeHost.session.isIdle || opened.hub.hasPendingWork)) return;
     const failure = entry.page.error || assistantFailure(opened?.runtimeHost.session);
     entry.page.status = failure ? "failed" : "idle";
+    if (failure) rememberEnd(entry.page, "failed", "失败");
     entry.page.error = failure;
     entry.streaming = undefined;
     entry.activity = undefined;
@@ -387,18 +409,45 @@ export class LocalApp {
   async close(): Promise<void> {
     this.closed = true; clearInterval(this.monitor);
     for (const entry of this.entries.values()) {
-      if (entry.page.status === "running") { entry.page.status = "interrupted"; savePageRecord(entry.task, entry.page); }
+      if (entry.page.status === "running") { entry.page.status = "interrupted"; rememberEnd(entry.page, "interrupted", "执行中断"); savePageRecord(entry.task, entry.page); }
       if (entry.opening) await entry.opening.catch(() => undefined);
-      await entry.opened?.hub.stopTask(); entry.opened?.hub.dispose();
+      await entry.opened?.hub.interruptTask(); entry.opened?.hub.dispose();
     }
   }
 }
 
-const activityLabels: Record<string, string> = {
-  query_canon: "正在查阅作品资料", save_package: "正在整理本章要求与材料", spawn_subagent: "正在安排写作与检查",
-  send_message: "正在向写手传达反馈", save_revision: "正在保存新的正文版本", save_sync_proposal: "正在整理定稿带来的资料变化",
-  apply_sync: "正在同步作品资料", write_canon: "正在处理已确认的设定",
-};
+function observeSession(entry: Entry, agentId: string, event: { type: string; message?: { role?: string; content?: unknown }; toolCallId?: string; toolName?: string; args?: unknown; partialResult?: unknown; parentToolCallId?: string }): void {
+  if (event.type === "message_update" && event.message?.role === "assistant") {
+    const text = messageText(event.message);
+    if (text) entry.liveText.set(agentId, text);
+    if (agentId === "context") entry.streaming = text;
+  }
+  if (event.type === "message_end") {
+    entry.liveText.delete(agentId);
+    if (agentId === "context") entry.streaming = undefined;
+  }
+  if (event.type === "tool_execution_start" && event.toolCallId && event.toolName) {
+    entry.liveCalls.set(event.toolCallId, { id: event.toolCallId, name: event.toolName, args: event.args, at: Date.now(), agentId });
+    if (agentId === "context") entry.activity = event.toolName;
+  }
+  if (event.type === "tool_execution_update") {
+    const text = partialText(event.partialResult);
+    if (text) {
+      for (const id of [event.toolCallId, event.parentToolCallId]) {
+        const call = id ? entry.liveCalls.get(id) : undefined;
+        if (call) call.output = text;
+      }
+    }
+  }
+  if (event.type === "tool_execution_end" && event.toolCallId) entry.liveCalls.delete(event.toolCallId);
+}
+
+function rememberEnd(page: PageRecord, event: "stopped" | "failed" | "interrupted", text: string): void {
+  page.marks ??= [];
+  const at = Date.now();
+  if (page.marks.some(mark => mark.event === event && Math.abs(mark.at - at) < 1500)) return;
+  page.marks.push({ id: `${event}:${page.marks.length}:${at}`, event, text, at });
+}
 
 function errorText(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 function describeChanges(value: unknown): string {

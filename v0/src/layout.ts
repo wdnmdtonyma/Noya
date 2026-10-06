@@ -89,6 +89,11 @@ export interface RoundRecord {
   artifacts: string[];
   outcome?: "completed" | "stopped" | "failed" | "retired";
   note?: string;
+  /** Author-facing sentence. It is not part of the Subagent prompt. */
+  title?: string;
+  instruction?: string;
+  dispatchCallId?: string;
+  continued?: boolean;
 }
 
 export type SubagentStatus = "running" | "idle" | "stopped" | "retired" | "terminated" | "failed";

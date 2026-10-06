@@ -67,7 +67,7 @@ describe("记录不被写错", { concurrency: false }, () => {
       fauxAssistantMessage("写好了"),
     ]);
     fx.faux.context.setResponses([
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_1" })]),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_1" , task: "完成本次安排"})]),
       fauxAssistantMessage("派出"),
       fauxAssistantMessage("收到初稿"),
     ]);
@@ -75,7 +75,7 @@ describe("记录不被写错", { concurrency: false }, () => {
     await waitFor(() => loadRegistry(fx.hub.task).subagents.some((agent) => agent.id === "writer-1" && agent.status === "idle"), "写手交稿");
     await fx.session.waitForIdle();
     await turn(fx, "用别的任务的 Package", [
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "../../tfake/artifacts/package_9" })]),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "../../tfake/artifacts/package_9" , task: "完成本次安排"})]),
     ]);
     assert.match(toolTexts(fx.session, "spawn_subagent").at(-1) ?? "", /\[拒绝\].*package_数字/);
     assert.equal(loadRegistry(fx.hub.task).subagents.find((agent) => agent.id === "writer-1")?.status, "idle");
@@ -101,13 +101,13 @@ describe("记录不被写错", { concurrency: false }, () => {
       fauxAssistantMessage("二位完"),
     ]);
     fx.faux.context.setResponses([
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_1" })]),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_1" , task: "完成本次安排"})]),
       fauxAssistantMessage("等第一位"),
     ]);
     await fx.session.prompt("请第一位检查");
     await waitFor(() => arrived >= 1, "第一位检查员开始");
     fx.faux.context.setResponses([
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_1" })]),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_1" , task: "完成本次安排"})]),
       fauxAssistantMessage("等第二位"),
       fauxAssistantMessage("收到检查一"),
       fauxAssistantMessage("收到检查二"),
@@ -150,7 +150,7 @@ describe("记录不被写错", { concurrency: false }, () => {
       fauxAssistantMessage("核对完了"),
     ]);
     fx.faux.context.setResponses([
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "sync_checker", proposal_id: "proposal_1" })]),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "sync_checker", proposal_id: "proposal_1" , task: "完成本次安排"})]),
       fauxAssistantMessage("等核对"),
       fauxAssistantMessage("核对到了"),
     ]);
@@ -218,7 +218,7 @@ describe("记录不被写错", { concurrency: false }, () => {
       fauxAssistantMessage("两步核对完了"),
     ]);
     fx.faux.context.setResponses([
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "sync_checker", proposal_id: "proposal_2" })]),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "sync_checker", proposal_id: "proposal_2" , task: "完成本次安排"})]),
       fauxAssistantMessage("等两步核对"),
       fauxAssistantMessage("两步核对到了"),
     ]);

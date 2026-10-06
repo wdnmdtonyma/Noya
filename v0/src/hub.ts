@@ -75,6 +75,20 @@ function briefBlock(brief: unknown): string {
   return `# Writing Brief\n${JSON.stringify(brief, null, 2)}`;
 }
 
+interface DispatchNote {
+  title: string;
+  instruction: string;
+  continued?: boolean;
+  dispatchCallId?: string;
+}
+
+function authorTask(value: unknown): string {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) refuse("任务说明为空。请用作者能读懂的一句话重写这次要做什么，不要复述材料。");
+  if ([...text].length > 120) refuse("任务说明过长。请缩短成一句作者能读懂的话，不要复述材料。");
+  return text;
+}
+
 function hanCount(text: string): number {
   return [...text].filter((char) => /\p{Script=Han}/u.test(char)).length;
 }
@@ -98,6 +112,7 @@ export class TaskHub {
   private readonly runningPromises = new Set<Promise<unknown>>();
   private pageDraftId?: string;
   private readonly sessions = new Map<string, AgentSession>();
+  private readonly sessionWatchers = new Set<(agentId: string, session: AgentSession) => void>();
   private readonly stopRequested = new Set<string>();
   private readonly failing = new Set<string>();
   // 每个写手连续被文风检查拒绝的次数；到上限后放行，避免弱模型在同一处反复打转。
@@ -147,10 +162,28 @@ export class TaskHub {
   }
 
   async stopTask(): Promise<void> {
+    await this.halt(true);
+  }
+
+  /** Process exit, not an author stop. Open rounds become interrupted. */
+  async interruptTask(): Promise<void> {
+    await this.halt(false);
+  }
+
+  watchAgent(listener: (agentId: string, session: AgentSession) => void): void {
+    this.sessionWatchers.add(listener);
+    for (const [agentId, session] of this.sessions) listener(agentId, session);
+  }
+
+  private announceSession(agentId: string, session: AgentSession): void {
+    for (const listener of this.sessionWatchers) listener(agentId, session);
+  }
+
+  private async halt(authorStop: boolean): Promise<void> {
     this.cancelled = true;
     this.contextSession?.clearQueue();
     const running = this.registry.subagents.filter(agent => agent.status === "running");
-    for (const agent of running) this.stopRequested.add(agent.id);
+    if (authorStop) for (const agent of running) this.stopRequested.add(agent.id);
     await Promise.all([this.contextSession?.abort(), ...running.map(agent => this.sessions.get(agent.id)?.abort())]);
     await Promise.all([...this.runningPromises]);
     for (const agent of running) await this.finishRound(agent.id);
@@ -207,6 +240,10 @@ export class TaskHub {
       agent.status = "stopped";
       round.outcome = "stopped";
       round.note = "已停止";
+    } else if (this.cancelled) {
+      agent.status = "terminated";
+      round.outcome = "retired";
+      round.note = "进程退出";
     } else if (thrown || failure) {
       agent.status = "failed";
       agent.failureReason = agent.failureReason || failure || "模型调用失败";
@@ -427,25 +464,27 @@ export class TaskHub {
     });
   }
 
-  async spawnSubagent(args: Record<string, unknown>): Promise<string> {
+  async spawnSubagent(args: Record<string, unknown>, toolCallId = ""): Promise<string> {
     if (this.cancelled) refuse("作者已停止任务，等待作者继续");
+    const task = authorTask(args.task);
+    const note: DispatchNote = { title: task, instruction: task, dispatchCallId: toolCallId || undefined };
     const role = String(args.role) as SubagentRecord["role"];
     if (role === "writer") {
       const packageId = String(args.package_id ?? "");
       if (!isArtifactId(packageId, "package")) refuse(`产物 ID「${packageId}」不符合 package_数字 的格式`);
-      return this.spawnWriter(packageId);
+      return this.spawnWriter(packageId, note);
     }
     if (role === "reviewer") {
       const draftId = String(args.draft_id ?? "");
       if (!isArtifactId(draftId, "draft")) refuse(`产物 ID「${draftId}」不符合 draft_数字 的格式`);
-      return this.spawnReviewer(draftId);
+      return this.spawnReviewer(draftId, note);
     }
     const proposalId = String(args.proposal_id ?? "");
     if (!isArtifactId(proposalId, "proposal")) refuse(`产物 ID「${proposalId}」不符合 proposal_数字 的格式`);
-    return this.spawnChecker(proposalId);
+    return this.spawnChecker(proposalId, note);
   }
 
-  async sendMessage(args: Record<string, unknown>): Promise<string> {
+  async sendMessage(args: Record<string, unknown>, toolCallId = ""): Promise<string> {
     const agent = this.agent(String(args.agent_id));
     if (agent.role !== "writer") refuse("只能向 Writer 发送消息");
     if (agent.status === "retired" || agent.status === "terminated" || agent.status === "failed") {
@@ -469,11 +508,13 @@ export class TaskHub {
     if (selected && selected.meta.chapter_id !== pkg.brief.chapter_id) refuse("所读稿件与目标 Writer 不属于同一章节");
     if (selected && agent.status !== "running") writeFileSync(join(agent.workspaceDir, "draft.md"), selected.markdown);
     const text = `${String(args.message ?? "")}\n\n${briefBlock(pkg.brief)}${selected ? `\n\n# 作者指定的修改基准 ${this.pageDraftId}\n以这一版正文为准，不能使用另一版：\n${selected.markdown}` : ""}`;
+    const message = String(args.message ?? "");
+    const note: DispatchNote = { title: message, instruction: message, continued: true, dispatchCallId: toolCallId || undefined };
     if (agent.status === "running") {
       await session.steer(text);
       return "消息将在 Writer 下一次模型调用前送达";
     }
-    this.launch(agent, text);
+    this.launch(agent, text, note);
     return "已开始新一轮";
   }
 
@@ -745,7 +786,7 @@ export class TaskHub {
     };
   }
 
-  private async spawnWriter(packageId: string): Promise<string> {
+  private async spawnWriter(packageId: string, note: DispatchNote): Promise<string> {
     const pending = this.pendingProblem();
     if (pending) refuse(pending);
     const pkg = loadPackage(this.task, packageId);
@@ -757,11 +798,11 @@ export class TaskHub {
     writeFileSync(join(workspace, "input", "brief.json"), `${JSON.stringify(pkg.brief, null, 2)}\n`);
     writeFileSync(join(workspace, "input", "pack.md"), pkg.pack.endsWith("\n") ? pkg.pack : `${pkg.pack}\n`);
     const agent = this.remember(id, "writer", packageId, workspace, packageId);
-    await this.openSubagent(agent, workspace, [briefBlock(pkg.brief), "", "# Context Pack", pkg.pack.trimEnd(), "", "方案文件：plan.md", "初稿文件：draft.md"].join("\n"));
+    await this.openSubagent(agent, workspace, [briefBlock(pkg.brief), "", "# Context Pack", pkg.pack.trimEnd(), "", "方案文件：plan.md", "初稿文件：draft.md"].join("\n"), note);
     return id;
   }
 
-  private async spawnReviewer(draftId: string): Promise<string> {
+  private async spawnReviewer(draftId: string, note: DispatchNote): Promise<string> {
     const draft = loadDraft(this.task, draftId);
     if (!draft) refuse(`初稿 ${draftId} 不存在`);
     const pkg = loadPackage(this.task, draft.meta.package_id);
@@ -773,11 +814,11 @@ export class TaskHub {
     writeFileSync(join(workspace, "pack.md"), pkg.pack.endsWith("\n") ? pkg.pack : `${pkg.pack}\n`);
     writeFileSync(join(workspace, "draft.md"), draft.markdown.endsWith("\n") ? draft.markdown : `${draft.markdown}\n`);
     const agent = this.remember(id, "reviewer", draftId, workspace);
-    await this.openSubagent(agent, workspace, [briefBlock(pkg.brief), "", "# Context Pack", pkg.pack.trimEnd(), "", "# 初稿", draft.markdown.trimEnd()].join("\n"));
+    await this.openSubagent(agent, workspace, [briefBlock(pkg.brief), "", "# Context Pack", pkg.pack.trimEnd(), "", "# 初稿", draft.markdown.trimEnd()].join("\n"), note);
     return id;
   }
 
-  private async spawnChecker(proposalId: string): Promise<string> {
+  private async spawnChecker(proposalId: string, note: DispatchNote): Promise<string> {
     const proposal = this.loadProposal(proposalId);
     if (!proposal) refuse(`同步清单 ${proposalId} 不存在`);
     const chapter = loadCanon(this.work.workDir).chapters.get(proposal.chapter_id);
@@ -788,11 +829,11 @@ export class TaskHub {
     writeFileSync(join(workspace, "proposal.json"), `${JSON.stringify(proposal, null, 2)}\n`);
     writeFileSync(join(workspace, "chapter.md"), chapter.content.endsWith("\n") ? chapter.content : `${chapter.content}\n`);
     const agent = this.remember(id, "sync_checker", proposalId, workspace);
-    await this.openSubagent(agent, workspace, ["# 变更清单", JSON.stringify(proposal, null, 2), "", "# 定稿正文", chapter.content].join("\n"));
+    await this.openSubagent(agent, workspace, ["# 变更清单", JSON.stringify(proposal, null, 2), "", "# 定稿正文", chapter.content].join("\n"), note);
     return id;
   }
 
-  private async openSubagent(agent: SubagentRecord, cwd: string, prompt: string): Promise<void> {
+  private async openSubagent(agent: SubagentRecord, cwd: string, prompt: string, note?: DispatchNote): Promise<void> {
     const binding = this.models[agent.role];
     const created = await createRoleSession({
       role: agent.role,
@@ -811,18 +852,25 @@ export class TaskHub {
     this.sessions.set(agent.id, created.session);
     agent.sessionFile = created.session.sessionFile ?? created.session.sessionManager.getSessionFile() ?? "";
     this.save();
-    this.launch(agent, prompt);
+    this.announceSession(agent.id, created.session);
+    this.launch(agent, prompt, note);
   }
 
-  private launch(agent: SubagentRecord, prompt: string): void {
+  private launch(agent: SubagentRecord, prompt: string, note?: DispatchNote): void {
     const session = this.sessions.get(agent.id);
     if (!session) refuse(`${agent.id} 会话不存在`);
     if (this.cancelled) { agent.status = "stopped"; this.save(); return; }
-    agent.rounds.push({ startedAt: new Date().toISOString(), artifacts: [] });
+    agent.rounds.push({
+      startedAt: new Date().toISOString(),
+      artifacts: [],
+      ...(note?.title ? { title: note.title, instruction: note.instruction } : {}),
+      ...(note?.continued ? { continued: true } : {}),
+      ...(note?.dispatchCallId ? { dispatchCallId: note.dispatchCallId } : {}),
+    });
     agent.status = "running";
     this.save();
     const running = session.prompt(prompt).catch((error: unknown) => {
-      if (agent.status === "retired" || agent.status === "terminated" || this.stopRequested.has(agent.id)) {
+      if (agent.status === "retired" || agent.status === "terminated" || this.stopRequested.has(agent.id) || this.cancelled) {
         void this.finishRound(agent.id).catch(() => undefined);
         return;
       }
@@ -869,6 +917,7 @@ export class TaskHub {
       promptFile: this.config.prompts.writer,
     });
     this.sessions.set(agent.id, created.session);
+    this.announceSession(agent.id, created.session);
     return created.session;
   }
 

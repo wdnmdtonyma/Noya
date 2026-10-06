@@ -165,7 +165,7 @@ describe("写作流程", { concurrency: false }, () => {
     ]);
     let notice = "";
     fx.faux.context.setResponses([
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_2" })]),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_2" , task: "完成本次安排"})]),
       fauxAssistantMessage("已派出"),
     ]);
     await fx.session.prompt("请写第一章");
@@ -268,7 +268,7 @@ describe("写作流程", { concurrency: false }, () => {
       fauxAssistantMessage("REVIEWER_ONE_SECRET"),
     ]);
     fx.faux.context.setResponses([
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_1" })]),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_1" , task: "完成本次安排"})]),
       fauxAssistantMessage("等检查"),
       fauxAssistantMessage("收到检查"),
     ]);
@@ -308,7 +308,7 @@ describe("写作流程", { concurrency: false }, () => {
       fauxAssistantMessage("第二位检查完了"),
     ]);
     fx.faux.context.setResponses([
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_2" })]),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_2" , task: "完成本次安排"})]),
       fauxAssistantMessage("再查一次"),
       fauxAssistantMessage("第二次检查到了"),
     ]);
@@ -332,7 +332,7 @@ describe("写作流程", { concurrency: false }, () => {
     await turn(fx, "再存一份要求", [fauxAssistantMessage([fauxToolCall("save_package", { brief, pack })])]);
     assert.match(toolTexts(fx.session, "save_package").at(-1) ?? "", /\[拒绝\].*待同步/);
     await turn(fx, "再派写手", [
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_2" })]),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_2" , task: "完成本次安排"})]),
     ]);
     assert.match(toolTexts(fx.session, "spawn_subagent").at(-1) ?? "", /\[拒绝\].*待同步/);
     fx.faux.context.setResponses([fauxAssistantMessage("再次定稿后同步")]);
@@ -392,7 +392,7 @@ describe("写作流程", { concurrency: false }, () => {
       fauxAssistantMessage("第一次核对完了"),
     ]);
     fx.faux.context.setResponses([
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "sync_checker", proposal_id: "proposal_1" })]),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "sync_checker", proposal_id: "proposal_1" , task: "完成本次安排"})]),
       fauxAssistantMessage("等核对"),
       fauxAssistantMessage("核对到了"),
     ]);
@@ -413,7 +413,7 @@ describe("写作流程", { concurrency: false }, () => {
       fauxAssistantMessage("第二次核对完了"),
     ]);
     fx.faux.context.setResponses([
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "sync_checker", proposal_id: "proposal_1" })]),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "sync_checker", proposal_id: "proposal_1" , task: "完成本次安排"})]),
       fauxAssistantMessage("再核对"),
       fauxAssistantMessage("新核对到了"),
     ]);
@@ -575,7 +575,7 @@ describe("写作流程", { concurrency: false }, () => {
       fauxAssistantMessage("纸条章写好了"),
     ]);
     fx.faux.context.setResponses([
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_5" })]),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_5" , task: "完成本次安排"})]),
       fauxAssistantMessage("派出第二个写手"),
       fauxAssistantMessage("第二个写完了"),
     ]);
@@ -598,7 +598,7 @@ describe("写作流程", { concurrency: false }, () => {
       fauxAssistantMessage("查完纸条"),
     ]);
     fx.faux.context.setResponses([
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_3" })]),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "reviewer", draft_id: "draft_3" , task: "完成本次安排"})]),
       fauxAssistantMessage("请检查"),
       fauxAssistantMessage("检查到了"),
     ]);
@@ -622,7 +622,7 @@ describe("写作流程", { concurrency: false }, () => {
       },
     ]);
     fx.faux.context.setResponses([
-      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_4" })]),
+      fauxAssistantMessage([fauxToolCall("spawn_subagent", { role: "writer", package_id: "package_4" , task: "完成本次安排"})]),
       fauxAssistantMessage("第三个写手出发"),
     ]);
     await fx.session.prompt("再派一个写手");

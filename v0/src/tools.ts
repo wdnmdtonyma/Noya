@@ -34,7 +34,7 @@ function tool(
   name: string,
   description: string,
   contract: ToolContract,
-  run: (args: Record<string, unknown>) => Promise<string> | string,
+  run: (args: Record<string, unknown>, toolCallId: string) => Promise<string> | string,
   sequential = false,
 ): void {
   pi.registerTool({
@@ -44,8 +44,8 @@ function tool(
     parameters: contract.parameters as never,
     ...(sequential ? { executionMode: "sequential" as const } : {}),
     prepareArguments: (args) => prepare(contract, args, name) as never,
-    async execute(_toolCallId, params) {
-      const text = await run(params as Record<string, unknown>);
+    async execute(toolCallId, params) {
+      const text = await run(params as Record<string, unknown>, toolCallId);
       return { content: [{ type: "text", text }], details: {} };
     },
   });
@@ -78,8 +78,8 @@ export function registerRoleTools(pi: ExtensionAPI, hub: TaskHub, role: RoleName
       true,
     );
     tool(pi, "apply_sync", "按最新核对结果写入同步清单中选中的变化。", toolContracts.applySync, (args) => hub.applySync(args), true);
-    tool(pi, "spawn_subagent", "派出 writer、reviewer 或 sync_checker。只接受对应的产物 ID，不接受自由文本。", toolContracts.spawn, (args) => hub.spawnSubagent(args), true);
-    tool(pi, "send_message", "给 Writer 发送消息。检查员和同步核对员不能接收消息。", toolContracts.send, (args) => hub.sendMessage(args), true);
+    tool(pi, "spawn_subagent", "派出 writer、reviewer 或 sync_checker。task 是给作者看的一句话，不会交给 Subagent。其余只接受对应的产物 ID。", toolContracts.spawn, (args, toolCallId) => hub.spawnSubagent(args, toolCallId), true);
+    tool(pi, "send_message", "给 Writer 发送消息。检查员和同步核对员不能接收消息。", toolContracts.send, (args, toolCallId) => hub.sendMessage(args, toolCallId), true);
     tool(pi, "stop_subagent", "停止一个正在运行的 Subagent。", toolContracts.stop, (args) => hub.stopSubagent(args), true);
     tool(pi, "get_subagents", "查看本任务的 Subagent 状态。", toolContracts.agent, (args) => hub.getSubagents(args));
   }
