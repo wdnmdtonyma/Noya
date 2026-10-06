@@ -13,7 +13,7 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 - [x] 任务视图按时间返回 Context Agent 的过程项：
   - 消息；

@@ -10,7 +10,7 @@
 
 **Blocked by:** 02 — 子任务卡片与每次执行的成果
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 - [x] Sub 的过程使用与 01 相同的通用规则；不按角色定制展示。
 - [x] 追加要求出现在实际发生的位置。

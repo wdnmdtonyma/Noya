@@ -1,6 +1,6 @@
 # 查看 Agent 执行过程：成果优先的信息流
 
-Status: ready-for-agent
+Status: ready-for-human
 
 日期：2026-10-06。产品依据为 `docs/prd/subagent-progress/prd.md` 与同目录可离线原型 `prototype.html`（固定样例，只验证交互，不作为实现证据）。本规格把它们转成实现边界。界面上 Context Agent 显示为 "Main"，Writing Agent、正文检查员、同步核对员等子 Agent 统称 "Sub"；下文沿用领域词汇，界面文案按 PRD。
 
@@ -282,3 +282,5 @@ interface SubRunView {
 2026-10-06：Pi 的 `tool_execution_update` 带 `toolCallId`，嵌套调用另带 `parentToolCallId`。中间输出按调用身份记到对应工具上；有父调用时同时写到父调用，供当前动作和执行中输出使用。Noya 自己的工具要等执行结束才返回，所以中间输出只在底层工具发出更新时出现。关联是稳定的，不需要另建事件存储。
 
 2026-10-06：原型中的作品与写作任务侧边栏不在本规格范围内，已单独写成《作品与写作任务侧边栏》，见 `.scratch/workspace-sidebar/spec.md`。
+
+2026-10-06：作者用 OpenAI 真实服务看过任务页并验收通过。信息流、子任务卡片和成果阅读与侧栏一起使用。思考没有正文时，会话里保存的是加密推理和可选摘要，页面不补写。工单 08 的 S1–S9 提示评测仍未跑。

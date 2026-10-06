@@ -16,7 +16,7 @@
 
 **Blocked by:** 04 — Sub 详情面板与 Sub 的实时过程
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 - [x] 没有子任务时不显示入口。
 - [x] 纯推导层测试覆盖：入口文案的全部优先级分支、列表排序。

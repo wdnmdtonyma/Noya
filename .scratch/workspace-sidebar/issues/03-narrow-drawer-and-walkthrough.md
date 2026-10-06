@@ -26,3 +26,5 @@
 - [x] 全部测试通过。
 
 ## Comments
+
+2026-10-06：作者在真实服务上验收通过。窄屏走查记录在 `../evidence/walkthrough.txt`。

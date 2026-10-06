@@ -6,7 +6,7 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 - [x] Context Agent 的系统提示增加这条要求：
   - 写明触发时机：没有仍在运行、需要等待的子任务；

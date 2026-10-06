@@ -18,7 +18,7 @@
 
 **Blocked by:** 02 — 子任务卡片与每次执行的成果
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 - [x] 纯推导层测试覆盖：
   - 轮次切分；

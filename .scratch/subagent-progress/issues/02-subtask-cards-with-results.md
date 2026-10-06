@@ -11,7 +11,7 @@
 
 **Blocked by:** 01 — 主信息流显示 Context Agent 的完整过程
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 - [x] 每次派发或追加要求的调用，按发生顺序与该 Sub 的下一条执行记录配对。
 - [x] 配对失败时，卡片仍显示这次调用并标明缺失，不猜测归属。

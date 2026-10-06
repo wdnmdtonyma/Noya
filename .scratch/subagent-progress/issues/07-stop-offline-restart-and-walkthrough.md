@@ -12,7 +12,7 @@
 
 **Blocked by:** 03, 04, 05, 06
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 - [x] 本机应用测试覆盖：
   - 停止后无返回的调用状态；
