@@ -1,5 +1,5 @@
 import type { ProcessItem, RunStatus, SubRunView } from "../src/local-contract.ts";
-import { OUTCOME_LABEL, activitySummary, deriveTurns, elapsedClock, livePhrase, panelSections, subtaskRows, type FeedBlock, type PanelSection } from "./feed.js";
+import { OUTCOME_LABEL, activitySummary, deriveTurns, livePhrase, panelSections, subtaskRows, type FeedBlock, type PanelSection } from "./feed.js";
 
 export function escapeText(text: string): string {
   return text.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
@@ -51,13 +51,30 @@ function row(item: ProcessItem, expanded: Set<string>): string {
   return "";
 }
 
+const AGENT_MARK = `<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M8 8.2a2.6 2.6 0 1 0-2.6-2.6A2.6 2.6 0 0 0 8 8.2Zm0 1.15c-2.35 0-4.3 1.15-4.3 2.55V13h8.6v-1.1c0-1.4-1.95-2.55-4.3-2.55Z"/></svg>`;
+const DOC_MARK = `<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4 1.5h5.2L13 5.3V14a.5.5 0 0 1-.5.5h-8A.5.5 0 0 1 4 14Zm5 1.2V5h2.3L9 2.7Z"/></svg>`;
+
+function resultKind(id: string): string {
+  if (id.startsWith("review_") || id.startsWith("check_")) return "review";
+  if (id.startsWith("plan_")) return "plan";
+  return "draft";
+}
+
 function resultChips(results: SubRunView["results"]): string {
   if (!results.length) return "";
   return `<div class="task-card-results">${results.map(result => {
     const note = result.readable ? result.finalized ? "作者已定稿" : result.summary : "暂时无法读取";
     const action = result.readable ? `data-action="open-result" data-result="${escapeText(result.artifactId)}"` : `data-action="retry-result" data-result="${escapeText(result.artifactId)}"`;
-    return `<button type="button" class="result-chip" ${action}><strong>${escapeText(result.title)}</strong><small>${escapeText(note)}</small><span>${result.readable ? "阅读" : "重试"}</span></button>`;
+    return `<button type="button" class="result-chip kind-${resultKind(result.artifactId)}" ${action}><span class="result-chip-icon">${DOC_MARK}</span><span class="result-chip-text"><strong>${escapeText(result.title)}</strong><small>${escapeText(note)}</small></span><span class="result-chip-open">${result.readable ? "阅读 ›" : "重试"}</span></button>`;
   }).join("")}</div>`;
+}
+
+function tone(outcome: SubRunView["outcome"]): string {
+  if (outcome === "running" || outcome === "stopping") return "running";
+  if (outcome === "returned") return "done";
+  if (outcome === "failed") return "failed";
+  if (outcome === "stopped" || outcome === "interrupted") return "stopped";
+  return "idle";
 }
 
 function card(run: SubRunView, connected: boolean): string {
@@ -72,7 +89,7 @@ function card(run: SubRunView, connected: boolean): string {
   else if (run.outcome === "stopped" || run.outcome === "interrupted") note = "未收到最终返回";
   else if (run.outcome === "replied") note = run.lastMessage ?? "";
   else if (run.outcome === "no-result") note = "未交回成果";
-  return `<section class="task-card outcome-${run.outcome}" data-running="${run.outcome === "running" || run.outcome === "stopping" ? "1" : "0"}"><button type="button" class="task-card-head" data-action="open-subtask" data-agent="${escapeText(run.agentId)}" aria-label="查看 ${escapeText(run.agentId)} 的过程：${escapeText(title)}"><span class="task-card-kicker">${escapeText(kicker)}</span><strong class="task-card-title">${escapeText(title)}</strong>${note ? `<span class="task-card-note">${escapeText(note)}</span>` : ""}<span class="task-card-end"><span class="state-tag">${escapeText(label)}</span><span class="task-card-open">过程 ›</span></span></button>${resultChips(run.results)}</section>`;
+  return `<section class="task-card outcome-${run.outcome}" data-running="${run.outcome === "running" || run.outcome === "stopping" ? "1" : "0"}"><button type="button" class="task-card-head" data-action="open-subtask" data-agent="${escapeText(run.agentId)}" aria-label="查看 ${escapeText(run.agentId)} 的过程：${escapeText(title)}"><span class="agent-tile">${AGENT_MARK}</span><span class="task-card-text"><span class="task-card-kicker">${escapeText(kicker)}</span><strong class="task-card-title">${escapeText(title)}</strong>${note ? `<span class="task-card-note">${escapeText(note)}</span>` : ""}</span><span class="task-card-end"><span class="state-tag tone-${tone(run.outcome)}">${escapeText(label)}</span><span class="task-card-open">过程 ›</span></span></button>${resultChips(run.results)}</section>`;
 }
 
 function blockHtml(block: FeedBlock, expanded: Set<string>, connected: boolean, rich: (text: string) => string): string {
@@ -102,7 +119,7 @@ export function renderFeed(process: ProcessItem[], runs: SubRunView[], status: R
     const blocks = (open ? turn.blocks : turn.folded).map(block => blockHtml(block, expanded, connected, rich)).join("");
     const user = turn.user ? `<section class="message user"><div class="message-label">你</div><div class="message-body">${escapeText(turn.user.text)}</div></section>` : "";
     const head = turn.running ? "" : `<button type="button" class="turn-head ${turn.abnormal ? `tone-${turn.abnormal}` : ""}" data-action="toggle-turn" data-turn="${escapeText(turn.id)}" aria-expanded="${open}"><span>${escapeText(turn.label)}</span></button>`;
-    const live = turn.running ? `<div class="live-tail ${turn.liveFrozen ? "is-offline" : ""}"><span>${escapeText(turn.liveLabel ?? "")}</span>${turn.liveFrozen || turn.liveStart === undefined ? "" : `<time data-start="${turn.liveStart}">${escapeText(elapsedClock(Date.now() - turn.liveStart))}</time>`}</div>` : "";
+    const live = turn.running ? `<div class="live-tail ${turn.liveFrozen ? "is-offline" : ""}"><span>${escapeText(turn.liveLabel ?? "")}</span>${turn.liveFrozen || turn.liveStart === undefined ? "" : `<time data-start="${turn.liveStart}"></time>`}</div>` : "";
     return `<section class="turn" data-turn-root="${escapeText(turn.id)}">${user}${head}${blocks}${live}</section>`;
   }).join("");
 }
@@ -129,7 +146,7 @@ function panelSection(section: PanelSection, expanded: Set<string>, rich: (text:
   const rawBody = open && call ? `<div class="detail-body"><code>${escapeText(call.name)}</code><pre>${escapeText(rawText(call.args))}</pre>${call.result !== undefined ? `<pre>${escapeText(call.result)}</pre>` : ""}</div>` : "";
   const records = section.items.length ? `<div class="process-details">${section.items.map(item => item.kind === "message" ? `<section class="message assistant"><div class="message-body">${rich(item.text)}</div></section>` : row(item, expanded)).join("")}</div>` : "";
   const results = resultChips(section.results);
-  const live = section.liveLabel ? `<div class="live-tail in-panel"><span>${escapeText(section.liveLabel)}</span>${section.liveLabel.startsWith("连接断开") ? "" : `<time data-start="${Date.parse(section.startedAt)}">${escapeText(elapsedClock(Date.now() - Date.parse(section.startedAt)))}</time>`}</div>` : "";
+  const live = section.liveLabel ? `<div class="live-tail in-panel"><span>${escapeText(section.liveLabel)}</span>${section.liveLabel.startsWith("连接断开") ? "" : `<time data-start="${Date.parse(section.startedAt)}"></time>`}</div>` : "";
   const conclusion = section.conclusion ? `<p class="run-conclusion">${escapeText(section.conclusion)}</p>` : "";
   const instruction = section.instruction ? `<div class="dispatch-text">${rich(section.instruction)}</div>` : `<p class="panel-empty">${escapeText(section.title)}</p>`;
   return `<article class="panel-section"><div class="panel-request"><span>Main ${section.continued ? "追加的要求" : "派发的要求"}</span>${raw}</div>${instruction}${rawBody}${records}${results}${conclusion}${live}</article>`;

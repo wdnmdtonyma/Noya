@@ -280,3 +280,5 @@ interface SubRunView {
 ## Comments
 
 2026-10-06：Pi 的 `tool_execution_update` 带 `toolCallId`，嵌套调用另带 `parentToolCallId`。中间输出按调用身份记到对应工具上；有父调用时同时写到父调用，供当前动作和执行中输出使用。Noya 自己的工具要等执行结束才返回，所以中间输出只在底层工具发出更新时出现。关联是稳定的，不需要另建事件存储。
+
+2026-10-06：原型中的作品与写作任务侧边栏不在本规格范围内，已单独写成《作品与写作任务侧边栏》，见 `.scratch/workspace-sidebar/spec.md`。

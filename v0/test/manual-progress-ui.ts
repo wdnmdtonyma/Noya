@@ -27,7 +27,7 @@ fx.faux.context.setResponses([
 await app.command({ ...task, kind: "message", text: "写雨夜开门", requestId: randomUUID() });
 await waitFor(() => !app.active, "样例写完");
 fx.faux.context.setResponses([async () => {
-  await new Promise(resolve => setTimeout(resolve, 90000));
+  await new Promise(resolve => setTimeout(resolve, 300_000));
   return fauxAssistantMessage("补充已记下。");
 }]);
 void app.command({ ...task, kind: "message", text: "门槛上再添一盏灯", requestId: randomUUID() });

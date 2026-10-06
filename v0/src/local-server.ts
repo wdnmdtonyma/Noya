@@ -11,6 +11,7 @@ export async function startLocalServer(app: LocalApp, options: { port?: number }
     ["/app.js", ["../dist/ui/app.js", "text/javascript"]],
     ["/feed.js", ["../dist/ui/feed.js", "text/javascript"]],
     ["/markup.js", ["../dist/ui/markup.js", "text/javascript"]],
+    ["/sidebar.js", ["../dist/ui/sidebar.js", "text/javascript"]],
   ]);
   const server = createServer(async (req, res) => {
     res.setHeader("Cache-Control", "no-store");

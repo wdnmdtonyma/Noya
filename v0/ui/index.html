@@ -3,17 +3,31 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>Noya · 写作任务</title><link rel="stylesheet" href="/tokens.css"><link rel="stylesheet" href="/app.css"><script type="module" src="/app.js"></script></head>
 <body>
 <div id="app" class="app">
-  <header class="app-header">
-    <a class="brand" href="/" aria-label="Noya 首页"><span class="brand-mark">N</span><span>Noya<span class="brand-caption">让故事继续</span></span></a>
-    <span class="header-divider"></span>
-    <button id="work-switcher" class="work-switcher" aria-haspopup="dialog"><span class="work-icon">▤</span><span id="work-name">选择作品</span><span class="chevron">⌄</span></button>
-    <span id="connection" class="connection" role="status"><i class="status-dot"></i><span>正在连接</span></span>
-  </header>
+  <aside id="sidebar" class="sidebar" aria-label="作品与写作任务">
+    <div class="sidebar-inner">
+      <div class="sidebar-head">
+        <button class="brand-slot" id="brand-slot" type="button" data-action="toggle-sidebar" data-tip="展开侧边栏" aria-label="展开侧边栏" tabindex="-1"><span class="brand-mark">N</span><svg class="expand-glyph" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15M13.5 10l2 2-2 2"/></svg></button>
+        <span class="brand-text fade">Noya<small>让故事继续</small></span>
+        <button class="icon-button sidebar-toggle" id="sidebar-toggle" type="button" data-action="toggle-sidebar" data-tip="收起侧边栏" data-tip-always aria-controls="sidebar" aria-label="收起侧边栏"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15M15.5 10l-2 2 2 2"/></svg></button>
+      </div>
+      <div class="sidebar-body">
+        <button class="side-item work-picker" id="work-picker" type="button" data-tip="切换作品" aria-haspopup="listbox" aria-expanded="false" aria-controls="work-list"><span class="slot"><span class="work-cover" id="work-cover">选</span></span><span class="work-text fade"><strong id="work-name">选择作品</strong><small id="work-meta">切换作品</small></span><svg class="work-caret fade" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4-4 4 4M8 14l4 4 4-4"/></svg></button>
+        <button class="side-item new-task" id="new-task" type="button" data-tip="新建任务" disabled><span class="slot"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span><span class="fade" id="new-task-label">新建任务</span></button>
+        <button class="side-item task-switch" id="task-switch" type="button" data-action="toggle-tasks" data-tip="写作任务" aria-haspopup="listbox" aria-expanded="false" aria-controls="task-flyout" tabindex="-1"><span class="slot"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7h11M9 12h11M9 17h11"/><circle cx="4.75" cy="7" r=".9" fill="currentColor" stroke="none"/><circle cx="4.75" cy="12" r=".9" fill="currentColor" stroke="none"/><circle cx="4.75" cy="17" r=".9" fill="currentColor" stroke="none"/></svg><i class="switch-badge" id="task-badge" hidden aria-hidden="true"></i></span><span class="fade switch-label">写作任务</span><span class="fade switch-count" id="task-count">0</span></button>
+        <nav id="task-list" class="task-list fade" aria-label="写作任务"></nav>
+      </div>
+      <footer class="sidebar-foot"><div id="connection" class="side-item connection" role="status" data-tip="正在连接"><span class="slot"><i class="status-dot"></i></span><span class="fade" id="connection-label">正在连接</span></div></footer>
+    </div>
+    <div id="work-list" class="side-popover" role="listbox" aria-label="切换作品" hidden></div>
+    <div id="task-flyout" class="side-popover task-flyout" role="listbox" aria-label="切换写作任务" hidden><div class="work-list-label" id="flyout-label"></div><div class="flyout-scroll" id="flyout-scroll"></div><div class="flyout-foot"><button type="button" class="side-work flyout-new" id="flyout-new" data-action="create-task"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span id="flyout-new-label">新建任务</span></button></div></div>
+  </aside>
+  <button class="sidebar-scrim" id="sidebar-scrim" type="button" data-action="close-drawer" tabindex="-1" aria-label="关闭侧边栏"></button>
+  <div class="main-column">
   <div id="connection-error" class="connection-error" role="alert" hidden></div>
   <div id="active-notice" class="active-notice" hidden></div>
   <div class="workspace">
     <main id="task-pane" class="task-pane">
-      <div class="task-heading"><div class="task-identity"><div class="task-heading-top"><span class="eyebrow">写作空间</span><button id="task-switcher" class="task-switcher" aria-haspopup="dialog" hidden><span id="task-count">写作任务</span><span aria-hidden="true">⌄</span></button></div><h1 id="task-title">从一个念头开始</h1><span id="task-status" class="task-status"></span></div><button id="new-task" class="new-task-button" hidden><span aria-hidden="true">＋</span> 新建任务</button></div>
+      <div class="task-heading"><button class="icon-button sidebar-open" id="sidebar-open" type="button" data-action="toggle-sidebar" aria-controls="sidebar" aria-label="打开侧边栏"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15M13.5 10l2 2-2 2"/></svg></button><div class="task-identity"><div class="crumb"><span id="crumb-work">选择作品</span><span aria-hidden="true">/</span><span>写作任务</span></div><h1 id="task-title">从一个念头开始</h1><span id="task-status" class="task-status"></span></div></div>
       <div id="feed" class="feed" tabindex="0" aria-label="任务对话">
         <section id="empty" class="empty"><div class="empty-mark" aria-hidden="true"><span>叙</span><i></i></div><span class="eyebrow">每个故事，都值得被写下</span><h2>下一页，从这里开始。</h2><p id="empty-hint">一个人物、一场相遇，或还没想清楚的念头。<br>和 Noya 聊聊，让故事慢慢有形。</p><button id="create-first" class="primary" hidden>开始第一部作品 <span>↗</span></button><div class="empty-rule"></div><span class="empty-note">先聊想法，等你决定好，再开始写。</span></section>
         <section id="legacy-notice" class="legacy-notice" hidden></section>
@@ -35,7 +49,9 @@
     <aside id="panel" class="panel" aria-label="子任务详情" hidden><header class="panel-bar"><div><strong id="panel-title"></strong><span id="panel-meta"></span></div><button id="panel-close" type="button" class="icon-button" aria-label="关闭子任务">×</button></header><div id="panel-scroll" class="panel-scroll"><div id="panel-body"></div></div></aside>
     <aside id="reader" class="reader" aria-label="正文阅读" hidden><header class="reader-bar"><span class="eyebrow">正文阅读 <span class="readonly">只读</span></span><button id="close-reader" class="icon-button" aria-label="关闭正文阅读">×</button></header><div class="reader-scroll"><div id="reader-meta" class="reader-meta"></div><article id="reader-content" class="reader-content"></article><details id="review-details" class="review-details"><summary id="review-label"></summary><div id="review-content"></div></details><div class="reader-end">— 本版结束 —</div></div><footer class="reader-footer"><button id="return-subtask" class="secondary" hidden>返回子任务</button><button id="revise" class="secondary">对这版提意见</button><button id="finalize" class="primary">将这版定稿</button></footer></aside>
   </div>
+  </div>
 </div>
+<div id="side-tip" class="side-tip" role="tooltip" hidden></div>
 <dialog id="dialog" aria-labelledby="dialog-title"><div id="dialog-body"></div></dialog>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 </body></html>

@@ -1,6 +1,7 @@
 import type { AppSnapshot, DraftView, PageCommand, TaskRef, TaskView } from "../src/local-contract.js";
 import { elapsedClock, subtaskEntryLabel } from "./feed.js";
 import { renderFeed, renderPanel, renderSubtaskList } from "./markup.js";
+import { deriveSidebar, type SidebarModel, type SidebarTaskRow } from "./sidebar.js";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const input = $<HTMLTextAreaElement>("message");
@@ -16,8 +17,13 @@ let loadingSelection = true;
 let creatingTask = false;
 let refreshSequence = 0;
 let draftSequence = 0;
-let pickerOpen = false;
 let connected = false;
+const mac = /\bMac|iPhone|iPad|iPod/.test(navigator.userAgent);
+let collapsed = readRail();
+let drawerOpen = false;
+let worksOpen = false;
+let tasksOpen = false;
+let viewportNarrow = compact();
 let sending = false;
 let generation = 0;
 let reading: (DraftView & { markdown: string }) | undefined;
@@ -52,6 +58,11 @@ function loadPreferences(): void {
   panelAgent = preferences.panelAgent ?? ""; readerFrom = preferences.readerFrom ?? "feed"; panelReturn = readerFrom === "panel" ? panelAgent : "";
   autosize();
 }
+function compact(): boolean { return matchMedia("(max-width: 780px)").matches; }
+function readRail(): boolean { try { return localStorage.getItem("noya.sidebar") === "collapsed"; } catch { return false; } }
+function writeRail(value: boolean): void { try { localStorage.setItem("noya.sidebar", value ? "collapsed" : "expanded"); } catch { /* The sidebar stays expanded when storage is unavailable. */ } }
+function shortcutLabel(): string { return mac ? "⌘\\" : "Ctrl+\\"; }
+function railMode(): boolean { return !compact() && collapsed; }
 function readStorage(key: string): string | null { try { return localStorage.getItem(key); } catch { return null; } }
 function writeStorage(key: string, value: string): void { try { localStorage.setItem(key, value); } catch { $("save-hint").textContent = "浏览器未允许保存输入"; } }
 function escape(text: string): string { return text.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!); }
@@ -86,7 +97,8 @@ function connection(ok: boolean, error?: string): void {
   const changed = connected !== ok;
   connected = ok;
   $("connection").classList.toggle("offline", !ok);
-  $("connection").querySelector("span")!.textContent = ok ? "本机已连接" : "连接中断";
+  $("connection-label").textContent = ok ? "本机已连接" : "连接中断";
+  $("connection").dataset.tip = $("connection-label").textContent ?? "";
   $("connection-error").hidden = ok;
   if (!ok) $("connection-error").textContent = `无法连接本机服务。${error ?? "请确认 Noya 仍在运行。"} 页面会自动重连，已有输入仍保留。`;
   updateComposer();
@@ -103,7 +115,7 @@ async function refresh(): Promise<void> {
     if (!selectionResolved) {
       selectionResolved = true;
       if (!workId && next.works.length === 1 && !next.works[0]!.error) { await selectWork(next.works[0]!.workId); return; }
-      if (!workId && next.works.length > 1) chooseWork();
+      if (!workId && next.works.length > 1) worksOpen = true;
     }
     render();
     if (loadingSelection && next.task) {
@@ -118,7 +130,7 @@ async function refresh(): Promise<void> {
     if (workId && !taskId && !selectionResolved) {
       selectionResolved = true; workId = ""; generation += 1;
       toast(error instanceof Error ? error.message : "上次作品无法读取，请选择其他作品");
-      await refresh(); chooseWork(); return;
+      await refresh(); worksOpen = true; render(); return;
     }
     if (error instanceof ResponseError) {
       taskReadError = true; snapshot.task = null; connection(true);
@@ -143,7 +155,7 @@ function rememberSelection(): void {
   writeStorage(`noya.task.${workId}`, taskId); writeTab(`noya.task.${workId}`, taskId);
 }
 async function selectWork(id: string, selected?: string): Promise<void> {
-  persistInput(); readerFrom = "feed"; panelReturn = ""; closeReader(false); generation += 1; workId = id;
+  closeOverlays(selected !== undefined); persistInput(); readerFrom = "feed"; panelReturn = ""; closeReader(false); generation += 1; workId = id;
   taskId = selected ?? readTab(`noya.task.${id}`) ?? readStorage(`noya.task.${id}`) ?? "";
   rememberSelection(); loadingSelection = true; taskReadError = false;
   input.value = ""; reference = undefined; preferences = {};
@@ -169,12 +181,7 @@ function migratePreferences(confirmed: boolean): void {
   input.value = preferences.input ?? ""; reference = preferences.reference || undefined; $("legacy-notice").hidden = true; autosize();
 }
 function render(): void {
-  $("work-name").textContent = name();
-  $("task-switcher").hidden = !workId;
-  $<HTMLButtonElement>("new-task").disabled = creatingTask || !connected;
-  $("new-task").hidden = !workId;
-  $("task-count").textContent = `${snapshot.tasks.length} 个任务`;
-  if (pickerOpen) renderTaskPicker();
+  paintSidebar();
   const task = snapshot.task;
   $("create-first").hidden = !!task || snapshot.works.length > 0;
   $<HTMLButtonElement>("create-first").disabled = !!snapshot.configurationError;
@@ -198,7 +205,7 @@ function render(): void {
   const atBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 100;
   const feedHtml = renderFeed(task.process, task.runs, task.status, connected, expandedTurns, new Set([...expandedGroups, ...expandedEvents]), rich);
   const changed = $("messages").dataset.rendered !== feedHtml;
-  if (changed) { $("messages").innerHTML = feedHtml; $("messages").dataset.rendered = feedHtml; }
+  if (changed) { $("messages").innerHTML = feedHtml; $("messages").dataset.rendered = feedHtml; tickClocks(); }
   $("stream").hidden = true;
   $("execution").hidden = true;
   paintEntry(task);
@@ -225,20 +232,21 @@ function paintEntry(task: TaskView): void {
   if (!task.runs.length) { anchor.hidden = true; listOpen = false; return; }
   anchor.hidden = false;
   const label = subtaskEntryLabel(task.runs, { runningCardsVisible: runningVisible, connected });
-  $("subtask-entry").innerHTML = `<span>${escape(label)}</span>`;
+  const entryLabel = $("subtask-entry");
+  if (entryLabel.textContent !== label) entryLabel.innerHTML = `<span>${escape(label)}</span>`;
   $("subtask-entry").setAttribute("aria-expanded", String(listOpen));
   $("subtask-list").hidden = !listOpen;
   if (listOpen) setHTML("subtask-list", renderSubtaskList(task.runs));
   const cards = [...document.querySelectorAll<HTMLElement>(`.task-card[data-running="1"]`)];
   const box = feed.getBoundingClientRect();
   const visible = cards.some(card => { const rect = card.getBoundingClientRect(); return rect.bottom > box.top + 8 && rect.top < box.bottom - 8; });
-  if (visible !== runningVisible) { runningVisible = visible; $("subtask-entry").innerHTML = `<span>${escape(subtaskEntryLabel(task.runs, { runningCardsVisible: runningVisible, connected }))}</span>`; }
+  if (visible !== runningVisible) { runningVisible = visible; const next = subtaskEntryLabel(task.runs, { runningCardsVisible: runningVisible, connected }); if (entryLabel.textContent !== next) entryLabel.innerHTML = `<span>${escape(next)}</span>`; }
 }
 function paintPanel(task: TaskView): void {
   const panel = $("panel");
   if (!panelAgent || !reader.hidden) {
     panel.hidden = true;
-    if (reader.hidden) { $("task-pane").inert = false; $("app").querySelector<HTMLElement>(".app-header")!.inert = false; $("active-notice").inert = false; $("connection-error").inert = false; }
+    if (reader.hidden) syncInert();
     return;
   }
   if (!task.runs.some(run => run.agentId === panelAgent)) { panelAgent = ""; panel.hidden = true; return; }
@@ -249,14 +257,11 @@ function paintPanel(task: TaskView): void {
   const scroll = $("panel-scroll");
   const top = scroll.scrollTop;
   setHTML("panel-body", view.body);
+  tickClocks();
   if (!top && preferences.panelScroll) scroll.scrollTop = preferences.panelScroll;
   else scroll.scrollTop = top;
-  const narrow = matchMedia("(max-width: 780px)").matches;
-  $("task-pane").inert = narrow;
-  $("app").querySelector<HTMLElement>(".app-header")!.inert = narrow;
-  $("active-notice").inert = narrow;
-  $("connection-error").inert = narrow;
-  if (narrow) { panel.setAttribute("role", "dialog"); panel.setAttribute("aria-modal", "true"); }
+  syncInert();
+  if (compact()) { panel.setAttribute("role", "dialog"); panel.setAttribute("aria-modal", "true"); }
   else { panel.setAttribute("role", "complementary"); panel.removeAttribute("aria-modal"); }
 }
 function updateComposer(): void {
@@ -267,8 +272,10 @@ function updateComposer(): void {
   if (!button.dataset.sendIcon) button.dataset.sendIcon = button.innerHTML;
   button.disabled = stopping ? !connected || sending : locked || !input.value.trim();
   button.setAttribute("aria-label", stopping ? "停止" : "发送消息");
-  button.classList.toggle("is-stop", stopping);
-  button.innerHTML = stopping ? `<span class="stop-mark" aria-hidden="true"></span>` : button.dataset.sendIcon;
+  if (button.classList.contains("is-stop") !== stopping) {
+    button.classList.toggle("is-stop", stopping);
+    button.innerHTML = stopping ? `<span class="stop-mark" aria-hidden="true"></span>` : button.dataset.sendIcon!;
+  }
   input.disabled = !task;
   $("stop").hidden = true;
   $("resume-task").hidden = !task || !["stopped", "interrupted", "failed"].includes(task.status) || !!task.pendingChapters.length;
@@ -325,28 +332,7 @@ async function submit(): Promise<void> {
 }
 function autosize(): void { input.style.height = "auto"; input.style.height = `${Math.min(180, input.scrollHeight)}px`; }
 function showDialog(html: string): void { opener = document.activeElement as HTMLElement; setHTML("dialog-body", html); if (!dialog.open) dialog.showModal(); }
-function closeDialog(): void { pickerOpen = false; dialog.classList.remove("task-picker"); dialog.close(); opener?.focus(); }
-function chooseWork(): void {
-  pickerOpen = false; dialog.classList.remove("task-picker");
-  showDialog(`<span class="eyebrow">你的故事</span><h2 id="dialog-title">选择一部作品</h2><div class="work-list">${snapshot.works.map(w => `<button class="work-option ${w.workId === workId ? "selected" : ""}" data-work="${escape(w.workId)}"><span>${escape(w.name)}${w.error ? `<small><br>${escape(w.error)}</small>` : ""}</span><small>${w.workId === snapshot.active?.workId ? "执行中" : w.workId === workId ? "当前" : "↗"}</small></button>`).join("")}</div><button class="secondary" data-action="create">＋ 新建作品</button><div class="dialog-actions"><button class="quiet-button" data-action="close-dialog">关闭</button></div>`);
-}
-function taskTime(value: string): string {
-  return value ? new Intl.DateTimeFormat("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value)) : "记录不可用";
-}
-function renderTaskPicker(): void {
-  const activeElement = document.activeElement as HTMLElement;
-  const focused = activeElement?.dataset.task;
-  const focusedAction = activeElement?.dataset.action;
-  const scroll = dialog.querySelector(".task-list")?.scrollTop ?? 0;
-  setHTML("dialog-body", `<div class="picker-heading"><div><span class="eyebrow">${escape(name())}</span><h2 id="dialog-title">写作任务 <small>${snapshot.tasks.length}</small></h2></div><button class="icon-button" data-action="close-dialog" aria-label="关闭任务列表">×</button></div><p class="picker-description">每个想法，各有一页。随时回来，接着写。</p><button class="new-task-option" data-action="create-task" ${creatingTask || !connected ? "disabled" : ""}><span class="new-task-icon">＋</span><span><strong>${creatingTask ? "正在保存新任务…" : readTab(`noya.creation.${workId}`) ? "确认上次创建结果" : "新建任务"}</strong><small>共享作品资料，开始独立的讨论</small></span><span>↗</span></button><div class="task-list" aria-label="本作品的写作任务">${snapshot.tasks.map(t => `<button class="task-option ${t.taskId === taskId ? "selected" : ""}" data-task="${escape(t.taskId)}" ${t.error ? "disabled" : ""} ${t.taskId === taskId ? 'aria-current="true"' : ""}><span class="task-option-mark">${t.taskId === taskId ? "●" : "○"}</span><span class="task-option-body"><strong>${escape(t.name)}</strong><small>${escape(taskTime(t.createdAt))} · ${escape(t.taskId.slice(-6))}</small>${t.error ? `<small class="task-option-error">${escape(t.error)}</small>` : ""}</span><span class="task-option-state ${t.status === "running" ? "is-running" : t.needsDecision ? "is-waiting" : ""}">${t.error ? "记录损坏" : t.status === "running" ? "执行中" : t.status === "stopping" ? "停止中" : t.needsDecision ? "待决定" : t.taskId === taskId ? "正在查看" : t.status === "idle" ? "" : escape(labels[t.status] ?? t.status)}</span></button>`).join("")}</div><div class="picker-footer">讨论和初稿分别保留 · 新建不会打断正在执行的任务</div>`);
-  const list = dialog.querySelector(".task-list"); if (list) list.scrollTop = scroll;
-  if (focused) dialog.querySelector<HTMLButtonElement>(`[data-task="${CSS.escape(focused)}"]`)?.focus({ preventScroll: true });
-  else if (focusedAction) dialog.querySelector<HTMLButtonElement>(`[data-action="${CSS.escape(focusedAction)}"]`)?.focus({ preventScroll: true });
-}
-function chooseTask(): void {
-  pickerOpen = true; dialog.classList.add("task-picker"); opener = document.activeElement as HTMLElement;
-  renderTaskPicker(); if (!dialog.open) dialog.showModal();
-}
+function closeDialog(): void { dialog.close(); opener?.focus(); }
 async function createTask(): Promise<void> {
   if (!workId || creatingTask) return;
   const work = workId; const current = generation;
@@ -361,8 +347,8 @@ async function createTask(): Promise<void> {
     toast(error instanceof Error ? error.message : "创建结果暂未确认，重试会找回同一任务。原输入已保留。");
   } finally { creatingTask = false; render(); }
 }
-async function create(): Promise<void> {
-  const button = dialog.querySelector<HTMLButtonElement>('[data-action="create"]') ?? $<HTMLButtonElement>("create-first");
+async function create(source?: HTMLButtonElement): Promise<void> {
+  const button = source ?? $<HTMLButtonElement>("create-first");
   button.disabled = true;
   try { const result = await api<{ workId: string }>("/api/works", {}); closeDialog(); await selectWork(result.workId); input.focus(); }
   catch (error) { toast(error instanceof Error ? error.message : "新建失败"); }
@@ -401,16 +387,14 @@ function renderReader(): void {
 function closeReader(clear = true): void {
   if (!clear) persistInput();
   const back = readerFrom === "panel" ? panelReturn || panelAgent : "";
-  draftSequence += 1; reader.hidden = true; reading = undefined; textReader = undefined; $("task-pane").inert = false; $("app").querySelector<HTMLElement>(".app-header")!.inert = false;
-  $("active-notice").inert = false; $("connection-error").inert = false;
+  draftSequence += 1; reader.hidden = true; reading = undefined; textReader = undefined; syncInert();
   reader.removeAttribute("role"); reader.removeAttribute("aria-modal"); if (clear && taskId) { preferences.reader = ""; preferences.readerScroll = 0; readerFrom = back ? "panel" : "feed"; persistInput(); }
   if (back) { panelAgent = back; readerFrom = "panel"; render(); $("panel-close").focus(); }
   else readerOpener?.focus();
 }
 function responsiveReader(): void {
-  const modal = !reader.hidden && matchMedia("(max-width: 780px)").matches;
-  $("task-pane").inert = modal; $("app").querySelector<HTMLElement>(".app-header")!.inert = modal;
-  $("active-notice").inert = modal; $("connection-error").inert = modal;
+  const modal = !reader.hidden && compact();
+  syncInert();
   if (modal) { reader.setAttribute("role", "dialog"); reader.setAttribute("aria-modal", "true"); } else { reader.removeAttribute("role"); reader.removeAttribute("aria-modal"); }
 }
 function confirmFinalize(): void {
@@ -446,11 +430,208 @@ function closePanel(): void {
   const id = panelAgent; panelAgent = ""; panelReturn = ""; listOpen = false; persistInput(); render();
   document.querySelector<HTMLElement>(`[data-action="open-subtask"][data-agent="${CSS.escape(id)}"]`)?.focus();
 }
+function syncInert(): void {
+  const narrow = compact();
+  const modal = narrow && (!reader.hidden || !$("panel").hidden);
+  const drawer = narrow && drawerOpen;
+  $("task-pane").inert = modal || drawer;
+  $("active-notice").inert = modal || drawer;
+  $("connection-error").inert = modal || drawer;
+  $("sidebar").inert = modal || (narrow && !drawerOpen);
+}
+function applyChrome(): void {
+  const narrow = compact();
+  $("app").classList.toggle("sidebar-collapsed", !narrow && collapsed);
+  $("app").classList.toggle("drawer-open", narrow && drawerOpen);
+  syncInert();
+}
+function closeOverlays(closeDrawer = false): void {
+  worksOpen = false; tasksOpen = false; listOpen = false; hideTip();
+  if (closeDrawer && compact()) drawerOpen = false;
+  $("work-list").hidden = true; $("task-flyout").hidden = true;
+  applyChrome();
+}
+function newTaskLabel(): string {
+  if (creatingTask) return "正在保存新任务…";
+  if (workId && readTab(`noya.creation.${workId}`)) return "确认上次创建结果";
+  return "新建任务";
+}
+function paintStable(id: string, html: string): void {
+  const node = $(id);
+  if (node.dataset.rendered === html) return;
+  const top = node.scrollTop;
+  const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const task = active?.dataset.task ?? "";
+  const work = active?.dataset.work ?? "";
+  const action = active?.dataset.action ?? "";
+  const inside = !!active && node.contains(active);
+  node.innerHTML = html; node.dataset.rendered = html; node.scrollTop = top;
+  if (!inside) return;
+  const next = (task ? node.querySelector<HTMLElement>(`[data-task="${CSS.escape(task)}"]`) : null)
+    ?? (work ? node.querySelector<HTMLElement>(`[data-work="${CSS.escape(work)}"]`) : null)
+    ?? (action ? node.querySelector<HTMLElement>(`[data-action="${CSS.escape(action)}"]`) : null);
+  next?.focus({ preventScroll: true });
+}
+function taskButton(row: SidebarTaskRow, flyout: boolean): string {
+  const dot = `<i class="dot${row.live ? " live" : ""}"></i>`;
+  if (!flyout) return `<button type="button" class="side-item task-row${row.current ? " current" : ""}" data-task="${escape(row.taskId)}" data-tone="${row.tone}" ${row.current ? 'aria-current="page"' : ""} ${row.clickable ? "" : "disabled"}><span class="slot">${dot}</span><span class="task-text fade"><strong>${escape(row.name)}</strong><small>${escape(row.status)}</small></span></button>`;
+  return `<button type="button" class="side-work task-option${row.current ? " selected" : ""}" role="option" data-task="${escape(row.taskId)}" data-tone="${row.tone}" aria-selected="${row.current}" ${row.clickable ? "" : "disabled"}><span class="task-option-dot">${dot}</span><span class="work-text"><strong>${escape(row.name)}</strong><small>${escape(row.status)}</small></span></button>`;
+}
+function workListHtml(view: SidebarModel, side: boolean): string {
+  const title = side && view.work.name !== "选择作品" ? `${view.work.name} · 切换作品` : "切换作品";
+  const rows = view.works.map(work => {
+    const notes = [work.current ? "当前" : "", work.executing ? "执行中" : "", work.error ?? ""].filter(Boolean).join(" · ");
+    const initial = [...(work.name || "作")][0] ?? "作";
+    return `<button type="button" class="side-work${work.current ? " selected" : ""}" role="option" data-work="${escape(work.workId)}" aria-selected="${work.current}" ${work.error ? "disabled" : ""}><span class="work-cover">${escape(initial)}</span><span class="work-text"><strong>${escape(work.name)}</strong>${notes ? `<small>${escape(notes)}</small>` : ""}</span></button>`;
+  }).join("");
+  return `<div class="work-list-label">${escape(title)}</div>${rows}<button type="button" class="secondary work-create" data-action="create">新建作品</button>`;
+}
+function markTruncatedTips(): void {
+  for (const row of $("task-list").querySelectorAll<HTMLButtonElement>(".task-row")) {
+    const label = row.querySelector("strong");
+    if (label && label.scrollWidth > label.clientWidth + 1) row.dataset.tip = label.textContent ?? "";
+    else delete row.dataset.tip;
+  }
+}
+function positionPopovers(): void {
+  const rail = railMode();
+  const list = $("work-list"); const picker = $("work-picker");
+  list.dataset.placement = rail ? "side" : "below";
+  if (worksOpen) {
+    list.style.top = `${rail ? picker.offsetTop - 6 : picker.offsetTop + picker.offsetHeight + 6}px`;
+    list.style.left = rail ? "calc(100% + 8px)" : `${picker.offsetLeft}px`;
+  }
+  const fly = $("task-flyout"); const sw = $("task-switch");
+  if (tasksOpen && rail) { fly.style.top = `${sw.offsetTop - 6}px`; fly.style.left = "calc(100% + 8px)"; }
+}
+function paintSidebar(): void {
+  const view = deriveSidebar({ works: snapshot.works, tasks: snapshot.tasks, workId, taskId, active: snapshot.active, connected, shortcut: shortcutLabel(), currentTaskName: snapshot.task?.name });
+  applyChrome();
+  $("work-cover").textContent = view.work.initial;
+  $("work-name").textContent = view.work.name;
+  $("work-meta").textContent = view.work.detail;
+  $("crumb-work").textContent = view.work.name;
+  const picker = $("work-picker");
+  const [workTip, workSub] = view.tips.work.split("\n");
+  picker.dataset.tip = workTip ?? "切换作品";
+  if (workSub) picker.dataset.tipSub = workSub; else delete picker.dataset.tipSub;
+  picker.setAttribute("aria-label", workSub ? `切换作品，当前 ${workSub}` : "切换作品");
+  picker.setAttribute("aria-expanded", String(worksOpen));
+  const label = newTaskLabel();
+  const shownLabel = connected ? label : `${label} · 连接恢复后可用`;
+  if ($("new-task-label").textContent !== shownLabel) $("new-task-label").textContent = shownLabel;
+  $<HTMLButtonElement>("new-task").disabled = !connected || !workId || creatingTask;
+  const [newTip, newSub] = view.tips.newTask.split("\n");
+  $("new-task").dataset.tip = newTip ?? "新建任务";
+  if (newSub) $("new-task").dataset.tipSub = newSub; else delete $("new-task").dataset.tipSub;
+  $("task-count").textContent = String(snapshot.tasks.length);
+  const badge = $("task-badge");
+  if (view.badge) { badge.hidden = false; badge.dataset.tone = view.badge; } else { badge.hidden = true; badge.dataset.tone = ""; }
+  const rail = railMode();
+  const sw = $("task-switch");
+  sw.tabIndex = rail ? 0 : -1;
+  sw.setAttribute("aria-hidden", String(!rail));
+  sw.setAttribute("aria-expanded", String(tasksOpen && rail));
+  const currentName = snapshot.task?.name || view.tasks.find(row => row.current)?.name || "未选择";
+  sw.setAttribute("aria-label", `写作任务，当前 ${currentName}`);
+  const [taskTip, taskSub] = view.tips.tasks.split("\n");
+  sw.dataset.tip = taskTip ?? "写作任务";
+  sw.dataset.tipSub = taskSub ?? "";
+  const toggle = $("sidebar-toggle");
+  const desktop = !compact();
+  const toggleLabel = desktop ? "收起侧边栏" : "关闭侧边栏";
+  toggle.tabIndex = rail ? -1 : 0;
+  toggle.setAttribute("aria-hidden", String(rail));
+  toggle.setAttribute("aria-expanded", String(desktop ? !collapsed : drawerOpen));
+  toggle.setAttribute("aria-label", toggleLabel);
+  toggle.dataset.tip = view.tips.collapse.split("\n")[0] ?? toggleLabel;
+  if (desktop) toggle.dataset.kbd = shortcutLabel(); else delete toggle.dataset.kbd;
+  const brand = $("brand-slot");
+  brand.tabIndex = rail ? 0 : -1;
+  brand.setAttribute("aria-hidden", String(!rail));
+  brand.dataset.tip = view.tips.expand.split("\n")[0] ?? "展开侧边栏";
+  brand.dataset.kbd = shortcutLabel();
+  const connectionText = connected ? "本机已连接" : "连接中断";
+  if ($("connection-label").textContent !== connectionText) $("connection-label").textContent = connectionText;
+  $("connection").classList.toggle("offline", !connected);
+  $("connection").dataset.tip = connectionText;
+  paintStable("task-list", view.tasks.map(row => taskButton(row, false)).join(""));
+  markTruncatedTips();
+  paintStable("work-list", workListHtml(view, rail));
+  paintStable("flyout-scroll", view.tasks.map(row => taskButton(row, true)).join(""));
+  $("flyout-label").textContent = `${view.work.name} · 写作任务`;
+  if ($("flyout-new-label").textContent !== shownLabel) $("flyout-new-label").textContent = shownLabel;
+  $<HTMLButtonElement>("flyout-new").disabled = !connected || !workId || creatingTask;
+  $("work-list").hidden = !worksOpen;
+  $("task-flyout").hidden = !(tasksOpen && rail);
+  $("task-list").inert = rail;
+  positionPopovers();
+  if (tipTarget && !tipTarget.isConnected) hideTip();
+}
+function toggleSidebar(): void {
+  hideTip(); worksOpen = false; tasksOpen = false;
+  const inside = $("sidebar").contains(document.activeElement);
+  if (compact()) drawerOpen = !drawerOpen;
+  else { collapsed = !collapsed; writeRail(collapsed); }
+  paintSidebar();
+  if (compact()) (drawerOpen ? $("sidebar-toggle") : $("sidebar-open")).focus({ preventScroll: true });
+  else if (inside) (collapsed ? $("brand-slot") : $("sidebar-toggle")).focus({ preventScroll: true });
+}
+function closeDrawer(): void {
+  if (!drawerOpen) return;
+  drawerOpen = false; worksOpen = false; tasksOpen = false; hideTip();
+  paintSidebar(); $("sidebar-open").focus({ preventScroll: true });
+}
+function toggleWorks(): void {
+  hideTip(); worksOpen = !worksOpen; tasksOpen = false; paintSidebar();
+  if (worksOpen) ($("work-list").querySelector<HTMLElement>(".selected") ?? $("work-list").querySelector("button"))?.focus({ preventScroll: true });
+  else $("work-picker").focus({ preventScroll: true });
+}
+function toggleTasks(): void {
+  if (!railMode()) return;
+  hideTip(); tasksOpen = !tasksOpen; worksOpen = false; paintSidebar();
+  if (tasksOpen) ($("flyout-scroll").querySelector<HTMLElement>(".selected") ?? $("flyout-scroll").querySelector("button"))?.focus({ preventScroll: true });
+  else $("task-switch").focus({ preventScroll: true });
+}
+const tip = $("side-tip");
+let tipTimer = 0;
+let tipTarget: HTMLElement | null = null;
+let tipWarmUntil = 0;
+function showTip(el: HTMLElement): void {
+  window.clearTimeout(tipTimer); tipTarget = el; tip.replaceChildren();
+  const label = document.createElement("span"); label.textContent = el.dataset.tip ?? ""; tip.append(label);
+  if (el.dataset.tipSub) { const sub = document.createElement("small"); sub.textContent = el.dataset.tipSub; tip.append(sub); }
+  if (el.dataset.kbd) { const kbd = document.createElement("kbd"); kbd.textContent = el.dataset.kbd; tip.append(kbd); }
+  const rect = el.getBoundingClientRect();
+  tip.style.left = `${$("sidebar").getBoundingClientRect().right + 8}px`;
+  tip.style.top = `${rect.top + rect.height / 2}px`;
+  tip.hidden = false;
+}
+function hideTip(): void {
+  window.clearTimeout(tipTimer);
+  if (!tip.hidden) tipWarmUntil = Date.now() + 350;
+  tip.hidden = true; tipTarget = null;
+}
+function tipEnabled(el: HTMLElement): boolean {
+  if (compact() || !el.dataset.tip) return false;
+  if ((el.id === "work-picker" && worksOpen) || (el.id === "task-switch" && tasksOpen)) return false;
+  if (railMode()) return true;
+  if (el.hasAttribute("data-tip-always")) return true;
+  const name = el.querySelector(".task-text strong");
+  return el.classList.contains("task-row") && !!name && name.scrollWidth > name.clientWidth + 1;
+}
+function queueTip(el: HTMLElement | null, immediate = false): void {
+  if (el && el === tipTarget) return;
+  if (!el || !tipEnabled(el)) { hideTip(); return; }
+  window.clearTimeout(tipTimer);
+  if (immediate || !tip.hidden || Date.now() < tipWarmUntil) showTip(el);
+  else tipTimer = window.setTimeout(() => showTip(el), 420);
+}
 $("composer").addEventListener("submit", event => { event.preventDefault(); void submit(); });
 input.addEventListener("input", () => { persistInput(); autosize(); updateComposer(); });
 input.addEventListener("keydown", event => { if (event.key === "Enter" && !event.shiftKey && !event.isComposing) { event.preventDefault(); void submit(); } });
-$("task-switcher").onclick = chooseTask; $("new-task").onclick = () => void createTask();
-$("work-switcher").onclick = chooseWork; $("create-first").onclick = () => void create();
+$("new-task").onclick = () => void createTask();
+$("create-first").onclick = () => void create();
 $("close-reader").onclick = () => closeReader(); $("panel-close").onclick = () => closePanel(); $("return-subtask").onclick = () => closeReader();
 $("subtask-entry").onclick = () => { listOpen = !listOpen; render(); if (listOpen) $("subtask-list").querySelector("button")?.focus(); };
 $("stop").onclick = confirmStop; $("finalize").onclick = confirmFinalize;
@@ -458,12 +639,20 @@ $("revise").onclick = () => { if (!reading) return; reference = reading.draftId;
 $("resume-task").onclick = () => void send({ kind: "continue" });
 $("new-content").onclick = scrollBottom;
 feed.addEventListener("scroll", () => { if (feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80) $("new-content").hidden = true; });
-dialog.addEventListener("close", () => { pickerOpen = false; dialog.classList.remove("task-picker"); opener?.focus(); });
+dialog.addEventListener("close", () => { opener?.focus(); });
 dialog.addEventListener("click", event => { if (event.target === dialog) { const r = dialog.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) closeDialog(); } });
 document.addEventListener("click", event => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>("button"); if (!button || button.disabled) return;
-  if (button.dataset.work) { closeDialog(); void selectWork(button.dataset.work); }
-  if (button.dataset.task) { closeDialog(); void selectWork(workId, button.dataset.task); }
+  if (button.dataset.work) {
+    if (dialog.open) closeDialog();
+    if (button.dataset.work === workId) { worksOpen = false; paintSidebar(); $("work-picker").focus({ preventScroll: true }); return; }
+    void selectWork(button.dataset.work).then(() => { if (!compact()) $("work-picker").focus({ preventScroll: true }); });
+  }
+  if (button.dataset.task) {
+    if (dialog.open) closeDialog();
+    const back = compact() && drawerOpen;
+    void selectWork(workId, button.dataset.task).then(() => { if (back) $("sidebar-open").focus({ preventScroll: true }); });
+  }
   if (button.dataset.claim) {
     const pending = snapshot.task?.pendingSync.find(p => p.chapterId === button.dataset.claim);
     if (pending) void send({ kind: "claim-sync", chapterId: pending.chapterId, version: pending.version });
@@ -485,8 +674,12 @@ document.addEventListener("click", event => {
   if (button.dataset.decision !== undefined && snapshot.task?.decision) { const d = snapshot.task.decision; void send({ kind: "decide", decisionId: d.id, answer: d.options[Number(button.dataset.decision)] }); }
   const action = button.dataset.action;
   if (action === "close-dialog") closeDialog();
-  if (action === "create") void create();
+  if (action === "create") void create(button);
   if (action === "create-task") void createTask();
+  if (action === "toggle-sidebar") toggleSidebar();
+  if (action === "toggle-tasks") toggleTasks();
+  if (button.id === "work-picker") toggleWorks();
+  if (action === "close-drawer") closeDrawer();
   if (action === "migrate") { migratePreferences(true); updateComposer(); }
   if (action === "clear-reference") { reference = undefined; persistInput(); updateComposer(); input.focus(); }
   if (action === "continue") void send({ kind: "continue" });
@@ -494,9 +687,14 @@ document.addEventListener("click", event => {
   if (action === "stop-active") confirmStop();
 });
 document.addEventListener("keydown", event => {
+  const shortcut = event.key === "\\" && !event.altKey && !event.shiftKey && (mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey);
+  if (shortcut) { event.preventDefault(); if (!(compact() && (!reader.hidden || !$("panel").hidden))) toggleSidebar(); return; }
+  if (event.key === "Escape" && !dialog.open && tasksOpen) { event.preventDefault(); tasksOpen = false; paintSidebar(); $("task-switch").focus({ preventScroll: true }); return; }
+  if (event.key === "Escape" && !dialog.open && worksOpen) { event.preventDefault(); worksOpen = false; paintSidebar(); $("work-picker").focus({ preventScroll: true }); return; }
   if (event.key === "Escape" && !dialog.open && listOpen) { event.preventDefault(); listOpen = false; render(); $("subtask-entry").focus(); }
   else if (event.key === "Escape" && !dialog.open && !reader.hidden) { event.preventDefault(); closeReader(); }
   else if (event.key === "Escape" && !dialog.open && panelAgent && reader.hidden) { event.preventDefault(); closePanel(); }
+  else if (event.key === "Escape" && !dialog.open && compact() && drawerOpen && reader.hidden && $("panel").hidden) { event.preventDefault(); closeDrawer(); }
   if (event.key === "Tab" && !$("panel").hidden && reader.hidden && matchMedia("(max-width: 780px)").matches && !dialog.open) {
     const items = [...$("panel").querySelectorAll<HTMLElement>("button:not(:disabled), summary, [tabindex='0']")];
     if (items.length && event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items.at(-1)?.focus(); }
@@ -508,7 +706,12 @@ document.addEventListener("keydown", event => {
     if (!event.shiftKey && document.activeElement === items.at(-1)) { event.preventDefault(); items[0]?.focus(); }
   }
 });
-window.addEventListener("resize", responsiveReader);
+function onViewport(): void {
+  const next = compact();
+  if (next !== viewportNarrow) { viewportNarrow = next; drawerOpen = false; worksOpen = false; tasksOpen = false; hideTip(); $("work-list").hidden = true; $("task-flyout").hidden = true; }
+  applyChrome(); positionPopovers(); markTruncatedTips(); responsiveReader();
+}
+window.addEventListener("resize", onViewport);
 window.addEventListener("online", () => void refresh());
 window.addEventListener("pagehide", persistInput);
 document.addEventListener("click", event => {
@@ -516,11 +719,27 @@ document.addEventListener("click", event => {
   if (!listOpen || $("subtask-anchor").contains(target)) return;
   listOpen = false; render();
 });
-setInterval(() => {
+function tickClocks(): void {
   if (!connected) return;
   document.querySelectorAll<HTMLTimeElement>("time[data-start]").forEach(node => {
     const start = Number(node.dataset.start);
-    if (Number.isFinite(start)) node.textContent = elapsedClock(Math.max(0, Date.now() - start));
+    if (!Number.isFinite(start)) return;
+    const next = elapsedClock(Math.max(0, Date.now() - start));
+    if (node.textContent !== next) node.textContent = next;
   });
-}, 1000);
+}
+setInterval(tickClocks, 1000);
+applyChrome();
+requestAnimationFrame(() => requestAnimationFrame(() => $("app").classList.add("sidebar-ready")));
+$("sidebar").addEventListener("pointerover", event => { if (event.pointerType === "touch") return; queueTip((event.target as HTMLElement).closest<HTMLElement>("[data-tip]")); });
+$("sidebar").addEventListener("pointerleave", hideTip);
+$("sidebar").addEventListener("pointerdown", hideTip);
+$("sidebar").addEventListener("focusin", event => { const el = (event.target as HTMLElement).closest<HTMLElement>("[data-tip]"); if (el?.matches(":focus-visible")) queueTip(el, true); else hideTip(); });
+$("sidebar").addEventListener("focusout", event => { if (!$("sidebar").contains(event.relatedTarget as Node)) hideTip(); });
+$("task-list").addEventListener("scroll", hideTip, { passive: true });
+document.addEventListener("pointerdown", event => {
+  const target = event.target as Node;
+  if (worksOpen && !$("work-picker").contains(target) && !$("work-list").contains(target)) { worksOpen = false; $("work-list").hidden = true; $("work-picker").setAttribute("aria-expanded", "false"); $("work-picker").focus({ preventScroll: true }); }
+  if (tasksOpen && !$("task-switch").contains(target) && !$("task-flyout").contains(target)) { tasksOpen = false; $("task-flyout").hidden = true; $("task-switch").setAttribute("aria-expanded", "false"); $("task-switch").focus({ preventScroll: true }); }
+});
 void (async () => { await refresh(); setTimeout(() => void poll(), 650); })();
