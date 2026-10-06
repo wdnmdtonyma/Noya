@@ -1,0 +1,66 @@
+<!-- title: Noya · Agent 执行过程 -->
+<!-- entry -->
+<!-- manifest
+state: workId, taskId, sidebarCollapsed, activeRef, agentFilter, floatingOpen, subtaskView, subtaskPositions, groupExpanded, eventExpanded, reader, connected
+components: workspace-sidebar, task-heading, subtask-float, grouped-event-stream, result-reader, composer, dialogs
+-->
+<div class="noya" id="noya">
+  <aside class="sidebar" id="sidebar" data-component="workspace-sidebar" aria-label="作品与写作任务">
+    <div class="sidebar-inner">
+      <div class="sidebar-head">
+        <button class="brand-slot" id="brand-slot" data-action="toggle-sidebar" data-tip="展开侧边栏" aria-label="展开侧边栏" tabindex="-1"><span class="brand-mark">N</span><svg class="expand-glyph" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15M13.5 10l2 2-2 2"/></svg></button>
+        <span class="brand-text fade">Noya<small>让故事继续</small></span>
+        <button class="icon-button sidebar-toggle" data-action="toggle-sidebar" data-tip="收起侧边栏" data-tip-always aria-controls="sidebar" aria-label="收起侧边栏"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15M15.5 10l-2 2 2 2"/></svg></button>
+      </div>
+      <div class="sidebar-body">
+        <button class="side-item work-picker" id="work-picker" data-action="toggle-works" data-focus="work-picker" data-tip="切换作品" aria-haspopup="listbox" aria-expanded="false" aria-controls="work-list"><span class="slot"><span class="work-cover" id="work-cover"></span></span><span class="work-text fade"><strong id="work-name"></strong><small id="work-meta"></small></span><svg class="work-caret fade" viewBox="0 0 24 24"><path d="m8 10 4-4 4 4M8 14l4 4 4-4"/></svg></button>
+        <button class="side-item new-task" id="new-task" onclick="NoyaPrototype.newTask()" data-tip="新建任务"><span class="slot"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="fade">新建任务</span></button>
+        <button class="side-item task-switch" id="task-switch" data-action="toggle-tasks" data-tip="写作任务" aria-haspopup="listbox" aria-expanded="false" aria-controls="task-flyout" tabindex="-1"><span class="slot"><svg viewBox="0 0 24 24"><path d="M9 7h11M9 12h11M9 17h11"/><circle cx="4.75" cy="7" r=".9"/><circle cx="4.75" cy="12" r=".9"/><circle cx="4.75" cy="17" r=".9"/></svg><i class="switch-badge" id="task-badge"></i></span><span class="fade switch-label">写作任务</span><span class="fade switch-count" id="task-count"></span></button>
+        <nav id="task-list" class="task-list fade" aria-label="写作任务"></nav>
+      </div>
+      <footer class="sidebar-foot"><div id="connection" class="side-item connection" role="status"></div></footer>
+    </div>
+    <div id="work-list" class="work-list" role="listbox" aria-label="切换作品" hidden></div>
+    <div id="task-flyout" class="work-list task-flyout" role="listbox" aria-label="切换写作任务" hidden></div>
+  </aside>
+  <button class="sidebar-scrim" data-action="close-drawer" tabindex="-1" aria-label="关闭侧边栏"></button>
+  <div class="main-column">
+  <div id="connection-notice" class="connection-notice" role="status" hidden></div>
+  <div id="active-notice" class="active-notice" hidden></div>
+  <div class="workspace">
+    <main class="task-pane">
+      <div class="task-heading" data-component="task-heading">
+        <button class="icon-button sidebar-open" data-action="toggle-sidebar" data-focus="sidebar-expand" aria-controls="sidebar" aria-label="展开侧边栏" title="展开侧边栏"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15M13.5 10l2 2-2 2"/></svg></button>
+        <div class="heading-text"><div class="crumb"><span id="crumb-work"></span><span aria-hidden="true">/</span><span>写作任务</span></div><h1 id="task-title"></h1><p id="task-status" class="task-status"></p></div>
+      </div>
+      <div class="feed" id="feed" tabindex="0" aria-label="Agent 完整执行过程">
+        <div id="event-list" class="event-list" data-component="grouped-event-stream"></div>
+        <div id="task-notice" class="task-notice" hidden></div>
+      </div>
+      <button id="new-events" class="new-events" data-action="latest" hidden></button>
+      <div class="composer-area" data-component="composer">
+        <div id="subtask-anchor" class="subtask-anchor" data-component="subtask-float">
+          <button id="subtask-capsule" class="subtask-capsule" data-action="toggle-subtasks" data-focus="subtask-capsule" aria-controls="subtask-float" aria-expanded="false" aria-label="展开或收起子任务"></button>
+          <section id="subtask-float" class="subtask-float" aria-label="本任务的子任务" hidden>
+            <header class="subtask-float-header"><button id="floating-back" class="icon-button" data-action="back-subtasks" data-focus="floating-back" aria-label="返回子任务列表" hidden><svg viewBox="0 0 24 24"><path d="M19 12H5m6-6-6 6 6 6"/></svg></button><div class="float-title"><div id="floating-status" class="float-status"></div><small id="floating-task"></small></div><button class="icon-button" data-action="close-subtasks" data-focus="close-subtasks" aria-label="收起子任务"><svg viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17"/></svg></button></header>
+            <div id="subtask-float-list" class="subtask-float-list"></div>
+          </section>
+        </div>
+        <div id="reference" class="reference" hidden></div>
+        <form class="composer" id="composer" onsubmit="event.preventDefault(); NoyaPrototype.submit()">
+          <label class="sr-only" for="message">给 Main 的要求</label><textarea id="message" rows="2" placeholder="给 Main 发消息，继续这个写作任务…" maxlength="30000"></textarea>
+          <div class="composer-toolbar"><span id="composer-meta"></span><div class="composer-actions"><button type="button" class="pill-action" id="continue" onclick="NoyaPrototype.continueTask()" hidden><svg viewBox="0 0 24 24"><path d="M8 5.5v13l10-6.5z"/></svg>继续任务</button><button type="button" class="pill-action" id="stop" onclick="NoyaPrototype.stopTask()" hidden><svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>停止</button><button type="submit" id="send" class="send" disabled aria-label="发送给 Main"><svg viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button></div></div>
+        </form>
+        <div class="composer-foot"><span><kbd>Enter</kbd> 发送 · <kbd>Shift</kbd> + <kbd>Enter</kbd> 换行</span><span>输入仅保存在本机</span></div>
+      </div>
+    </main>
+    <aside class="reader" id="reader" data-component="result-reader" aria-label="只读产物" hidden>
+      <header class="reader-bar"><span class="eyebrow" id="reader-type">已保存产物 · 只读</span><button class="icon-button" onclick="NoyaPrototype.closeReader()" aria-label="返回执行过程"><svg viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17"/></svg></button></header>
+      <div class="reader-scroll" id="reader-scroll"></div><footer class="reader-footer" id="reader-footer"></footer>
+    </aside>
+  </div>
+  </div>
+</div>
+<dialog id="picker-dialog" data-component="dialogs" aria-labelledby="picker-title"><header class="dialog-header"><h2 id="picker-title"></h2><button class="icon-button" onclick="NoyaPrototype.closeDialog()" aria-label="关闭弹窗"><svg viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17"/></svg></button></header><div id="picker-content"></div></dialog>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<script src="/assets/progress-ui.js"></script>
